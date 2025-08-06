@@ -6,7 +6,7 @@ load_dotenv()
 from gravixlayer import GravixLayer
 
 client = GravixLayer(
-    api_key=os.environ.get("GRAVIXLAYER_API_KEY"),
+    api_key="kB8bkq8akxYJWazXIm9JAVfKPpzrA0gu0jCoFHB79gRHrSnhdbUZog",
 )
 
 print(f"Testing  SDK...")

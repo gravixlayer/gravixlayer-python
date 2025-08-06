@@ -3,16 +3,14 @@ name: Publish and Release to PyPI
 on:
   push:
     tags:
-      - "v*.*.*"   # Triggers on tags like v0.0.1
+      - "v*.*.*"  
 
 permissions:
-  contents: write    # REQUIRED for release creation
-  id-token: write    # REQUIRED for trusted publishing (not needed for API token-style)
+  contents: write
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,12 +31,11 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ${{ secrets.PYPI_TOKEN }}  # Make sure PYPI_TOKEN secret is set in your repo!
+          password: ${{ secrets.PYPI_TOKEN }}
 
   release:
     needs: build-and-publish
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,5 +43,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true   # Auto-generate body from PRs/commits
-
+          generate_release_notes: true  # <- THIS auto-generates rich release notes!
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
