@@ -1,0 +1,19 @@
+"""Version information for GravixLayer SDK"""
+
+__version__ = "0.1.0"
+__version_info__ = tuple(int(x) for x in __version__.split('.'))
+
+# Version history
+VERSION_HISTORY = {
+    "0.1.0": "Initial release with OpenAI compatibility",
+    "0.1.1": "Fixed URL endpoint routing for chat completions",
+    # Add future versions here
+}
+
+def get_version_info():
+    """Get current version information"""
+    return {
+        "version": __version__,
+        "version_info": __version_info__,
+        "description": VERSION_HISTORY.get(__version__, "No description available")
+    }

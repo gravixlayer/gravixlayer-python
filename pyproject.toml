@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gravixlayer"
+dynamic = ["version"]
+description = "GravixLayer Python SDK - OpenAI Compatible"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "Sukrith", email = "sukrithpvs@gmail.com"},
+]
+keywords = ["gravixlayer", "openai", "llm", "ai", "api", "sdk"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "requests>=2.25.0",
+    "python-dotenv>=0.19.0",
+]
+
+[project.scripts]
+gravixlayer = "gravixlayer.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/sukrithpvs/gravixlayer-python"
+Repository = "https://github.com/sukrithpvs/gravixlayer-python"
+Issues = "https://github.com/sukrithpvs/gravixlayer-python/issues"
