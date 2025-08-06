@@ -14,7 +14,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="gravixlayer",
-    version="0.1.0",
+    version="0.0.1",
     author="Sukrith",
     author_email="sukrithpvs@gmail.com",
     description="GravixLayer Python SDK - OpenAI Compatible",

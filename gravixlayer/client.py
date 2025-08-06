@@ -37,7 +37,7 @@ class GravixLayer:
         self.logger.setLevel(logging.INFO)
         if not self.logger.hasHandlers():
             logging.basicConfig(level=logging.INFO)
-        self.user_agent = user_agent or f"gravixlayer-python/0.1.0"
+        self.user_agent = user_agent or f"gravixlayer-python/0.0.1"
         if not self.api_key:
             raise ValueError("API key must be provided via argument or GRAVIXLAYER_API_KEY environment variable")
         self.chat = ChatResource(self)
