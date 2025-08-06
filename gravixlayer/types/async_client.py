@@ -26,7 +26,7 @@ class AsyncGravixLayer:
         self.max_retries = max_retries
         self.custom_headers = headers or {}
         self.logger = logger or logging.getLogger("gravixlayer-async")
-        self.user_agent = user_agent or f"gravixlayer-python/0.0.1"
+        self.user_agent = user_agent or f"gravixlayer-python/0.0.2"
         if not self.api_key:
             raise ValueError("API key must be provided via argument or GRAVIXLAYER_API_KEY environment variable")
         self.chat = ChatCompletions(self)
