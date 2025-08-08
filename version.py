@@ -1,10 +1,11 @@
 """Version information for GravixLayer SDK"""
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 __version_info__ = tuple(int(x) for x in __version__.split('.'))
 
 # Version history
-VERSION_HISTORY = {
+VERSION_HISTORY = {    "0.0.3": "Fixed bug in error handling",
+
     "0.0.2": "Initial release with OpenAI compatibility",
     # Add future versions here
 }
