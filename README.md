@@ -1,5 +1,5 @@
-text
-# GravixLayer Python SDK
+
+# Gravix Layer API Python SDK
 
 A Python SDK for GravixLayer API that's fully compatible with OpenAI's interface.
 
