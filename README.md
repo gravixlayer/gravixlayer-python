@@ -1,20 +1,12 @@
-
-
-````markdown
 # Gravix Layer API Python SDK
 
 A Python SDK for the GravixLayer API that's fully compatible with OpenAI's interface.
 
----
+## Installation
 
-Installation
-
-
+```bash
 pip install gravixlayer
-
-````
-
----
+```
 
 ## Quick Start
 
@@ -39,10 +31,6 @@ completion = client.chat.completions.create(
 print(completion.choices[0].message.content)
 ```
 
----
-
-
-
 ## API Reference
 
 ### Chat Completions
@@ -61,10 +49,9 @@ completion = client.chat.completions.create(
     stop=None,
     stream=False
 )
+
 print(completion.choices[0].message.content)
 ```
-
----
 
 ### Streaming
 
@@ -82,8 +69,6 @@ for chunk in stream:
         print(chunk.choices[0].delta.content, end="")
 ```
 
----
-
 ### Async Usage
 
 ```python
@@ -92,16 +77,16 @@ from gravixlayer import AsyncGravixLayer
 
 async def main():
     client = AsyncGravixLayer(api_key="your_api_key_here")
+    
     response = await client.chat.completions.create(
         model="llama3.1:8b",
-        messages=[{"role": "user", "content": "What’s the capital of France?"}]
+        messages=[{"role": "user", "content": "What's the capital of France?"}]
     )
+    
     print(response.choices[0].message.content)
 
 asyncio.run(main())
 ```
-
----
 
 ### Text Completions
 
@@ -111,10 +96,9 @@ response = client.completions.create(
     prompt="Write a Python function to calculate factorial.",
     max_tokens=100,
 )
+
 print(response.choices[0].text)
 ```
-
----
 
 ### Streaming Text Completions
 
@@ -130,27 +114,18 @@ for chunk in stream:
         print(chunk.choices[0].delta.content, end="")
 ```
 
----
-
 ### Listing Models
 
 ```python
 models = client.models.list()
-
 for model in models.data:
     print(model.id)
 ```
 
----
-
 ## Environment Variables
 
-* `GRAVIXLAYER_API_KEY` – Your GravixLayer API key
-
----
+- `GRAVIXLAYER_API_KEY` – Your GravixLayer API key
 
 ## License
 
 MIT License
-
-```
