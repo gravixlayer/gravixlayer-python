@@ -9,9 +9,10 @@ A Python SDK for the GravixLayer API that's fully compatible with OpenAI's inter
 
 ## Installation
 
-```bash
+```python
 pip install gravixlayer
 ```
+````
 
 ---
 
