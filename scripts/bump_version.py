@@ -7,89 +7,87 @@ import sys
 import subprocess
 import argparse
 import os
-from pathlib import Path
-
-# Add parent directory to path to access version.py
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import re
 
 def get_current_version():
     """Get current version from version.py"""
     try:
         # Look for version.py in parent directory
-        version_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "version.py")
+        parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        version_file = os.path.join(parent_dir, "version.py")
         with open(version_file, "r") as f:
             content = f.read()
-            for line in content.split('\n'):
-                if line.startswith('__version__'):
-                    return line.split('"')[1]
+            match = re.search(r'__version__ = "(.+)"', content)
+            if match:
+                return match.group(1)
     except FileNotFoundError:
         print("version.py not found in parent directory")
         return None
 
-def bump_version(part):
-    """Bump version using bump2version"""
-    valid_parts = ['major', 'minor', 'patch']
+def bump_version_number(version, part):
+    """Bump version number based on part"""
+    major, minor, patch = map(int, version.split("."))
     
-    if part not in valid_parts:
-        print(f"Invalid version part: {part}")
-        print(f"Valid parts: {', '.join(valid_parts)}")
-        return False
+    if part == "major":
+        major += 1
+        minor = 0
+        patch = 0
+    elif part == "minor":
+        minor += 1
+        patch = 0
+    else:  # patch
+        patch += 1
     
-    current_version = get_current_version()
-    if not current_version:
-        print("Could not determine current version")
-        return False
-    
-    print(f"Current version: {current_version}")
-    print(f"Bumping {part} version...")
-    
-    # Change to parent directory to run bump2version
-    original_dir = os.getcwd()
-    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    os.chdir(parent_dir)
-    
-    try:
-        # Run bump2version
-        cmd = f"bump2version {part}"
-        result = subprocess.run(cmd, shell=True, capture_output=False, check=True)
-        
-        # Get new version
-        new_version = get_current_version()
-        print(f"New version: {new_version}")
-        return True
-        
-    except subprocess.CalledProcessError as e:
-        print(f"Error running bump2version: {e}")
-        return False
-    finally:
-        os.chdir(original_dir)
+    return f"{major}.{minor}.{patch}"
 
-# Rest of the code remains the same...
-def run_command(cmd, capture_output=True):
-    """Run a shell command and return the result"""
+def update_version_in_file(file_path, new_version):
+    """Update version in a specific file"""
+    if not os.path.exists(file_path):
+        print(f"File not found: {file_path}")
+        return False
+    
     try:
-        result = subprocess.run(
-            cmd, 
-            shell=True, 
-            capture_output=capture_output, 
-            text=True, 
-            check=True
-        )
-        return result.stdout.strip() if capture_output else True
-    except subprocess.CalledProcessError as e:
-        print(f"Error running command: {cmd}")
-        print(f"Error: {e}")
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # Different patterns for different files
+        if file_path.endswith("version.py"):
+            content = re.sub(r'__version__ = ".*"', f'__version__ = "{new_version}"', content)
+        elif file_path.endswith("__init__.py"):
+            content = re.sub(r'__version__ = ".*"', f'__version__ = "{new_version}"', content)
+        elif file_path.endswith("setup.py"):
+            content = re.sub(r'version=".*"', f'version="{new_version}"', content)
+        elif file_path.endswith("pyproject.toml"):
+            content = re.sub(r'version = ".*"', f'version = "{new_version}"', content)
+        
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        
+        print(f"Updated {file_path}")
+        return True
+    except Exception as e:
+        print(f"Error updating {file_path}: {e}")
         return False
 
-def install_bumpversion():
-    """Install bump2version if not already installed"""
+def commit_and_tag(old_version, new_version):
+    """Create git commit and tag"""
     try:
-        subprocess.run(["bump2version", "--version"], 
-                      capture_output=True, check=True)
+        # Add all changes
+        subprocess.run(["git", "add", "."], check=True)
+        
+        # Commit changes
+        commit_msg = f"Bump version: {old_version} → {new_version}"
+        subprocess.run(["git", "commit", "-m", commit_msg], check=True)
+        
+        # Create tag
+        tag_name = f"v{new_version}"
+        subprocess.run(["git", "tag", tag_name], check=True)
+        
+        print(f"Created commit and tag: {tag_name}")
         return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("bump2version not found. Installing...")
-        return run_command("pip install bump2version")
+    except subprocess.CalledProcessError as e:
+        print(f"Error creating commit/tag: {e}")
+        return False
 
 def main():
     parser = argparse.ArgumentParser(description='Bump version for gravixlayer')
@@ -102,31 +100,47 @@ def main():
     
     args = parser.parse_args()
     
+    # Get current version
+    current_version = get_current_version()
+    if not current_version:
+        print("Could not determine current version")
+        sys.exit(1)
+    
+    # Calculate new version
+    new_version = bump_version_number(current_version, args.part)
+    
+    print(f"Current version: {current_version}")
+    print(f"New version: {new_version}")
+    
     if args.dry_run:
-        current_version = get_current_version()
-        print(f"Would bump {args.part} version from {current_version}")
+        print("Dry run - no changes made")
         return
     
-    # Ensure version.py exists in parent directory
+    # Update version in all files
     parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    version_file = os.path.join(parent_dir, "version.py")
+    files_to_update = [
+        os.path.join(parent_dir, "version.py"),
+        os.path.join(parent_dir, "gravixlayer", "__init__.py"),
+        os.path.join(parent_dir, "setup.py"),
+        os.path.join(parent_dir, "pyproject.toml")
+    ]
     
-    if not os.path.exists(version_file):
-        print("Error: version.py not found in project root!")
+    success = True
+    for file_path in files_to_update:
+        if not update_version_in_file(file_path, new_version):
+            success = False
+    
+    if not success:
+        print("Failed to update some files")
         sys.exit(1)
     
-    # Install bump2version if needed
-    if not install_bumpversion():
-        print("Failed to install bump2version")
-        sys.exit(1)
-    
-    # Bump version
-    if bump_version(args.part):
+    # Create commit and tag
+    if commit_and_tag(current_version, new_version):
         print("Version bumped successfully!")
         print("Changes have been committed and tagged.")
         print("Run 'git push && git push --tags' to publish the release.")
     else:
-        print("Failed to bump version")
+        print("Failed to create commit/tag")
         sys.exit(1)
 
 if __name__ == "__main__":

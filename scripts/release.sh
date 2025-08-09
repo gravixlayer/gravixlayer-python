@@ -42,9 +42,9 @@ if [ $# -eq 0 ]; then
     print_error "No version part specified!"
     echo "Usage: $0 <patch|minor|major>"
     echo "Examples:"
-    echo "  $0 patch   # 0.0.2 -> 0.0.3"
-    echo "  $0 minor   # 0.0.2 -> 0.1.0"
-    echo "  $0 major   # 0.0.2 -> 1.0.0"
+    echo "  $0 patch   # 0.0.4 -> 0.0.5"
+    echo "  $0 minor   # 0.0.4 -> 0.1.0"
+    echo "  $0 major   # 0.0.4 -> 1.0.0"
     exit 1
 fi
 
@@ -66,30 +66,6 @@ if [ ! -d ".git" ]; then
     exit 1
 fi
 
-# Check if working directory is clean
-if [ -n "$(git status --porcelain)" ]; then
-    print_warning "Working directory is not clean!"
-    git status --short
-    read -p "Continue anyway? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_error "Aborted"
-        exit 1
-    fi
-fi
-
-# Check if we're on main/master branch
-CURRENT_BRANCH=$(git branch --show-current)
-if [[ "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" != "master" ]]; then
-    print_warning "Not on main/master branch (current: $CURRENT_BRANCH)"
-    read -p "Continue anyway? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_error "Aborted"
-        exit 1
-    fi
-fi
-
 # Get current version
 CURRENT_VERSION=$(python -c "
 import sys
@@ -100,20 +76,11 @@ print(__version__)
 
 print_status "Current version: $CURRENT_VERSION"
 
-# Install requirements if needed
-if ! command -v bump2version &> /dev/null; then
-    print_status "Installing bump2version..."
-    pip install bump2version
-fi
-
-# Run tests (if they exist)
-if [ -f "pytest.ini" ] || [ -f "pyproject.toml" ] || [ -d "tests" ]; then
-    print_status "Running tests..."
-    if command -v pytest &> /dev/null; then
-        pytest
-    else
-        print_warning "pytest not found, skipping tests"
-    fi
+# Check if working directory has uncommitted changes
+if [ -n "$(git status --porcelain)" ]; then
+    print_status "Committing current changes..."
+    git add .
+    git commit -m "Pre-release: commit changes before version bump"
 fi
 
 # Bump version using the script
@@ -132,6 +99,17 @@ print_status "Version bumped: $CURRENT_VERSION -> $NEW_VERSION"
 
 # Push changes and tags
 print_status "Pushing changes to remote..."
-git push
+git push origin main
 
-print_status "
+print_status "Pushing tags to remote..."
+git push origin --tags
+
+print_status "✅ Release process completed!"
+print_status "🚀 GitHub Actions will now build and publish to PyPI"
+
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN} Release Summary${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo -e "Version: ${BLUE}$CURRENT_VERSION${NC} → ${BLUE}$NEW_VERSION${NC}"
+echo -e "Tag: ${BLUE}v$NEW_VERSION${NC}"
+echo -e "${GREEN}========================================${NC}"
