@@ -1,183 +1,171 @@
-
-
-````markdown
 # Gravix Layer API Python SDK
 
-A Python SDK for the GravixLayer API that's fully compatible with OpenAI's interface.
+A Python SDK for the Gravix Layer API with a clean, modern interface.
 
----
+***
 
 ## Installation
 
-```bash
-pip install gravixlayer
-````
+- Using pip:
+  - pip install gravixlayer
 
----
+***
 
 ## Quick Start
 
-```python
-import os
-from gravixlayer import GravixLayer
+- Basic chat completion:
 
-# Initialize client
-client = GravixLayer(
-    api_key=os.environ.get("GRAVIXLAYER_API_KEY"),
-)
+  - python
+    import os
+    from gravixlayer import GravixLayer
 
-# Create completion
-completion = client.chat.completions.create(
-    model="llama3.1:8b",
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "What are the three most popular programming languages?"}
-    ]
-)
+    # Initialize client
+    client = GravixLayer(
+        api_key=os.environ.get("GRAVIXLAYER_API_KEY"),
+    )
 
-print(completion.choices[0].message.content)
-```
+    # Create completion
+    completion = client.chat.completions.create(
+        model="llama3.1:8b",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "What are the three most popular programming languages?"}
+        ]
+    )
 
----
+    print(completion.choices.message.content)
 
-## OpenAI Compatibility
-
-You can use this SDK as a **drop-in replacement** for OpenAI:
-
-```python
-from gravixlayer import OpenAI  # Alias for GravixLayer
-
-client = OpenAI(
-    base_url="https://api.gravixlayer.com/v1/inference",
-    api_key=os.environ.get("GRAVIXLAYER_API_KEY"),
-)
-```
-
----
+***
 
 ## Features
 
-* **OpenAI Compatible** – Drop-in replacement for the OpenAI Python SDK
-* **Streaming Support** – Real-time response streaming
-* **Async Support** – Fully asynchronous client methods
-* **Error Handling** – Automatic retries and structured exceptions
-* **Type Hints** – Full type support for better development experience
-* **Environment Variables** – Automatic API key detection
+- Native Gravix Layer SDK
+- Streaming support for real-time responses
+- Async support with fully asynchronous client methods
+- Robust error handling with retries and structured exceptions
+- Full type hints for enhanced developer experience
+- Environment variable detection for API keys
 
----
+***
 
 ## API Reference
 
 ### Chat Completions
 
-```python
-completion = client.chat.completions.create(
-    model="llama3.1:8b",
-    messages=[
-        {"role": "user", "content": "Tell me a fun fact about space"}
-    ],
-    temperature=0.7,
-    max_tokens=150,
-    top_p=1.0,
-    frequency_penalty=0,
-    presence_penalty=0,
-    stop=None,
-    stream=False
-)
-print(completion.choices[0].message.content)
-```
+- Create a chat completion:
 
----
+  - python
+    completion = client.chat.completions.create(
+        model="llama3.1:8b",
+        messages=[
+            {"role": "user", "content": "Tell me a fun fact about space"}
+        ],
+        temperature=0.7,
+        max_tokens=150,
+        top_p=1.0,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stop=None,
+        stream=False
+    )
+    print(completion.choices.message.content)
+
+***
 
 ### Streaming
 
-```python
-stream = client.chat.completions.create(
-    model="llama3.1:8b",
-    messages=[
-        {"role": "user", "content": "Tell me about the Eiffel Tower"}
-    ],
-    stream=True
-)
+- Stream chat responses:
 
-for chunk in stream:
-    if chunk.choices[0].delta.content is not None:
-        print(chunk.choices[0].delta.content, end="")
-```
+  - python
+    stream = client.chat.completions.create(
+        model="llama3.1:8b",
+        messages=[
+            {"role": "user", "content": "Tell me about the Eiffel Tower"}
+        ],
+        stream=True
+    )
 
----
+    for chunk in stream:
+        if chunk.choices.delta.content is not None:
+            print(chunk.choices.delta.content, end="")
+
+***
 
 ### Async Usage
 
-```python
-import asyncio
-from gravixlayer import AsyncGravixLayer
+- Use the asynchronous client:
 
-async def main():
-    client = AsyncGravixLayer(api_key="your_api_key_here")
-    response = await client.chat.completions.create(
-        model="llama3.1:8b",
-        messages=[{"role": "user", "content": "What’s the capital of France?"}]
-    )
-    print(response.choices[0].message.content)
+  - python
+    import asyncio
+    from gravixlayer import AsyncGravixLayer
 
-asyncio.run(main())
-```
+    async def main():
+        client = AsyncGravixLayer(api_key=os.environ.get("GRAVIXLAYER_API_KEY"))
+        response = await client.chat.completions.create(
+            model="llama3.1:8b",
+            messages=[{"role": "user", "content": "What’s the capital of France?"}]
+        )
+        print(response.choices.message.content)
 
----
+    asyncio.run(main())
+
+***
 
 ### Text Completions
 
-```python
-response = client.completions.create(
-    model="llama3.1:8b",
-    prompt="Write a Python function to calculate factorial.",
-    max_tokens=100,
-)
-print(response.choices[0].text)
-```
+- Non-chat text completion:
 
----
+  - python
+    response = client.completions.create(
+        model="llama3.1:8b",
+        prompt="Write a Python function to calculate factorial.",
+        max_tokens=100,
+    )
+    print(response.choices.text)
+
+***
 
 ### Streaming Text Completions
 
-```python
-stream = client.completions.create(
-    model="llama3.1:8b",
-    prompt="Write a Python function to calculate factorial.",
-    stream=True,
-)
+- Stream non-chat completions:
 
-for chunk in stream:
-    if chunk.choices[0].delta.content is not None:
-        print(chunk.choices[0].delta.content, end="")
-```
+  - python
+    stream = client.completions.create(
+        model="llama3.1:8b",
+        prompt="Write a Python function to calculate factorial.",
+        stream=True,
+    )
 
----
+    for chunk in stream:
+        if chunk.choices.delta.content is not None:
+            print(chunk.choices.delta.content, end="")
+
+***
 
 ### Listing Models
 
-```python
-models = client.models.list()
+- List available models:
 
-for model in models.data:
-    print(model.id)
-```
+  - python
+    models = client.models.list()
 
----
+    for model in models.data:
+        print(model.id)
+
+***
 
 ## Environment Variables
 
-* `GRAVIXLAYER_API_KEY` – Your GravixLayer API key
+- GRAVIXLAYER_API_KEY — Your Gravix Layer API key
 
----
+***
+
+## Contributing
+
+- Issues and pull requests are welcome. Please ensure code is formatted, typed, and tested where applicable.
+
+***
 
 ## License
 
-MIT License
-
-```
-
-
-Do you want me to **also add embeddings and image generation sections** so the README is *fully* API-complete like OpenAI’s? That would future-proof it.
-```
+- MIT License
