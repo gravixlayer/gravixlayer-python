@@ -12,9 +12,16 @@ $Yellow = "Yellow"
 $Red = "Red"
 $Cyan = "Cyan"
 
+
 function Write-ColorHost($Message, $Color) {
-    Write-Host $Message -ForegroundColor $Color
+    if ([string]::IsNullOrEmpty($Color)) {
+        Write-Host $Message
+    } else {
+        Write-Host $Message -ForegroundColor $Color
+    }
 }
+
+
 
 function Write-Header() {
     Write-ColorHost "========================================" $Blue
