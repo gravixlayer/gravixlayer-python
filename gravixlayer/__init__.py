@@ -1,7 +1,7 @@
 """
 GravixLayer Python SDK - OpenAI Compatible
 """
-__version__ = "0.0.6"
+__version__ = "0.0.7"
 
 from .client import GravixLayer
 from .types.chat import (
