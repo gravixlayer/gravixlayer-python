@@ -16,7 +16,7 @@ try:
         model="gemma3:12b",
         messages=[
             {"role": "system", "content": "You are a helpful and friendly assistant."},
-            {"role": "user", "content": "What is the capital of France?"}
+            {"role": "user", "content": "tell me about India"}
         ]
     )
     print("✅ Success!")

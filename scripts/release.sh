@@ -118,7 +118,7 @@ fi
 
 # Bump version using the script
 print_status "Bumping $PART version..."
-python "$SCRIPT_DIR/bumpversion.py" $PART
+python "$SCRIPT_DIR/bump_version.py" $PART
 
 # Get new version
 NEW_VERSION=$(python -c "
