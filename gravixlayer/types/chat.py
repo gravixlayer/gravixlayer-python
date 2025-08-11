@@ -9,11 +9,18 @@ class ChatCompletionMessage:
     function_call: Optional[Dict[str, Any]] = None
 
 @dataclass
+class ChatCompletionDelta:
+    """Delta object for streaming responses"""
+    role: Optional[str] = None
+    content: Optional[str] = None
+    function_call: Optional[Dict[str, Any]] = None
+
+@dataclass
 class ChatCompletionChoice:
     index: int
     message: ChatCompletionMessage
     finish_reason: Optional[str] = None
-
+    delta: Optional[ChatCompletionDelta] = None  
 @dataclass
 class ChatCompletionUsage:
     prompt_tokens: int

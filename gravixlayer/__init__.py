@@ -4,6 +4,7 @@ GravixLayer Python SDK - OpenAI Compatible
 __version__ = "0.0.9"
 
 from .client import GravixLayer
+from .types.async_client import AsyncGravixLayer
 from .types.chat import (
     ChatCompletion,
     ChatCompletionMessage,
@@ -14,6 +15,7 @@ OpenAI = GravixLayer
 
 __all__ = [
     "GravixLayer",
+    "AsyncGravixLayer",
     "OpenAI",
     "ChatCompletion",
     "ChatCompletionMessage",
