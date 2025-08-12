@@ -13,7 +13,7 @@ print(f"Testing  SDK...")
 
 try:
     completion = client.chat.completions.create(
-        model="gemma3:12b",
+        model="deepseek-r1:1.5b",
         messages=[
             {"role": "system", "content": "You are a helpful and friendly assistant."},
             {"role": "user", "content": "tell me about India"}

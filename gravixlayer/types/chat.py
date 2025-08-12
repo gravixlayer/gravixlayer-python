@@ -20,7 +20,8 @@ class ChatCompletionChoice:
     index: int
     message: ChatCompletionMessage
     finish_reason: Optional[str] = None
-    delta: Optional[ChatCompletionDelta] = None  
+    delta: Optional[ChatCompletionDelta] = None
+
 @dataclass
 class ChatCompletionUsage:
     prompt_tokens: int
