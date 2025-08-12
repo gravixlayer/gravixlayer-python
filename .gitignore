@@ -97,3 +97,8 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+test.py
+test_stream.py
+test_embeddings.py
+test_async.py

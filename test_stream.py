@@ -6,7 +6,7 @@ def test_streaming_chat():
 
     try:
         stream = client.chat.completions.create(
-            model="llama3.1:8b",
+            model="gpt-oss:20b",
             messages=[{"role": "user", "content": "Tell me about Taj Mahal"}],
             stream=True
         )

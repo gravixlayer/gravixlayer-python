@@ -1,8 +1,14 @@
-# Gravix Layer API Python SDK
 
-A Python SDK for the GravixLayer API that's fully compatible with OpenAI's interface.
+[![PyPI version](https://badge.fury.io/py/gravixlayer.svg)](https://badge.fury.io/py/gravixlayer)
+[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+The official Python SDK for the [GravixLayer API](https://gravixlayer.com). This library provides convenient access to the GravixLayer REST API from any Python 3.7+ application. The library includes type definitions for all request params and response fields, and offers both synchronous and asynchronous clients powered by [httpx](https://github.com/encode/httpx).
+
 
 ## Installation
+
+### PyPI
 
 ```bash
 pip install gravixlayer
@@ -10,16 +16,16 @@ pip install gravixlayer
 
 ## Quick Start
 
+The GravixLayer Python SDK is designed to be compatible with OpenAI's interface, making it easy to switch between providers.
+
+### Synchronous Usage
+
 ```python
 import os
 from gravixlayer import GravixLayer
 
-# Initialize client
-client = GravixLayer(
-    api_key=os.environ.get("GRAVIXLAYER_API_KEY"),
-)
+client = GravixLayer(api_key=os.environ.get("GRAVIXLAYER_API_KEY"))
 
-# Create completion
 completion = client.chat.completions.create(
     model="llama3.1:8b",
     messages=[
@@ -31,14 +37,40 @@ completion = client.chat.completions.create(
 print(completion.choices[0].message.content)
 ```
 
+### Asynchronous Usage
+
+```python
+import asyncio
+import os
+from gravixlayer import AsyncGravixLayer
+
+async def main():
+    client = AsyncGravixLayer(api_key=os.environ.get("GRAVIXLAYER_API_KEY"))
+    
+    completion = await client.chat.completions.create(
+        model="llama3.1:8b",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "What's the capital of France?"}
+        ]
+    )
+    
+    print(completion.choices[0].message.content)
+
+asyncio.run(main())
+```
+
 ## API Reference
 
 ### Chat Completions
+
+Create chat completions with various models available on GravixLayer.
 
 ```python
 completion = client.chat.completions.create(
     model="llama3.1:8b",
     messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Tell me a fun fact about space"}
     ],
     temperature=0.7,
@@ -53,7 +85,23 @@ completion = client.chat.completions.create(
 print(completion.choices[0].message.content)
 ```
 
-### Streaming
+#### Available Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | `str` | Model to use for completion |
+| `messages` | `List[Dict]` | List of messages in the conversation |
+| `temperature` | `float` | Controls randomness (0.0 to 2.0) |
+| `max_tokens` | `int` | Maximum number of tokens to generate |
+| `top_p` | `float` | Nucleus sampling parameter |
+| `frequency_penalty` | `float` | Penalty for frequent tokens |
+| `presence_penalty` | `float` | Penalty for present tokens |
+| `stop` | `str \| List[str]` | Stop sequences |
+| `stream` | `bool` | Enable streaming responses |
+
+### Streaming Responses
+
+Stream responses in real-time for a better user experience:
 
 ```python
 stream = client.chat.completions.create(
@@ -66,66 +114,100 @@ stream = client.chat.completions.create(
 
 for chunk in stream:
     if chunk.choices[0].delta.content is not None:
-        print(chunk.choices[0].delta.content, end="")
+        print(chunk.choices[0].delta.content, end="", flush=True)
 ```
 
-### Async Usage
+#### Async Streaming
 
 ```python
-import asyncio
-from gravixlayer import AsyncGravixLayer
-
-async def main():
-    client = AsyncGravixLayer(api_key="your_api_key_here")
+async def stream_chat():
+    client = AsyncGravixLayer(api_key="your_api_key")
     
-    response = await client.chat.completions.create(
+    stream = client.chat.completions.create(
         model="llama3.1:8b",
-        messages=[{"role": "user", "content": "What's the capital of France?"}]
+        messages=[{"role": "user", "content": "Tell me about Python"}],
+        stream=True
     )
     
-    print(response.choices[0].message.content)
-
-asyncio.run(main())
+    async for chunk in stream:
+        if chunk.choices[0].delta.content:
+            print(chunk.choices[0].delta.content, end="", flush=True)
 ```
 
-### Text Completions
+### Error Handling
+
+The SDK includes comprehensive error handling:
 
 ```python
-response = client.completions.create(
-    model="llama3.1:8b",
-    prompt="Write a Python function to calculate factorial.",
-    max_tokens=100,
+from gravixlayer import GravixLayer
+from gravixlayer.types.exceptions import (
+    GravixLayerError,
+    GravixLayerAuthenticationError,
+    GravixLayerRateLimitError,
+    GravixLayerBadRequestError
 )
 
-print(response.choices[0].text)
+client = GravixLayer(api_key="your_api_key")
+
+try:
+    completion = client.chat.completions.create(
+        model="llama3.1:8b",
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+except GravixLayerAuthenticationError:
+    print("Invalid API key")
+except GravixLayerRateLimitError:
+    print("Rate limit exceeded")
+except GravixLayerBadRequestError as e:
+    print(f"Bad request: {e}")
+except GravixLayerError as e:
+    print(f"API error: {e}")
 ```
 
-### Streaming Text Completions
+### Command Line Interface
+
+The SDK includes a CLI for quick testing:
+
+```bash
+# Basic chat completion
+python -m gravixlayer.cli --model "llama3.1:8b" --user "Hello, how are you?"
+
+# Streaming response
+python -m gravixlayer.cli --model "llama3.1:8b" --user "Tell me a story" --stream
+
+# With system message
+python -m gravixlayer.cli --model "llama3.1:8b" --system "You are a poet" --user "Write a haiku"
+```
+
+## Configuration
+
+### API Key
+
+Set your API key using environment variables:
+
+#### Set API key (Linux/macOS)
+```bash
+export GRAVIXLAYER_API_KEY="your_api_key_here"
+```
+
+or 
+
+#### Set API key (Windows PowerShell)
+```bash
+$env:GRAVIXLAYER_API_KEY="your_api_key_here"
+```
+
+Or pass it directly when initializing the client:
 
 ```python
-stream = client.completions.create(
-    model="llama3.1:8b",
-    prompt="Write a Python function to calculate factorial.",
-    stream=True,
-)
-
-for chunk in stream:
-    if chunk.choices[0].delta.content is not None:
-        print(chunk.choices[0].delta.content, end="")
+client = GravixLayer(api_key="your_api_key_here")
 ```
-
-### Listing Models
-
-```python
-models = client.models.list()
-for model in models.data:
-    print(model.id)
-```
-
-## Environment Variables
-
-- `GRAVIXLAYER_API_KEY` – Your GravixLayer API key
 
 ## License
 
-MIT License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
+
