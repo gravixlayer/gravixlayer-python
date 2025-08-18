@@ -102,3 +102,4 @@ test.py
 test_stream.py
 test_embeddings.py
 test_async.py
+comparison.py

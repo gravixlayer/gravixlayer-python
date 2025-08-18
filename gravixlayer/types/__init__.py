@@ -5,6 +5,11 @@ from .chat import (
     ChatCompletionDelta,
     ChatCompletionUsage,
 )
+from .embeddings import (
+    EmbeddingResponse,
+    EmbeddingObject,
+    EmbeddingUsage,
+)
 
 __all__ = [
     "ChatCompletion",
@@ -12,4 +17,7 @@ __all__ = [
     "ChatCompletionChoice",
     "ChatCompletionDelta",
     "ChatCompletionUsage",
+    "EmbeddingResponse",
+    "EmbeddingObject",
+    "EmbeddingUsage",
 ]

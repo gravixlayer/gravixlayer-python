@@ -11,14 +11,20 @@ from .types.chat import (
     ChatCompletionChoice,
     ChatCompletionUsage,
 )
-OpenAI = GravixLayer
+from .types.embeddings import (
+    EmbeddingResponse,
+    EmbeddingObject,
+    EmbeddingUsage,
+)
 
 __all__ = [
     "GravixLayer",
     "AsyncGravixLayer",
-    "OpenAI",
     "ChatCompletion",
     "ChatCompletionMessage",
     "ChatCompletionChoice",
     "ChatCompletionUsage",
+    "EmbeddingResponse",
+    "EmbeddingObject",
+    "EmbeddingUsage",
 ]
