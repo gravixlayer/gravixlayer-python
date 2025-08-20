@@ -10,6 +10,8 @@ from .types.chat import (
     ChatCompletionMessage,
     ChatCompletionChoice,
     ChatCompletionUsage,
+    FunctionCall,
+    ToolCall,
 )
 from .types.embeddings import (
     EmbeddingResponse,
@@ -24,7 +26,11 @@ __all__ = [
     "ChatCompletionMessage",
     "ChatCompletionChoice",
     "ChatCompletionUsage",
+    "FunctionCall",
+    "ToolCall",
     "EmbeddingResponse",
     "EmbeddingObject",
     "EmbeddingUsage",
 ]
+
+OpenAI = GravixLayer

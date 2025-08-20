@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional, Union, Iterator
 import json
-from ...types.chat import ChatCompletion, ChatCompletionChoice, ChatCompletionMessage, ChatCompletionUsage, ChatCompletionDelta
+from ...types.chat import ChatCompletion, ChatCompletionChoice, ChatCompletionMessage, ChatCompletionUsage, ChatCompletionDelta, FunctionCall, ToolCall
 
 class ChatCompletions:
     """Chat completions resource"""
@@ -11,7 +11,7 @@ class ChatCompletions:
     def create(
         self,
         model: str,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
@@ -19,11 +19,43 @@ class ChatCompletions:
         presence_penalty: Optional[float] = None,
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
         **kwargs
     ) -> Union[ChatCompletion, Iterator[ChatCompletion]]:
+        # Convert message objects to dictionaries if needed
+        serialized_messages = []
+        for msg in messages:
+            if hasattr(msg, '__dict__'):
+                # Convert dataclass to dict
+                msg_dict = {
+                    "role": msg.role,
+                    "content": msg.content
+                }
+                if hasattr(msg, 'name') and msg.name:
+                    msg_dict["name"] = msg.name
+                if hasattr(msg, 'tool_call_id') and msg.tool_call_id:
+                    msg_dict["tool_call_id"] = msg.tool_call_id
+                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    msg_dict["tool_calls"] = []
+                    for tool_call in msg.tool_calls:
+                        tool_call_dict = {
+                            "id": tool_call.id,
+                            "type": tool_call.type,
+                            "function": {
+                                "name": tool_call.function.name,
+                                "arguments": tool_call.function.arguments
+                            }
+                        }
+                        msg_dict["tool_calls"].append(tool_call_dict)
+                serialized_messages.append(msg_dict)
+            else:
+                # Already a dictionary
+                serialized_messages.append(msg)
+        
         data = {
             "model": model,
-            "messages": messages,
+            "messages": serialized_messages,
             "stream": stream
         }
         if temperature is not None:
@@ -38,6 +70,10 @@ class ChatCompletions:
             data["presence_penalty"] = presence_penalty
         if stop is not None:
             data["stop"] = stop
+        if tools is not None:
+            data["tools"] = tools
+        if tool_choice is not None:
+            data["tool_choice"] = tool_choice
         data.update(kwargs)
         return self._create_stream(data) if stream else self._create_non_stream(data)
 
@@ -86,11 +122,29 @@ class ChatCompletions:
                     # For streaming, create delta object
                     delta_content = None
                     delta_role = None
+                    delta_tool_calls = None
                     
                     if "delta" in choice_data:
                         delta = choice_data["delta"]
                         delta_content = delta.get("content")
                         delta_role = delta.get("role")
+                        
+                        # Parse tool calls in delta
+                        if "tool_calls" in delta and delta["tool_calls"]:
+                            delta_tool_calls = []
+                            for tool_call_data in delta["tool_calls"]:
+                                function_data = tool_call_data.get("function", {})
+                                function_call = FunctionCall(
+                                    name=function_data.get("name", ""),
+                                    arguments=function_data.get("arguments", "{}")
+                                )
+                                tool_call = ToolCall(
+                                    id=tool_call_data.get("id", ""),
+                                    type=tool_call_data.get("type", "function"),
+                                    function=function_call
+                                )
+                                delta_tool_calls.append(tool_call)
+                                
                     elif "message" in choice_data:
                         # Fallback: treat message as delta
                         message = choice_data["message"]
@@ -100,13 +154,15 @@ class ChatCompletions:
                     # Create delta object
                     delta_obj = ChatCompletionDelta(
                         role=delta_role,
-                        content=delta_content
+                        content=delta_content,
+                        tool_calls=delta_tool_calls
                     )
                     
                     # Create message object (for compatibility)
                     msg = ChatCompletionMessage(
                         role=delta_role or "assistant",
-                        content=delta_content or ""
+                        content=delta_content or "",
+                        tool_calls=delta_tool_calls
                     )
                     
                     choices.append(ChatCompletionChoice(
@@ -118,9 +174,29 @@ class ChatCompletions:
                 else:
                     # For non-streaming, use message object
                     message_data = choice_data.get("message", {})
+                    
+                    # Parse tool calls if present
+                    tool_calls = None
+                    if "tool_calls" in message_data and message_data["tool_calls"]:
+                        tool_calls = []
+                        for tool_call_data in message_data["tool_calls"]:
+                            function_data = tool_call_data.get("function", {})
+                            function_call = FunctionCall(
+                                name=function_data.get("name", ""),
+                                arguments=function_data.get("arguments", "{}")
+                            )
+                            tool_call = ToolCall(
+                                id=tool_call_data.get("id", ""),
+                                type=tool_call_data.get("type", "function"),
+                                function=function_call
+                            )
+                            tool_calls.append(tool_call)
+                    
                     msg = ChatCompletionMessage(
                         role=message_data.get("role", "assistant"),
-                        content=message_data.get("content", "")
+                        content=message_data.get("content"),
+                        tool_calls=tool_calls,
+                        tool_call_id=message_data.get("tool_call_id")
                     )
                     choices.append(ChatCompletionChoice(
                         index=choice_data.get("index", 0),

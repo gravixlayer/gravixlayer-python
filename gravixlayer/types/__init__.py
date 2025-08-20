@@ -4,6 +4,8 @@ from .chat import (
     ChatCompletionChoice,
     ChatCompletionDelta,
     ChatCompletionUsage,
+    FunctionCall,
+    ToolCall,
 )
 from .embeddings import (
     EmbeddingResponse,
@@ -17,6 +19,8 @@ __all__ = [
     "ChatCompletionChoice",
     "ChatCompletionDelta",
     "ChatCompletionUsage",
+    "FunctionCall",
+    "ToolCall",
     "EmbeddingResponse",
     "EmbeddingObject",
     "EmbeddingUsage",

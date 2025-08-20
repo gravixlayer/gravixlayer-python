@@ -90,6 +90,26 @@ try {
         exit 1
     }
     
+    # Get new version for changelog update
+    $TempNewVersion = python -c "import sys; sys.path.insert(0, '.'); from version import __version__; print(__version__)"
+    
+    # Update changelog with new version
+    Write-ColorHost "Updating CHANGELOG.md..." $Green
+    python scripts/update_changelog.py $TempNewVersion
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorHost "WARNING: Failed to update changelog" $Yellow
+    } else {
+        Write-ColorHost "✅ CHANGELOG.md updated successfully" $Green
+        
+        # Add and commit the changelog changes
+        git add CHANGELOG.md
+        git commit -m "docs: update CHANGELOG.md for version $TempNewVersion"
+        if ($LASTEXITCODE -ne 0) {
+            Write-ColorHost "WARNING: Failed to commit changelog changes" $Yellow
+        }
+    }
+    
     # Get new version
     $NewVersion = python -c "import sys; sys.path.insert(0, '.'); from version import __version__; print(__version__)"
     if (-not $NewVersion -or $NewVersion -eq $CurrentVersion) {
