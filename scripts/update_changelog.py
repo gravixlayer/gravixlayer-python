@@ -38,7 +38,8 @@ def categorize_commits(commits):
         'Changed': [],
         'Fixed': [],
         'Removed': [],
-        'Security': []
+        'Security': [],
+        'Deprecated': []
     }
     
     for commit in commits:
@@ -48,23 +49,60 @@ def categorize_commits(commits):
         commit_msg = commit.split(' ', 1)[1] if ' ' in commit else commit
         
         # Skip version bump commits
-        if 'Bump version:' in commit_msg or 'bump version:' in commit_msg:
+        if 'Bump version:' in commit_msg or 'bump version:' in commit_msg or 'Pre-release:' in commit_msg:
             continue
             
-        # Categorize based on conventional commit prefixes
-        if commit_msg.startswith(('feat:', 'feature:')):
-            categories['Added'].append(commit_msg.replace('feat:', '').replace('feature:', '').strip())
-        elif commit_msg.startswith(('fix:', 'bugfix:')):
-            categories['Fixed'].append(commit_msg.replace('fix:', '').replace('bugfix:', '').strip())
-        elif commit_msg.startswith(('chore:', 'refactor:', 'style:')):
-            categories['Changed'].append(commit_msg.replace('chore:', '').replace('refactor:', '').replace('style:', '').strip())
-        elif commit_msg.startswith('remove:'):
-            categories['Removed'].append(commit_msg.replace('remove:', '').strip())
-        elif commit_msg.startswith('security:'):
-            categories['Security'].append(commit_msg.replace('security:', '').strip())
+        # Enhanced categorization with more detailed parsing
+        commit_lower = commit_msg.lower()
+        
+        if any(prefix in commit_lower for prefix in ['feat:', 'feature:', 'add:', 'new:']):
+            clean_msg = commit_msg
+            for prefix in ['feat:', 'feature:', 'add:', 'new:']:
+                clean_msg = clean_msg.replace(prefix, '').replace(prefix.capitalize(), '').strip()
+            categories['Added'].append(clean_msg.capitalize() if clean_msg else commit_msg)
+            
+        elif any(prefix in commit_lower for prefix in ['fix:', 'bugfix:', 'bug:', 'resolve:']):
+            clean_msg = commit_msg
+            for prefix in ['fix:', 'bugfix:', 'bug:', 'resolve:']:
+                clean_msg = clean_msg.replace(prefix, '').replace(prefix.capitalize(), '').strip()
+            categories['Fixed'].append(clean_msg.capitalize() if clean_msg else commit_msg)
+            
+        elif any(prefix in commit_lower for prefix in ['remove:', 'delete:', 'drop:']):
+            clean_msg = commit_msg
+            for prefix in ['remove:', 'delete:', 'drop:']:
+                clean_msg = clean_msg.replace(prefix, '').replace(prefix.capitalize(), '').strip()
+            categories['Removed'].append(clean_msg.capitalize() if clean_msg else commit_msg)
+            
+        elif any(prefix in commit_lower for prefix in ['security:', 'sec:']):
+            clean_msg = commit_msg
+            for prefix in ['security:', 'sec:']:
+                clean_msg = clean_msg.replace(prefix, '').replace(prefix.capitalize(), '').strip()
+            categories['Security'].append(clean_msg.capitalize() if clean_msg else commit_msg)
+            
+        elif any(prefix in commit_lower for prefix in ['deprecate:', 'deprecated:']):
+            clean_msg = commit_msg
+            for prefix in ['deprecate:', 'deprecated:']:
+                clean_msg = clean_msg.replace(prefix, '').replace(prefix.capitalize(), '').strip()
+            categories['Deprecated'].append(clean_msg.capitalize() if clean_msg else commit_msg)
+            
+        elif any(prefix in commit_lower for prefix in ['chore:', 'refactor:', 'style:', 'update:', 'improve:', 'enhance:']):
+            clean_msg = commit_msg
+            for prefix in ['chore:', 'refactor:', 'style:', 'update:', 'improve:', 'enhance:']:
+                clean_msg = clean_msg.replace(prefix, '').replace(prefix.capitalize(), '').strip()
+            categories['Changed'].append(clean_msg.capitalize() if clean_msg else commit_msg)
+            
         else:
-            # Default to Changed for other commits
-            categories['Changed'].append(commit_msg)
+            # For commits without conventional prefixes, try to categorize by keywords
+            if any(word in commit_lower for word in ['add', 'new', 'create', 'implement']):
+                categories['Added'].append(commit_msg.capitalize())
+            elif any(word in commit_lower for word in ['fix', 'bug', 'error', 'issue', 'resolve']):
+                categories['Fixed'].append(commit_msg.capitalize())
+            elif any(word in commit_lower for word in ['remove', 'delete', 'drop']):
+                categories['Removed'].append(commit_msg.capitalize())
+            elif any(word in commit_lower for word in ['security', 'vulnerability', 'auth']):
+                categories['Security'].append(commit_msg.capitalize())
+            else:
+                categories['Changed'].append(commit_msg.capitalize())
     
     return categories
 
@@ -92,9 +130,33 @@ def update_changelog(new_version):
             for item in items:
                 new_section += f"- {item}\n"
     
-    # If no specific changes found, add a generic entry
+    # If no specific changes found, try to get more details from git
     if not any(categories.values()):
-        new_section += "\n### Changed\n- Version bump and maintenance updates\n"
+        try:
+            # Get file changes for this release
+            result = subprocess.run(['git', 'diff', '--name-only', f'{last_tag}..HEAD' if last_tag else 'HEAD'], 
+                                  capture_output=True, text=True, check=True)
+            changed_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
+            
+            new_section += "\n### Changed\n"
+            if changed_files:
+                # Categorize file changes
+                code_files = [f for f in changed_files if f.endswith(('.py', '.js', '.ts', '.java', '.cpp', '.c'))]
+                config_files = [f for f in changed_files if f.endswith(('.json', '.yml', '.yaml', '.toml', '.cfg', '.ini'))]
+                doc_files = [f for f in changed_files if f.endswith(('.md', '.rst', '.txt'))]
+                
+                if code_files:
+                    new_section += f"- Updated core functionality in {len(code_files)} file(s)\n"
+                if config_files:
+                    new_section += f"- Configuration and build improvements\n"
+                if doc_files:
+                    new_section += f"- Documentation updates\n"
+                    
+                new_section += f"- Version {new_version} release with maintenance updates\n"
+            else:
+                new_section += "- Version bump and maintenance updates\n"
+        except subprocess.CalledProcessError:
+            new_section += "\n### Changed\n- Version bump and maintenance updates\n"
     
     # Find the [Unreleased] section and add new version after it
     unreleased_pattern = r'(## \[Unreleased\].*?)(\n## \[)'
