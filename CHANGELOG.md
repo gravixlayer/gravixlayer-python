@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Missing contributor information in releases
 
 - Fixed PyPI upload version conflict by bumping to 0.0.14
+## [0.0.15] - 2025-08-20
+
+### Changed
+- Version bump and maintenance updates
+
 ## [0.0.14] - 2025-08-20
 
 ### Changed
