@@ -87,17 +87,17 @@ print(completion.choices[0].message.content)
 
 #### Available Parameters
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `model` | `str` | Model to use for completion |
-| `messages` | `List[Dict]` | List of messages in the conversation |
-| `temperature` | `float` | Controls randomness (0.0 to 2.0) |
-| `max_tokens` | `int` | Maximum number of tokens to generate |
-| `top_p` | `float` | Nucleus sampling parameter |
-| `frequency_penalty` | `float` | Penalty for frequent tokens |
-| `presence_penalty` | `float` | Penalty for present tokens |
-| `stop` | `str \| List[str]` | Stop sequences |
-| `stream` | `bool` | Enable streaming responses |
+| Parameter           | Type               | Description                          |
+| ------------------- | ------------------ | ------------------------------------ |
+| `model`             | `str`              | Model to use for completion          |
+| `messages`          | `List[Dict]`       | List of messages in the conversation |
+| `temperature`       | `float`            | Controls randomness (0.0 to 2.0)     |
+| `max_tokens`        | `int`              | Maximum number of tokens to generate |
+| `top_p`             | `float`            | Nucleus sampling parameter           |
+| `frequency_penalty` | `float`            | Penalty for frequent tokens          |
+| `presence_penalty`  | `float`            | Penalty for present tokens           |
+| `stop`              | `str \| List[str]` | Stop sequences                       |
+| `stream`            | `bool`             | Enable streaming responses           |
 
 ### Streaming Responses
 
@@ -164,6 +164,58 @@ except GravixLayerError as e:
     print(f"API error: {e}")
 ```
 
+### Text Completions
+
+Create text completions using the completions endpoint:
+
+```python
+completion = client.completions.create(
+    model="llama3.1:8b",
+    prompt="What are the three most popular programming languages?",
+    max_tokens=150,
+    temperature=0.7,
+    top_p=1.0,
+    frequency_penalty=0,
+    presence_penalty=0,
+    stop=None
+)
+
+print(completion.choices[0].text)
+```
+
+#### Streaming Text Completions
+
+```python
+stream = client.completions.create(
+    model="llama3.1:8b",
+    prompt="Write a short story about a robot",
+    max_tokens=200,
+    temperature=0.8,
+    stream=True
+)
+
+for chunk in stream:
+    if chunk.choices[0].text:
+        print(chunk.choices[0].text, end="", flush=True)
+```
+
+#### Available Parameters for Completions
+
+| Parameter           | Type               | Description                               |
+| ------------------- | ------------------ | ----------------------------------------- |
+| `model`             | `str`              | Model to use for completion               |
+| `prompt`            | `str \| List[str]` | The prompt(s) to generate completions for |
+| `max_tokens`        | `int`              | Maximum number of tokens to generate      |
+| `temperature`       | `float`            | Controls randomness (0.0 to 2.0)          |
+| `top_p`             | `float`            | Nucleus sampling parameter                |
+| `n`                 | `int`              | Number of completions to generate         |
+| `stream`            | `bool`             | Enable streaming responses                |
+| `logprobs`          | `int`              | Include log probabilities                 |
+| `echo`              | `bool`             | Echo back the prompt                      |
+| `stop`              | `str \| List[str]` | Stop sequences                            |
+| `presence_penalty`  | `float`            | Penalty for present tokens                |
+| `frequency_penalty` | `float`            | Penalty for frequent tokens               |
+
 ### Command Line Interface
 
 The SDK includes a CLI for quick testing:
@@ -172,8 +224,14 @@ The SDK includes a CLI for quick testing:
 # Basic chat completion
 python -m gravixlayer.cli --model "llama3.1:8b" --user "Hello, how are you?"
 
-# Streaming response
+# Streaming chat response
 python -m gravixlayer.cli --model "llama3.1:8b" --user "Tell me a story" --stream
+
+# Text completion mode
+python -m gravixlayer.cli --mode completions --model "llama3.1:8b" --prompt "The future of AI is"
+
+# Streaming text completion
+python -m gravixlayer.cli --mode completions --model "llama3.1:8b" --prompt "Write a poem about" --stream
 
 # With system message
 python -m gravixlayer.cli --model "llama3.1:8b" --system "You are a poet" --user "Write a haiku"

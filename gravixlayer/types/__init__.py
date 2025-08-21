@@ -12,6 +12,11 @@ from .embeddings import (
     EmbeddingObject,
     EmbeddingUsage,
 )
+from .completions import (
+    Completion,
+    CompletionChoice,
+    CompletionUsage,
+)
 
 __all__ = [
     "ChatCompletion",
@@ -24,4 +29,7 @@ __all__ = [
     "EmbeddingResponse",
     "EmbeddingObject",
     "EmbeddingUsage",
+    "Completion",
+    "CompletionChoice",
+    "CompletionUsage",
 ]

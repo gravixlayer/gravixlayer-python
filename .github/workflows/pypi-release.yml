@@ -42,20 +42,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Extract changelog for this version
-        id: changelog
+      - name: Extract custom release notes
+        id: release_notes
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          echo "Extracting changelog for version $VERSION"
+          echo "Looking for custom release notes for version $VERSION"
           
-          # Extract the section for this version from CHANGELOG.md
-          awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > release_notes.md
+          # Look for custom release notes file
+          RELEASE_NOTES_FILE="release_notes_$VERSION.md"
           
-          # If no specific changelog found, create a basic one
-          if [ ! -s release_notes.md ]; then
-            echo "### Changes" > release_notes.md
-            echo "- Version $VERSION release" >> release_notes.md
-            echo "- See full changelog in [CHANGELOG.md](CHANGELOG.md)" >> release_notes.md
+          if [ -f "$RELEASE_NOTES_FILE" ]; then
+            echo "Found custom release notes file: $RELEASE_NOTES_FILE"
+            cp "$RELEASE_NOTES_FILE" release_notes.md
+          else
+            echo "No custom release notes found, creating default"
+            echo "## What's Changed" > release_notes.md
+            echo "" >> release_notes.md
+            echo "Version $VERSION release with updates and improvements." >> release_notes.md
+            echo "" >> release_notes.md
+            echo "**Full Changelog**: https://github.com/gravixlayer/gravixlayer-python/compare/v$(git describe --tags --abbrev=0 HEAD^)...v$VERSION" >> release_notes.md
           fi
           
           echo "Release notes content:"

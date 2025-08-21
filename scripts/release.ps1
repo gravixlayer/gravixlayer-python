@@ -90,25 +90,39 @@ try {
         exit 1
     }
     
-    # Get new version for changelog update
+    # Get new version for release notes
     $TempNewVersion = python -c "import sys; sys.path.insert(0, '.'); from version import __version__; print(__version__)"
     
-    # Update changelog with new version
-    Write-ColorHost "Updating CHANGELOG.md..." $Green
-    python scripts/update_changelog.py $TempNewVersion
+    # Prompt user for custom release notes
+    Write-ColorHost "✏️  Please enter release notes for version $TempNewVersion" $Cyan
+    Write-ColorHost "Enter your release notes (press Enter twice when done):" $Yellow
+    Write-ColorHost "Example: 'Added new completions endpoint, Fixed streaming issues, Improved error handling'" $Gray
+    Write-ColorHost ""
     
-    if ($LASTEXITCODE -ne 0) {
-        Write-ColorHost "WARNING: Failed to update changelog" $Yellow
-    } else {
-        Write-ColorHost "✅ CHANGELOG.md updated successfully" $Green
-        
-        # Add and commit the changelog changes
-        git add CHANGELOG.md
-        git commit -m "docs: update CHANGELOG.md for version $TempNewVersion"
-        if ($LASTEXITCODE -ne 0) {
-            Write-ColorHost "WARNING: Failed to commit changelog changes" $Yellow
+    $releaseNotes = @()
+    do {
+        $line = Read-Host
+        if ($line -ne "") {
+            $releaseNotes += $line
         }
+    } while ($line -ne "")
+    
+    if ($releaseNotes.Count -eq 0) {
+        Write-ColorHost "No release notes provided. Using default message." $Yellow
+        $releaseNotesText = "Version $TempNewVersion release with updates and improvements."
+    } else {
+        $releaseNotesText = $releaseNotes -join "`n"
     }
+    
+    # Save release notes to a temporary file for GitHub Actions
+    $releaseNotesFile = "release_notes_$TempNewVersion.md"
+    $releaseNotesText | Out-File -FilePath $releaseNotesFile -Encoding UTF8
+    
+    Write-ColorHost "✅ Release notes saved" $Green
+    Write-ColorHost "Release notes preview:" $Cyan
+    Write-ColorHost "------------------------" $Gray
+    Write-ColorHost $releaseNotesText $White
+    Write-ColorHost "------------------------" $Gray
     
     # Get new version
     $NewVersion = python -c "import sys; sys.path.insert(0, '.'); from version import __version__; print(__version__)"
@@ -118,6 +132,13 @@ try {
     }
     
     Write-ColorHost "Version successfully bumped: $CurrentVersion -> $NewVersion" $Green
+    
+    # Add and commit the release notes file
+    git add $releaseNotesFile
+    git commit -m "docs: add release notes for version $NewVersion"
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorHost "WARNING: Failed to commit release notes" $Yellow
+    }
     
     # Push changes to remote
     Write-ColorHost "Pushing changes to remote repository..." $Green

@@ -6,27 +6,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
 
-### Added
-- Enhanced changelog automation system
-- Automated release notes generation
-- Contributor information in releases
-- Conventional commit support for automatic categorization
 
-- Enhanced changelog generation with detailed commit categorization
-### Changed
-- Improved release process with detailed changelog updates
-- Enhanced PowerShell release script with changelog integration
-- Updated GitHub Actions workflow to use changelog content
 
-- Improved automatic file change detection in changelog updates
-### Fixed
-- Empty release notes issue in GitHub releases
-- Changelog not being updated during releases
-- Missing contributor information in releases
-
-- Fixed PyPI upload version conflict by bumping to 0.0.14
 ## [0.0.15] - 2025-08-20
 
 ### Changed

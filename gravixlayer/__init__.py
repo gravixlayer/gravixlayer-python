@@ -18,6 +18,11 @@ from .types.embeddings import (
     EmbeddingObject,
     EmbeddingUsage,
 )
+from .types.completions import (
+    Completion,
+    CompletionChoice,
+    CompletionUsage,
+)
 
 __all__ = [
     "GravixLayer",
@@ -31,6 +36,9 @@ __all__ = [
     "EmbeddingResponse",
     "EmbeddingObject",
     "EmbeddingUsage",
+    "Completion",
+    "CompletionChoice",
+    "CompletionUsage",
 ]
 
 OpenAI = GravixLayer

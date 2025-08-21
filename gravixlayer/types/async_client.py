@@ -14,6 +14,7 @@ from ..types.exceptions import (
     GravixLayerConnectionError
 )
 from ..resources.async_embeddings import AsyncEmbeddings
+from ..resources.async_completions import AsyncCompletions
 
 class AsyncChatResource:
     def __init__(self, client):
@@ -300,6 +301,7 @@ class AsyncGravixLayer:
         # Create the proper chat resource structure
         self.chat = AsyncChatResource(self)
         self.embeddings = AsyncEmbeddings(self)
+        self.completions = AsyncCompletions(self)
 
     async def _make_request(
         self,

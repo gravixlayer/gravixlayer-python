@@ -4,6 +4,7 @@ import logging
 from typing import Optional, Dict, Any, Type
 from .resources.chat.completions import ChatCompletions
 from .resources.embeddings import Embeddings
+from .resources.completions import Completions
 from .types.exceptions import (
     GravixLayerError,
     GravixLayerAuthenticationError,
@@ -43,6 +44,7 @@ class GravixLayer:
             raise ValueError("API key must be provided via argument or GRAVIXLAYER_API_KEY environment variable")
         self.chat = ChatResource(self)
         self.embeddings = Embeddings(self)
+        self.completions = Completions(self)
 
     def _make_request(
         self,
