@@ -12,7 +12,6 @@ $Yellow = "Yellow"
 $Red = "Red"
 $Cyan = "Cyan"
 
-
 function Write-ColorHost($Message, $Color) {
     if ([string]::IsNullOrEmpty($Color)) {
         Write-Host $Message
@@ -20,8 +19,6 @@ function Write-ColorHost($Message, $Color) {
         Write-Host $Message -ForegroundColor $Color
     }
 }
-
-
 
 function Write-Header() {
     Write-ColorHost "========================================" $Blue
@@ -91,10 +88,10 @@ try {
     }
     
     # Get new version for release notes
-    $TempNewVersion = python -c "import sys; sys.path.insert(0, '.'); from version import __version__; print(__version__)"
+    $NewVersion = python -c "import sys; sys.path.insert(0, '.'); from version import __version__; print(__version__)"
     
     # Prompt user for custom release notes
-    Write-ColorHost "✏️  Please enter release notes for version $TempNewVersion" $Cyan
+    Write-ColorHost "✏️  Please enter release notes for version $NewVersion" $Cyan
     Write-ColorHost "Enter your release notes (press Enter twice when done):" $Yellow
     Write-ColorHost "Example: 'Added new completions endpoint, Fixed streaming issues, Improved error handling'" $Gray
     Write-ColorHost ""
@@ -109,14 +106,10 @@ try {
     
     if ($releaseNotes.Count -eq 0) {
         Write-ColorHost "No release notes provided. Using default message." $Yellow
-        $releaseNotesText = "Version $TempNewVersion release with updates and improvements."
+        $releaseNotesText = "Version $NewVersion release with updates and improvements."
     } else {
         $releaseNotesText = $releaseNotes -join "`n"
     }
-    
-    # Save release notes to a temporary file for GitHub Actions
-    $releaseNotesFile = "release_notes_$TempNewVersion.md"
-    $releaseNotesText | Out-File -FilePath $releaseNotesFile -Encoding UTF8
     
     Write-ColorHost "✅ Release notes saved" $Green
     Write-ColorHost "Release notes preview:" $Cyan
@@ -124,21 +117,10 @@ try {
     Write-ColorHost $releaseNotesText $White
     Write-ColorHost "------------------------" $Gray
     
-    # Get new version
-    $NewVersion = python -c "import sys; sys.path.insert(0, '.'); from version import __version__; print(__version__)"
-    if (-not $NewVersion -or $NewVersion -eq $CurrentVersion) {
-        Write-ColorHost "ERROR: Version was not updated properly" $Red
-        exit 1
-    }
-    
     Write-ColorHost "Version successfully bumped: $CurrentVersion -> $NewVersion" $Green
     
-    # Add and commit the release notes file
-    git add $releaseNotesFile
-    git commit -m "docs: add release notes for version $NewVersion"
-    if ($LASTEXITCODE -ne 0) {
-        Write-ColorHost "WARNING: Failed to commit release notes" $Yellow
-    }
+    # Create a temporary environment variable for GitHub Actions
+    $env:RELEASE_NOTES = $releaseNotesText
     
     # Push changes to remote
     Write-ColorHost "Pushing changes to remote repository..." $Green
@@ -165,11 +147,12 @@ try {
         # Check if GitHub CLI is available
         $ghCheck = gh --version 2>$null
         if ($ghCheck) {
-            Write-ColorHost "GitHub CLI found. Creating release and triggering workflow..." $Green
+            Write-ColorHost "GitHub CLI found. Creating release with custom notes..." $Green
             
-            # Create GitHub release
+            # Create GitHub release with custom notes
             try {
-                gh release create "v$NewVersion" --title "Release v$NewVersion" --generate-notes --latest
+                $escapedNotes = $releaseNotesText -replace '"', '\"'
+                gh release create "v$NewVersion" --title "Release v$NewVersion" --notes "$escapedNotes" --latest
                 Write-ColorHost "SUCCESS: GitHub release created!" $Green
             } catch {
                 Write-ColorHost "WARNING: Could not create GitHub release automatically" $Yellow
