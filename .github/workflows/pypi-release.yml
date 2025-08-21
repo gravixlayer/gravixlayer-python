@@ -53,26 +53,27 @@ jobs:
           
           if [ -f "$RELEASE_NOTES_FILE" ]; then
             echo "Found custom release notes file: $RELEASE_NOTES_FILE"
-            cp "$RELEASE_NOTES_FILE" release_notes.md
+            echo "Custom release notes content:"
+            cat "$RELEASE_NOTES_FILE"
+            # Set the content as output for the next step
+            {
+              echo 'RELEASE_NOTES<<EOF'
+              cat "$RELEASE_NOTES_FILE"
+              echo EOF
+            } >> $GITHUB_OUTPUT
+            echo "HAS_CUSTOM_NOTES=true" >> $GITHUB_OUTPUT
           else
-            echo "No custom release notes found, creating default"
-            echo "## What's Changed" > release_notes.md
-            echo "" >> release_notes.md
-            echo "Version $VERSION release with updates and improvements." >> release_notes.md
-            echo "" >> release_notes.md
-            echo "**Full Changelog**: https://github.com/gravixlayer/gravixlayer-python/compare/v$(git describe --tags --abbrev=0 HEAD^)...v$VERSION" >> release_notes.md
+            echo "No custom release notes found"
+            echo "HAS_CUSTOM_NOTES=false" >> $GITHUB_OUTPUT
           fi
-          
-          echo "Release notes content:"
-          cat release_notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: "Release ${{ github.ref_name }}"
-          body_path: release_notes.md
-          generate_release_notes: true
+          body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+          generate_release_notes: ${{ steps.release_notes.outputs.HAS_CUSTOM_NOTES == 'false' }}
           draft: false
           prerelease: false
         env:
