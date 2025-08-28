@@ -291,8 +291,8 @@ class AsyncGravixLayer:
         
         # Validate URL scheme - support both HTTP and HTTPS
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
-            raise ValueError("Base URL must use HTTP or HTTPS protocol")
-        
+            raise ValueError("Base URL must start with http:// or https://")
+>>>>>>> 3e1c908b7c6e38f32b4e3d33b6c4992d9d6962ea
         self.timeout = timeout
         self.max_retries = max_retries
         self.custom_headers = headers or {}
