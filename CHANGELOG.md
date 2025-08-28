@@ -6,8 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
 
+### Added
+- HTTP protocol support for all API endpoints (chat, embeddings, completions)
+- HTTP support for both synchronous and asynchronous clients
+- Environment variable support for HTTP base URLs (GRAVIXLAYER_BASE_URL)
+- Comprehensive HTTP usage examples and test suite
 
+### Changed
+- Default base URL changed from HTTPS to HTTP for local development support
+- Updated user agent version to match current package version (0.0.18)
+- URL validation now accepts both HTTP and HTTPS protocols
+
+### Fixed
+- Version consistency between sync and async clients
+- Removed hardcoded HTTPS-only restriction
 
 ## [0.0.15] - 2025-08-20
 
