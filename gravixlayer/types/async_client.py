@@ -287,7 +287,7 @@ class AsyncGravixLayer:
         user_agent: Optional[str] = None,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
-        self.base_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "http://localhost:8080/v1/inference")
+        self.base_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com/v1/inference")
         
         # Validate URL scheme - support both HTTP and HTTPS
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
@@ -296,7 +296,7 @@ class AsyncGravixLayer:
         self.max_retries = max_retries
         self.custom_headers = headers or {}
         self.logger = logger or logging.getLogger("gravixlayer-async")
-        self.user_agent = user_agent or f"gravixlayer-python/0.0.18"
+        self.user_agent = user_agent or f"gravixlayer-python/0.0.22"
         if not self.api_key:
             raise ValueError("API key must be provided via argument or GRAVIXLAYER_API_KEY environment variable")
         
