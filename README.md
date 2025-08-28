@@ -27,7 +27,7 @@ from gravixlayer import GravixLayer
 client = GravixLayer(api_key=os.environ.get("GRAVIXLAYER_API_KEY"))
 
 completion = client.chat.completions.create(
-    model="llama3.1:8b",
+    model="mistralai/mistral-nemo-instruct-2407",
     messages=[
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "What are the three most popular programming languages?"}
@@ -48,7 +48,7 @@ async def main():
     client = AsyncGravixLayer(api_key=os.environ.get("GRAVIXLAYER_API_KEY"))
     
     completion = await client.chat.completions.create(
-        model="llama3.1:8b",
+        model="mistralai/mistral-nemo-instruct-2407",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What's the capital of France?"}
@@ -68,7 +68,7 @@ Create chat completions with various models available on GravixLayer.
 
 ```python
 completion = client.chat.completions.create(
-    model="llama3.1:8b",
+    model="mistralai/mistral-nemo-instruct-2407",
     messages=[
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Tell me a fun fact about space"}
@@ -105,7 +105,7 @@ Stream responses in real-time for a better user experience:
 
 ```python
 stream = client.chat.completions.create(
-    model="llama3.1:8b",
+    model="mistralai/mistral-nemo-instruct-2407",
     messages=[
         {"role": "user", "content": "Tell me about the Eiffel Tower"}
     ],
@@ -124,7 +124,7 @@ async def stream_chat():
     client = AsyncGravixLayer(api_key="your_api_key")
     
     stream = client.chat.completions.create(
-        model="llama3.1:8b",
+        model="mistralai/mistral-nemo-instruct-2407",
         messages=[{"role": "user", "content": "Tell me about Python"}],
         stream=True
     )
@@ -151,7 +151,7 @@ client = GravixLayer(api_key="your_api_key")
 
 try:
     completion = client.chat.completions.create(
-        model="llama3.1:8b",
+        model="mistralai/mistral-nemo-instruct-2407",
         messages=[{"role": "user", "content": "Hello!"}]
     )
 except GravixLayerAuthenticationError:
@@ -170,7 +170,7 @@ Create text completions using the completions endpoint:
 
 ```python
 completion = client.completions.create(
-    model="llama3.1:8b",
+    model="mistralai/mistral-nemo-instruct-2407",
     prompt="What are the three most popular programming languages?",
     max_tokens=150,
     temperature=0.7,
@@ -187,7 +187,7 @@ print(completion.choices[0].text)
 
 ```python
 stream = client.completions.create(
-    model="llama3.1:8b",
+    model="mistralai/mistral-nemo-instruct-2407",
     prompt="Write a short story about a robot",
     max_tokens=200,
     temperature=0.8,
@@ -222,19 +222,19 @@ The SDK includes a CLI for quick testing:
 
 ```bash
 # Basic chat completion
-python -m gravixlayer.cli --model "llama3.1:8b" --user "Hello, how are you?"
+python -m gravixlayer.cli --model "mistralai/mistral-nemo-instruct-2407" --user "Hello, how are you?"
 
 # Streaming chat response
-python -m gravixlayer.cli --model "llama3.1:8b" --user "Tell me a story" --stream
+python -m gravixlayer.cli --model "mistralai/mistral-nemo-instruct-2407" --user "Tell me a story" --stream
 
 # Text completion mode
-python -m gravixlayer.cli --mode completions --model "llama3.1:8b" --prompt "The future of AI is"
+python -m gravixlayer.cli --mode completions --model "mistralai/mistral-nemo-instruct-2407" --prompt "The future of AI is"
 
 # Streaming text completion
-python -m gravixlayer.cli --mode completions --model "llama3.1:8b" --prompt "Write a poem about" --stream
+python -m gravixlayer.cli --mode completions --model "mistralai/mistral-nemo-instruct-2407" --prompt "Write a poem about" --stream
 
 # With system message
-python -m gravixlayer.cli --model "llama3.1:8b" --system "You are a poet" --user "Write a haiku"
+python -m gravixlayer.cli --model "mistralai/mistral-nemo-instruct-2407" --system "You are a poet" --user "Write a haiku"
 ```
 
 ## Configuration
