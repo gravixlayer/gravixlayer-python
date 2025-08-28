@@ -7,7 +7,7 @@ if len(sys.argv) != 2 or sys.argv[1] not in {"patch", "minor", "major"}:
 
 bump = sys.argv[1]
 
-# Add/commit/push code changes (optional, or just remind user to do it)
+# Add/commit/push code changes (optional, or just remind user to do it)6
 subprocess.run(["git", "add", "."])
 subprocess.run(["git", "commit", "-m", "chore: commit before release"])
 subprocess.run(["git", "push"])
