@@ -23,6 +23,12 @@ from .types.completions import (
     CompletionChoice,
     CompletionUsage,
 )
+from .types.deployments import (
+    DeploymentCreate,
+    Deployment,
+    DeploymentList,
+    DeploymentResponse,
+)
 
 __all__ = [
     "GravixLayer",
@@ -39,6 +45,10 @@ __all__ = [
     "Completion",
     "CompletionChoice",
     "CompletionUsage",
+    "DeploymentCreate",
+    "Deployment",
+    "DeploymentList",
+    "DeploymentResponse",
 ]
 
 OpenAI = GravixLayer

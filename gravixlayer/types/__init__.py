@@ -17,6 +17,16 @@ from .completions import (
     CompletionChoice,
     CompletionUsage,
 )
+from .deployments import (
+    DeploymentCreate,
+    Deployment,
+    DeploymentList,
+    DeploymentResponse,
+)
+from .accelerators import (
+    Accelerator,
+    AcceleratorList,
+)
 
 __all__ = [
     "ChatCompletion",
@@ -32,4 +42,10 @@ __all__ = [
     "Completion",
     "CompletionChoice",
     "CompletionUsage",
+    "DeploymentCreate",
+    "Deployment",
+    "DeploymentList",
+    "DeploymentResponse",
+    "Accelerator",
+    "AcceleratorList",
 ]

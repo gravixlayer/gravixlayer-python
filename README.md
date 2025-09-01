@@ -14,6 +14,18 @@ The official Python SDK for the [GravixLayer API](https://gravixlayer.com). This
 pip install gravixlayer
 ```
 
+### Development Installation
+
+For development or to use the latest features:
+
+```bash
+git clone https://github.com/sukrithpvs/gravixlayer-python.git
+cd gravixlayer-python
+pip install -e .
+```
+
+This installs the package in editable mode and makes the `gravixlayer` CLI command available globally.
+
 ## Quick Start
 
 The GravixLayer Python SDK is designed to be compatible with OpenAI's interface, making it easy to switch between providers.
@@ -216,26 +228,80 @@ for chunk in stream:
 | `presence_penalty`  | `float`            | Penalty for present tokens                |
 | `frequency_penalty` | `float`            | Penalty for frequent tokens               |
 
+
+
+
 ### Command Line Interface
 
 The SDK includes a CLI for quick testing:
 
 ```bash
 # Basic chat completion
-python -m gravixlayer.cli --model "mistralai/mistral-nemo-instruct-2407" --user "Hello, how are you?"
+# Basic chat completion
+gravixlayer --model "mistralai/mistral-nemo-instruct-2407" --user "Hello, how are you?"
 
 # Streaming chat response
-python -m gravixlayer.cli --model "mistralai/mistral-nemo-instruct-2407" --user "Tell me a story" --stream
+gravixlayer --model "mistralai/mistral-nemo-instruct-2407" --user "Tell me a story" --stream
 
 # Text completion mode
-python -m gravixlayer.cli --mode completions --model "mistralai/mistral-nemo-instruct-2407" --prompt "The future of AI is"
+gravixlayer --mode completions --model "meta-llama/llama-3.1-8b-instruct" --prompt "The future of AI is"
 
 # Streaming text completion
-python -m gravixlayer.cli --mode completions --model "mistralai/mistral-nemo-instruct-2407" --prompt "Write a poem about" --stream
+gravixlayer --mode completions --model "meta-llama/llama-3.1-8b-instruct" --prompt "Write a poem about" --stream
 
 # With system message
-python -m gravixlayer.cli --model "mistralai/mistral-nemo-instruct-2407" --system "You are a poet" --user "Write a haiku"
+gravixlayer --model "mistralai/mistral-nemo-instruct-2407" --system "You are a poet" --user "Write a haiku"
 ```
+
+### Deployment Management
+
+The CLI supports deployment management using the `deployments` command:
+
+```bash
+# Create a deployment with all parameters
+gravixlayer deployments create --deployment_name "qwen3-1-7b-9951bf" --hw_type "dedicated" --hardware "nvidia-t4-16gb-pcie_1" --min_replicas 1 --model_name "qwen3-1.7b"
+
+
+# List all deployments
+gravixlayer deployments list
+
+
+
+# Delete a deployment
+gravixlayer deployments delete <deployment_id>
+
+# List available GPUs/hardware
+gravixlayer deployments gpu --list
+
+# List available hardware (same as gpu)
+gravixlayer deployments hardware --list
+
+# List GPUs as JSON
+gravixlayer deployments gpu --list --json
+```
+
+#### GPU/Hardware Listing
+
+You can list all available GPUs and hardware configurations:
+
+```bash
+# List available GPUs in table format
+gravixlayer deployments gpu --list
+
+# List available hardware (alias for gpu)
+gravixlayer deployments hardware --list
+
+# Get detailed information in JSON format
+gravixlayer deployments gpu --list --json
+```
+
+The output shows:
+- **GPU Type**: Short identifier (e.g., t4, h100)
+- **Hardware String**: Full specification string for deployment creation
+- **Memory**: GPU memory capacity
+- **Use Case**: Recommended usage scenario
+- **Status**: Availability status
+- **Pricing**: Cost per hour
 
 ## Configuration
 

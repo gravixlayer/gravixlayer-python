@@ -5,6 +5,8 @@ from typing import Optional, Dict, Any, Type
 from .resources.chat.completions import ChatCompletions
 from .resources.embeddings import Embeddings
 from .resources.completions import Completions
+from .resources.deployments import Deployments
+from .resources.accelerators import Accelerators
 from .types.exceptions import (
     GravixLayerError,
     GravixLayerAuthenticationError,
@@ -51,6 +53,8 @@ class GravixLayer:
         self.chat = ChatResource(self)
         self.embeddings = Embeddings(self)
         self.completions = Completions(self)
+        self.deployments = Deployments(self)
+        self.accelerators = Accelerators(self)
 
     def _make_request(
         self,

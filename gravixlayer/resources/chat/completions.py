@@ -98,10 +98,15 @@ class ChatCompletions:
             
             try:
                 chunk_data = json.loads(line)
+                
+                # Validate chunk_data is not None and is a dict
+                if chunk_data is None or not isinstance(chunk_data, dict):
+                    continue
+                    
                 parsed_chunk = self._parse_response(chunk_data, is_stream=True)
                 
-                # Only yield if we have valid choices
-                if parsed_chunk.choices:
+                # Only yield if we have valid choices and parsed_chunk is not None
+                if parsed_chunk and parsed_chunk.choices:
                     yield parsed_chunk
                     
             except json.JSONDecodeError as e:
@@ -113,43 +118,55 @@ class ChatCompletions:
                 continue
 
     def _parse_response(self, resp_data: Dict[str, Any], is_stream: bool = False) -> ChatCompletion:
+        # Validate input
+        if not resp_data or not isinstance(resp_data, dict):
+            return None
+            
         choices = []
         
         # Handle different response formats
         if "choices" in resp_data and resp_data["choices"]:
             for choice_data in resp_data["choices"]:
+                # Validate choice_data
+                if not choice_data or not isinstance(choice_data, dict):
+                    continue
+                    
                 if is_stream:
                     # For streaming, create delta object
                     delta_content = None
                     delta_role = None
                     delta_tool_calls = None
                     
-                    if "delta" in choice_data:
+                    if "delta" in choice_data and choice_data["delta"]:
                         delta = choice_data["delta"]
-                        delta_content = delta.get("content")
-                        delta_role = delta.get("role")
-                        
-                        # Parse tool calls in delta
-                        if "tool_calls" in delta and delta["tool_calls"]:
-                            delta_tool_calls = []
-                            for tool_call_data in delta["tool_calls"]:
-                                function_data = tool_call_data.get("function", {})
-                                function_call = FunctionCall(
-                                    name=function_data.get("name", ""),
-                                    arguments=function_data.get("arguments", "{}")
-                                )
-                                tool_call = ToolCall(
-                                    id=tool_call_data.get("id", ""),
-                                    type=tool_call_data.get("type", "function"),
-                                    function=function_call
-                                )
-                                delta_tool_calls.append(tool_call)
-                                
-                    elif "message" in choice_data:
+                        if isinstance(delta, dict):
+                            delta_content = delta.get("content")
+                            delta_role = delta.get("role")
+                            
+                            # Parse tool calls in delta
+                            if "tool_calls" in delta and delta["tool_calls"]:
+                                delta_tool_calls = []
+                                for tool_call_data in delta["tool_calls"]:
+                                    if tool_call_data and isinstance(tool_call_data, dict):
+                                        function_data = tool_call_data.get("function", {})
+                                        if isinstance(function_data, dict):
+                                            function_call = FunctionCall(
+                                                name=function_data.get("name", ""),
+                                                arguments=function_data.get("arguments", "{}")
+                                            )
+                                            tool_call = ToolCall(
+                                                id=tool_call_data.get("id", ""),
+                                                type=tool_call_data.get("type", "function"),
+                                                function=function_call
+                                            )
+                                            delta_tool_calls.append(tool_call)
+                                            
+                    elif "message" in choice_data and choice_data["message"]:
                         # Fallback: treat message as delta
                         message = choice_data["message"]
-                        delta_content = message.get("content")
-                        delta_role = message.get("role")
+                        if isinstance(message, dict):
+                            delta_content = message.get("content")
+                            delta_role = message.get("role")
                     
                     # Create delta object
                     delta_obj = ChatCompletionDelta(
@@ -174,23 +191,27 @@ class ChatCompletions:
                 else:
                     # For non-streaming, use message object
                     message_data = choice_data.get("message", {})
+                    if not isinstance(message_data, dict):
+                        message_data = {}
                     
                     # Parse tool calls if present
                     tool_calls = None
                     if "tool_calls" in message_data and message_data["tool_calls"]:
                         tool_calls = []
                         for tool_call_data in message_data["tool_calls"]:
-                            function_data = tool_call_data.get("function", {})
-                            function_call = FunctionCall(
-                                name=function_data.get("name", ""),
-                                arguments=function_data.get("arguments", "{}")
-                            )
-                            tool_call = ToolCall(
-                                id=tool_call_data.get("id", ""),
-                                type=tool_call_data.get("type", "function"),
-                                function=function_call
-                            )
-                            tool_calls.append(tool_call)
+                            if tool_call_data and isinstance(tool_call_data, dict):
+                                function_data = tool_call_data.get("function", {})
+                                if isinstance(function_data, dict):
+                                    function_call = FunctionCall(
+                                        name=function_data.get("name", ""),
+                                        arguments=function_data.get("arguments", "{}")
+                                    )
+                                    tool_call = ToolCall(
+                                        id=tool_call_data.get("id", ""),
+                                        type=tool_call_data.get("type", "function"),
+                                        function=function_call
+                                    )
+                                    tool_calls.append(tool_call)
                     
                     msg = ChatCompletionMessage(
                         role=message_data.get("role", "assistant"),
@@ -231,11 +252,12 @@ class ChatCompletions:
 
         # Parse usage if available
         usage = None
-        if "usage" in resp_data:
+        if "usage" in resp_data and resp_data["usage"] and isinstance(resp_data["usage"], dict):
+            usage_data = resp_data["usage"]
             usage = ChatCompletionUsage(
-                prompt_tokens=resp_data["usage"].get("prompt_tokens", 0),
-                completion_tokens=resp_data["usage"].get("completion_tokens", 0),
-                total_tokens=resp_data["usage"].get("total_tokens", 0),
+                prompt_tokens=usage_data.get("prompt_tokens", 0),
+                completion_tokens=usage_data.get("completion_tokens", 0),
+                total_tokens=usage_data.get("total_tokens", 0),
             )
         
         import time
