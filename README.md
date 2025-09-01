@@ -237,7 +237,6 @@ The SDK includes a CLI for quick testing:
 
 ```bash
 # Basic chat completion
-# Basic chat completion
 gravixlayer --model "mistralai/mistral-nemo-instruct-2407" --user "Hello, how are you?"
 
 # Streaming chat response
@@ -264,7 +263,6 @@ gravixlayer deployments create --deployment_name "qwen3-1-7b-9951bf" --hw_type "
 
 # List all deployments
 gravixlayer deployments list
-
 
 
 # Delete a deployment
@@ -295,13 +293,6 @@ gravixlayer deployments hardware --list
 gravixlayer deployments gpu --list --json
 ```
 
-The output shows:
-- **GPU Type**: Short identifier (e.g., t4, h100)
-- **Hardware String**: Full specification string for deployment creation
-- **Memory**: GPU memory capacity
-- **Use Case**: Recommended usage scenario
-- **Status**: Availability status
-- **Pricing**: Cost per hour
 
 ## Configuration
 
