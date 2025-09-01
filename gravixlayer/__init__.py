@@ -1,7 +1,7 @@
 """
 GravixLayer Python SDK - OpenAI Compatible
 """
-__version__ = "0.0.24"
+__version__ = "0.0.25"
 
 from .client import GravixLayer
 from .types.async_client import AsyncGravixLayer
