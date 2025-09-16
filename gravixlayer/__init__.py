@@ -1,5 +1,5 @@
 """
-GravixLayer Python SDK - OpenAI Compatible
+GravixLayer Python SDK - Industry Standard Compatible
 """
 __version__ = "0.0.25"
 
@@ -29,6 +29,13 @@ from .types.deployments import (
     DeploymentList,
     DeploymentResponse,
 )
+from .types.files import (
+    FileObject,
+    FileUploadResponse,
+    FileListResponse,
+    FileDeleteResponse,
+    FILE_PURPOSES,
+)
 
 __all__ = [
     "GravixLayer",
@@ -49,6 +56,9 @@ __all__ = [
     "Deployment",
     "DeploymentList",
     "DeploymentResponse",
+    "FileObject",
+    "FileUploadResponse",
+    "FileListResponse",
+    "FileDeleteResponse",
+    "FILE_PURPOSES",
 ]
-
-OpenAI = GravixLayer

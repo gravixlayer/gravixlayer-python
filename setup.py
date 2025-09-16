@@ -17,7 +17,7 @@ setup(
     version="0.0.25",
     author="Sukrith",
     author_email="sukrithpvs@gmail.com",
-    description="GravixLayer Python SDK - OpenAI Compatible",
+    description="GravixLayer Python SDK - Industry Standard Compatible",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/sukrithpvs/gravixlayer-python",
@@ -43,7 +43,7 @@ setup(
             'gravixlayer=gravixlayer.cli:main',
         ],
     },
-    keywords="gravixlayer, openai, llm, ai, api, sdk",
+    keywords="gravixlayer, llm, ai, api, sdk, compatible",
     project_urls={
         "Bug Reports": "https://github.com/sukrithpvs/gravixlayer-python/issues",
         "Source": "https://github.com/sukrithpvs/gravixlayer-python",

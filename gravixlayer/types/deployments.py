@@ -5,8 +5,10 @@ from datetime import datetime
 class DeploymentCreate(BaseModel):
     deployment_name: str
     hw_type: Literal["dedicated"] = "dedicated"
-    hardware: str
+    gpu_model: str
+    gpu_count: int = 1
     min_replicas: int = 1
+    max_replicas: int = 1
     model_name: str
 
 class Deployment(BaseModel):
@@ -16,8 +18,10 @@ class Deployment(BaseModel):
     deployment_name: str
     status: str
     created_at: str
-    hardware: str
+    gpu_model: str
+    gpu_count: int
     min_replicas: int
+    max_replicas: Optional[int] = 1  # Make this optional with default value
     hw_type: str
 
 class DeploymentList(BaseModel):

@@ -9,16 +9,20 @@ class Deployments:
         self,
         deployment_name: str,
         model_name: str,
-        hardware: str,
+        gpu_model: str,
+        gpu_count: int = 1,
         min_replicas: int = 1,
+        max_replicas: int = 1,
         hw_type: str = "dedicated"
     ) -> DeploymentResponse:
         """Create a new deployment"""
         data = {
             "deployment_name": deployment_name,
             "hw_type": hw_type,
-            "hardware": hardware,
+            "gpu_model": gpu_model,
+            "gpu_count": gpu_count,
             "min_replicas": min_replicas,
+            "max_replicas": max_replicas,
             "model_name": model_name
         }
         
