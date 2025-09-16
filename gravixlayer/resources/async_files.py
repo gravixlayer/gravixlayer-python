@@ -20,6 +20,7 @@ class AsyncFiles:
         file: Union[str, BinaryIO, IO],
         purpose: str,
         expires_after: Optional[int] = None,
+        filename: Optional[str] = None,
         **kwargs
     ) -> FileUploadResponse:
         """
@@ -29,6 +30,7 @@ class AsyncFiles:
             file: File to upload (file path string or file-like object)
             purpose: File purpose (assistants, batch, batch_output, fine-tune, vision, user_data, evals)
             expires_after: Optional expiration time in seconds
+            filename: Optional custom filename for the uploaded file
             
         Returns:
             FileUploadResponse: Upload response with file details
@@ -64,11 +66,14 @@ class AsyncFiles:
             if file_size > 200 * 1024 * 1024:  # 200MB
                 raise GravixLayerBadRequestError("File size must be between 1 byte and 200MB")
             
-            files['file'] = open(file, 'rb')
+            # Use custom filename if provided, otherwise use the original filename
+            upload_filename = filename if filename else os.path.basename(file)
+            files['file'] = (upload_filename, open(file, 'rb'))
             should_close = True
         else:
             # File-like object
-            files['file'] = file
+            upload_filename = filename if filename else getattr(file, 'name', 'uploaded_file')
+            files['file'] = (upload_filename, file)
             should_close = False
         
         try:
@@ -79,14 +84,38 @@ class AsyncFiles:
                 files=files
             )
             
+            result = response.json()
             return FileUploadResponse(
-                message=response.get('message', ''),
-                file_name=response.get('file_name', ''),
-                purpose=response.get('purpose', '')
+                message=result.get('message', ''),
+                file_name=result.get('file_name', ''),
+                purpose=result.get('purpose', '')
             )
         finally:
             if should_close and 'file' in files:
-                files['file'].close()
+                # Close the file object from the tuple
+                files['file'][1].close()
+
+    async def upload(
+        self,
+        file: Union[str, BinaryIO, IO],
+        purpose: str,
+        expires_after: Optional[int] = None,
+        filename: Optional[str] = None,
+        **kwargs
+    ) -> FileUploadResponse:
+        """
+        Upload a file for use with AI models (alias for create).
+        
+        Args:
+            file: File to upload (file path string or file-like object)
+            purpose: File purpose (assistants, batch, batch_output, fine-tune, vision, user_data, evals)
+            expires_after: Optional expiration time in seconds
+            filename: Optional custom filename for the uploaded file
+            
+        Returns:
+            FileUploadResponse: Upload response with file details
+        """
+        return await self.create(file=file, purpose=purpose, expires_after=expires_after, filename=filename, **kwargs)
 
     async def list(self) -> FileListResponse:
         """

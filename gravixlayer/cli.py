@@ -26,7 +26,7 @@ def main():
 
     # Create subparsers for different commands
     subparsers = parser.add_subparsers(
-        dest="command", help="Available commands")
+        dest="command", help="Available commands", required=True)
 
     # Chat/Completions parser (default behavior)
     chat_parser = subparsers.add_parser("chat", help="Chat completions")
@@ -51,7 +51,7 @@ def main():
     deployments_parser = subparsers.add_parser(
         "deployments", help="Deployment management")
     deployments_subparsers = deployments_parser.add_subparsers(
-        dest="deployments_action", help="Deployment actions")
+        dest="deployments_action", help="Deployment actions", required=True)
 
     # Create deployment
     create_parser = deployments_subparsers.add_parser(
@@ -116,7 +116,7 @@ def main():
     files_parser = subparsers.add_parser(
         "files", help="File management")
     files_subparsers = files_parser.add_subparsers(
-        dest="files_action", help="File actions")
+        dest="files_action", help="File actions", required=True)
 
     # Upload file
     upload_parser = files_subparsers.add_parser(
@@ -125,6 +125,8 @@ def main():
         "--api-key", type=str, default=None, help="API key")
     upload_parser.add_argument(
         "--file", required=True, help="Path to file to upload")
+    upload_parser.add_argument(
+        "--file_name", help="Custom name for the uploaded file (optional)")
     upload_parser.add_argument(
         "--purpose", required=True, choices=["fine-tune", "assistants", "batch","vision","user_data","evals"], 
         help="Purpose of the file")
@@ -548,6 +550,8 @@ def handle_files_commands(args):
                 }
                 if args.expires_after:
                     upload_args['expires_after'] = args.expires_after
+                if args.file_name:
+                    upload_args['filename'] = args.file_name
                     
                 response = client.files.upload(**upload_args)
                 

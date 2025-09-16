@@ -345,11 +345,24 @@ asyncio.run(manage_files())
 The SDK includes CLI commands for file management:
 
 ```bash
-# Upload a file
+# Upload a file with basic options
 gravixlayer files upload document.pdf --purpose assistants
+
+# Upload a file with custom name and expiration
+gravixlayer files upload document.pdf --purpose assistants --file_name "my_document.pdf" --expires-after 86400
+
+# Upload for different purposes
+gravixlayer files upload dataset.jsonl --purpose fine-tune
+gravixlayer files upload image.png --purpose vision
+gravixlayer files upload batch_data.csv --purpose batch
+gravixlayer files upload eval_data.json --purpose evals
+gravixlayer files upload user_file.txt --purpose user_data
 
 # List all files
 gravixlayer files list
+
+# List files with JSON output
+gravixlayer files list --json
 
 # Get file information (by ID or filename)
 gravixlayer files info file-abc123
@@ -364,13 +377,23 @@ gravixlayer files delete file-abc123
 gravixlayer files delete document.pdf
 ```
 
+**Upload Command Options:**
+- `--file` (required): Path to the file to upload
+- `--purpose` (required): File purpose (`assistants`, `fine-tune`, `batch`, `batch_output`, `vision`, `user_data`, `evals`)
+- `--file_name` (optional): Custom name for the uploaded file
+- `--expires-after` (optional): File expiration time in seconds
+- `--api-key` (optional): API key (can also use GRAVIXLAYER_API_KEY environment variable)
+
 #### File Types and Purposes
 
 Supported file purposes:
 - `assistants` - Files for use with AI assistants
 - `fine-tune` - Files for fine-tuning models
 - `batch` - Files for batch processing
+- `batch_output` - Output files from batch processing
 - `vision` - Image files for vision models
+- `user_data` - General user data files
+- `evals` - Files for model evaluations
 
 Supported file formats include:
 - Documents: PDF, TXT, DOCX, MD
