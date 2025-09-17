@@ -443,15 +443,18 @@ def handle_deployments_commands(args):
                     else:
                         print(f"Available {'Hardware' if args.deployments_action == 'hardware' else 'GPUs'} ({len(accelerators)} found):")
                         print()
-                        print(f"{'Accelerator':<15} {'Hardware String':<35} {'Memory':<10}")
-                        print("-" * 60)
                         
                         for accelerator in accelerators:
-                            gpu_type = accelerator.gpu_type_computed
-                            hardware_string = accelerator.hardware_string_computed
-                            memory = accelerator.memory
-                            
-                            print(f"{gpu_type:<15} {hardware_string:<35} {memory:<10}")
+                            print(f"GPU ID: {accelerator.gpu_id or 'N/A'}")
+                            print(f"Model: {accelerator.name}")  # This will show "NVIDIA T4 16GB" format
+                            print(f"GPU Model Code: {accelerator.gpu_model or 'N/A'}")
+                            print(f"Memory: {accelerator.memory}")
+                            print(f"Link: {accelerator.gpu_link or 'N/A'}")
+                            print(f"Status: {accelerator.status or 'N/A'}")
+                            print(f"Pricing: ${accelerator.pricing or 0}/hour")
+                            if accelerator.updated_at:
+                                print(f"Updated: {accelerator.updated_at}")
+                            print()
             else:
                 print(f"Use --list flag to list available {'hardware' if args.deployments_action == 'hardware' else 'GPUs'}")
                 print(f"Example: gravixlayer deployments {args.deployments_action} --list")
