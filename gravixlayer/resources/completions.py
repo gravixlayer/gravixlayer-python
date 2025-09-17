@@ -98,6 +98,7 @@ class Completions:
     def _create_stream(self, data: Dict[str, Any]) -> Iterator[Completion]:
         """Create streaming completion"""
         resp = self.client._make_request("POST", "completions", data, stream=True)
+        
         for line in resp.iter_lines():
             if not line:
                 continue
@@ -113,10 +114,18 @@ class Completions:
             
             try:
                 chunk_data = json.loads(line)
+                
+                # Skip if chunk_data is None or empty
+                if not chunk_data:
+                    continue
+                
+                # Debug: Print the chunk structure for deployed models
+                # print(f"DEBUG: chunk_data = {chunk_data}")
+                    
                 parsed_chunk = self._parse_response(chunk_data, is_stream=True)
                 
                 # Only yield if we have valid choices
-                if parsed_chunk.choices:
+                if parsed_chunk and parsed_chunk.choices:
                     yield parsed_chunk
                     
             except json.JSONDecodeError as e:
@@ -124,27 +133,40 @@ class Completions:
                 print(f"Failed to parse JSON: {line[:100]}...")
                 continue
             except Exception as e:
-                print(f"Error processing chunk: {e}")
+                # Skip malformed chunks silently
                 continue
 
     def _parse_response(self, resp_data: Dict[str, Any], is_stream: bool = False) -> Completion:
         """Parse API response into Completion object"""
+        # Handle None or empty response data
+        if not resp_data:
+            return None
+            
         choices = []
         
         # Handle different response formats
         if "choices" in resp_data and resp_data["choices"]:
             for choice_data in resp_data["choices"]:
+                # Skip if choice_data is None
+                if not choice_data:
+                    continue
+                    
                 text = ""
                 
                 if is_stream:
                     # For streaming, get text from delta or text field
-                    if "delta" in choice_data:
-                        text = choice_data["delta"].get("content", "") or choice_data["delta"].get("text", "")
-                    elif "text" in choice_data:
-                        text = choice_data["text"]
+                    # Deployed models often return text directly in choice_data
+                    if "text" in choice_data:
+                        text = choice_data.get("text", "")
+                    elif "delta" in choice_data and choice_data["delta"] is not None:
+                        delta = choice_data["delta"]
+                        text = delta.get("content", "") or delta.get("text", "")
+                    # Handle direct content field for some deployed models
+                    elif "content" in choice_data:
+                        text = choice_data.get("content", "")
                 else:
                     # For non-streaming, get text directly
-                    text = choice_data.get("text", "")
+                    text = choice_data.get("text", "") or choice_data.get("content", "")
                 
                 choice = CompletionChoice(
                     text=text,
@@ -172,19 +194,26 @@ class Completions:
 
         # Parse usage if available
         usage = None
-        if "usage" in resp_data:
+        if "usage" in resp_data and resp_data["usage"] is not None:
+            usage_data = resp_data["usage"]
             usage = CompletionUsage(
-                prompt_tokens=resp_data["usage"].get("prompt_tokens", 0),
-                completion_tokens=resp_data["usage"].get("completion_tokens", 0),
-                total_tokens=resp_data["usage"].get("total_tokens", 0),
+                prompt_tokens=usage_data.get("prompt_tokens", 0) if usage_data else 0,
+                completion_tokens=usage_data.get("completion_tokens", 0) if usage_data else 0,
+                total_tokens=usage_data.get("total_tokens", 0) if usage_data else 0,
             )
         
         import time
+        
+        # Safely get values with null checking
+        completion_id = resp_data.get("id", f"cmpl-{hash(str(resp_data))}") if resp_data else f"cmpl-{hash('empty')}"
+        created_time = resp_data.get("created", int(time.time())) if resp_data else int(time.time())
+        model_name = resp_data.get("model", "unknown") if resp_data else "unknown"
+        
         return Completion(
-            id=resp_data.get("id", f"cmpl-{hash(str(resp_data))}"),
+            id=completion_id,
             object="text_completion" if not is_stream else "text_completion.chunk",
-            created=resp_data.get("created", int(time.time())),
-            model=resp_data.get("model", "unknown"),
+            created=created_time,
+            model=model_name,
             choices=choices,
             usage=usage,
         )

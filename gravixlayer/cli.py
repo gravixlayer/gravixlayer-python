@@ -447,9 +447,9 @@ def handle_deployments_commands(args):
                         print("-" * 60)
                         
                         for accelerator in accelerators:
-                            gpu_type = getattr(accelerator, 'gpu_type', accelerator.name)
-                            hardware_string = accelerator.hardware_string
-                            memory = getattr(accelerator, 'memory', 'N/A')
+                            gpu_type = accelerator.gpu_type_computed
+                            hardware_string = accelerator.hardware_string_computed
+                            memory = accelerator.memory
                             
                             print(f"{gpu_type:<15} {hardware_string:<35} {memory:<10}")
             else:
@@ -484,7 +484,7 @@ def handle_chat_commands(args, parser):
                     model=args.model,
                     messages=messages,
                     temperature=args.temperature,
-                    max_tokens=args.max_tokens,
+                    max_tokens=args.max_tokens or 150,
                     stream=True
                 ):
                     if chunk.choices[0].delta.content:
@@ -496,7 +496,7 @@ def handle_chat_commands(args, parser):
                     model=args.model,
                     messages=messages,
                     temperature=args.temperature,
-                    max_tokens=args.max_tokens
+                    max_tokens=args.max_tokens or 150
                 )
                 print(completion.choices[0].message.content)
 
@@ -507,10 +507,10 @@ def handle_chat_commands(args, parser):
                     model=args.model,
                     prompt=args.prompt,
                     temperature=args.temperature,
-                    max_tokens=args.max_tokens,
+                    max_tokens=args.max_tokens or 150,
                     stream=True
                 ):
-                    if chunk.choices[0].text:
+                    if chunk.choices[0].text is not None:
                         print(chunk.choices[0].text, end="", flush=True)
                 print()
             else:
@@ -518,7 +518,7 @@ def handle_chat_commands(args, parser):
                     model=args.model,
                     prompt=args.prompt,
                     temperature=args.temperature,
-                    max_tokens=args.max_tokens
+                    max_tokens=args.max_tokens or 150
                 )
                 print(completion.choices[0].text)
 
@@ -578,8 +578,18 @@ def handle_files_commands(args):
                         files_to_show = [file for file in response.data if file.purpose == args.purpose]
                     
                     print(f"   Found {len(files_to_show)} file(s):")
+                    print()
                     for file in files_to_show:
-                        print(f"   • {file.id} - {file.filename} ({file.bytes} bytes, {file.purpose})")
+                        print(f"File ID: {file.id}")
+                        print(f"Filename: {file.filename}")
+                        print(f"Size: {file.bytes} bytes")
+                        print(f"Purpose: {file.purpose}")
+                        if hasattr(file, 'created_at') and file.created_at:
+                            # Convert Unix timestamp to ISO format
+                            from datetime import datetime
+                            created_date = datetime.fromtimestamp(file.created_at).isoformat() + 'Z'
+                            print(f"Created: {created_date}")
+                        print()
                         
         elif args.files_action == "info":
             # Get file info

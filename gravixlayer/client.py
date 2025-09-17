@@ -162,7 +162,5 @@ class GravixLayer:
 class ChatResource:
     def __init__(self, client: GravixLayer):
         self.client = client
-        # Initialize resources
-        self.chat = type('Chat', (), {
-            'completions': ChatCompletions(self)
-        })()
+        # Initialize completions directly on this resource
+        self.completions = ChatCompletions(client)
