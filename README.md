@@ -146,35 +146,7 @@ async def stream_chat():
             print(chunk.choices[0].delta.content, end="", flush=True)
 ```
 
-### Error Handling
 
-The SDK includes comprehensive error handling:
-
-```python
-from gravixlayer import GravixLayer
-from gravixlayer.types.exceptions import (
-    GravixLayerError,
-    GravixLayerAuthenticationError,
-    GravixLayerRateLimitError,
-    GravixLayerBadRequestError
-)
-
-client = GravixLayer(api_key="your_api_key")
-
-try:
-    completion = client.chat.completions.create(
-        model="mistralai/mistral-nemo-instruct-2407",
-        messages=[{"role": "user", "content": "Hello!"}]
-    )
-except GravixLayerAuthenticationError:
-    print("Invalid API key")
-except GravixLayerRateLimitError:
-    print("Rate limit exceeded")
-except GravixLayerBadRequestError as e:
-    print(f"Bad request: {e}")
-except GravixLayerError as e:
-    print(f"API error: {e}")
-```
 
 ### Text Completions
 
