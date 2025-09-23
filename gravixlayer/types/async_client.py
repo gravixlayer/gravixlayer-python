@@ -15,6 +15,7 @@ from ..types.exceptions import (
 )
 from ..resources.async_embeddings import AsyncEmbeddings
 from ..resources.async_completions import AsyncCompletions
+from ..resources.vectors.async_main import AsyncVectorDatabase
 
 class AsyncChatResource:
     def __init__(self, client):
@@ -304,6 +305,7 @@ class AsyncGravixLayer:
         self.chat = AsyncChatResource(self)
         self.embeddings = AsyncEmbeddings(self)
         self.completions = AsyncCompletions(self)
+        self.vectors = AsyncVectorDatabase(self)
 
     async def _make_request(
         self,
@@ -313,7 +315,11 @@ class AsyncGravixLayer:
         stream: bool = False,
         **kwargs
     ) -> httpx.Response:
-        url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}" if endpoint else self.base_url
+        # Handle full URLs (for vector database endpoints)
+        if endpoint and (endpoint.startswith('http://') or endpoint.startswith('https://')):
+            url = endpoint
+        else:
+            url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}" if endpoint else self.base_url
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -332,7 +338,8 @@ class AsyncGravixLayer:
                         **kwargs,
                     )
                     
-                    if resp.status_code == 200:
+                    # Accept both 200 (OK) and 201 (Created) as successful responses
+                    if resp.status_code in [200, 201]:
                         return resp
                     elif resp.status_code == 401:
                         raise GravixLayerAuthenticationError("Authentication failed.")

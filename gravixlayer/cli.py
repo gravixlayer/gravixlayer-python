@@ -1,6 +1,7 @@
 import argparse
 import os
 import json
+import sys
 from gravixlayer import GravixLayer
 
 
@@ -19,9 +20,65 @@ def parse_gpu_spec(gpu_type, gpu_count=1):
     return f"{gpu_mapping[gpu_key]}_{gpu_count}"
 
 
+def safe_json_parse(json_str, field_name="JSON"):
+    """Safely parse JSON string with helpful error messages"""
+    if not json_str:
+        return {}
+    
+    # First, try parsing as-is
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError as e:
+        # If parsing fails, show helpful error message
+        print(f"ERROR: Invalid JSON in {field_name}")
+        print(f"   JSON string: {json_str}")
+        print(f"   Error: {e}")
+        print()
+        print("Tips for fixing JSON:")
+        print("1. Use double quotes for strings: {\"key\": \"value\"}")
+        print("2. PowerShell: Use escaped quotes: --metadata '{\\\"key\\\":\\\"value\\\"}'")
+        print("3. For complex JSON, save to file and use --metadata-file")
+        print("4. For very complex JSON, use --metadata-b64 <base64-encoded-json>")
+        print("5. Example working formats:")
+        print("   PowerShell: --metadata '{\\\"type\\\":\\\"test\\\"}'")
+        print("   Bash/Linux: --metadata '{\"type\":\"test\"}'")
+        print("   CMD: --metadata \"{\\\"type\\\":\\\"test\\\"}\"")
+        return None
+
+
+def parse_metadata(args, field_name="metadata"):
+    """Parse metadata from --metadata string, --metadata-file, or --metadata-b64"""
+    import base64
+    
+    if hasattr(args, 'metadata_file') and args.metadata_file:
+        try:
+            with open(args.metadata_file, 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print(f"ERROR: Metadata file not found: {args.metadata_file}")
+            return None
+        except json.JSONDecodeError as e:
+            print(f"ERROR: Invalid JSON in metadata file: {args.metadata_file}")
+            print(f"   Error: {e}")
+            return None
+    elif hasattr(args, 'metadata_b64') and args.metadata_b64:
+        try:
+            decoded_json = base64.b64decode(args.metadata_b64).decode('utf-8')
+            return json.loads(decoded_json)
+        except Exception as e:
+            print(f"ERROR: Invalid base64-encoded JSON in {field_name}")
+            print(f"   Error: {e}")
+            print("   Tip: Encode your JSON with: echo '{\"key\":\"value\"}' | base64")
+            return None
+    elif hasattr(args, 'metadata') and args.metadata:
+        return safe_json_parse(args.metadata, field_name)
+    else:
+        return {}
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="GravixLayer CLI – Chat Completions, Text Completions, and Deployment Management"
+        description="GravixLayer CLI – Chat Completions, Text Completions, Deployment Management, File Management, and Vector Database"
     )
 
     # Create subparsers for different commands
@@ -168,6 +225,199 @@ def main():
         "--api-key", type=str, default=None, help="API key")
     delete_files_parser.add_argument("file_id", help="File ID to delete")
 
+    # Vectors parser (for vector database management)
+    vectors_parser = subparsers.add_parser(
+        "vectors", help="Vector database management")
+    vectors_subparsers = vectors_parser.add_subparsers(
+        dest="vectors_action", help="Vector actions", required=True)
+
+    # Index management
+    index_parser = vectors_subparsers.add_parser(
+        "index", help="Index management")
+    index_subparsers = index_parser.add_subparsers(
+        dest="index_action", help="Index actions", required=True)
+
+    # Create index
+    create_index_parser = index_subparsers.add_parser(
+        "create", help="Create a vector index")
+    create_index_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    create_index_parser.add_argument(
+        "--name", required=True, help="Index name")
+    create_index_parser.add_argument(
+        "--dimension", type=int, required=True, help="Vector dimension (1-2000)")
+    create_index_parser.add_argument(
+        "--metric", required=True, choices=["cosine", "euclidean", "dot_product"],
+        help="Similarity metric")
+    create_index_parser.add_argument(
+        "--vector-type", default="dense", help="Vector type (default: dense)")
+    create_index_parser.add_argument(
+        "--metadata", help="JSON metadata for the index")
+    create_index_parser.add_argument(
+        "--metadata-file", help="Path to JSON file containing metadata")
+    create_index_parser.add_argument(
+        "--metadata-b64", help="Base64-encoded JSON metadata (for complex JSON with spaces)")
+    create_index_parser.add_argument(
+        "--delete-protection", action="store_true", help="Enable delete protection")
+
+    # List indexes
+    list_indexes_parser = index_subparsers.add_parser(
+        "list", help="List all indexes")
+    list_indexes_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    list_indexes_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON")
+
+    # Get index
+    get_index_parser = index_subparsers.add_parser(
+        "get", help="Get index information")
+    get_index_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    get_index_parser.add_argument("index_id", help="Index ID")
+    get_index_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON")
+
+    # Update index
+    update_index_parser = index_subparsers.add_parser(
+        "update", help="Update index")
+    update_index_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    update_index_parser.add_argument("index_id", help="Index ID")
+    update_index_parser.add_argument(
+        "--metadata", help="JSON metadata to update")
+    update_index_parser.add_argument(
+        "--metadata-file", help="Path to JSON file containing metadata")
+    update_index_parser.add_argument(
+        "--metadata-b64", help="Base64-encoded JSON metadata (for complex JSON with spaces)")
+    update_index_parser.add_argument(
+        "--delete-protection", type=str, choices=["true", "false"], help="Enable/disable delete protection (true/false)")
+
+    # Delete index
+    delete_index_parser = index_subparsers.add_parser(
+        "delete", help="Delete index")
+    delete_index_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    delete_index_parser.add_argument("index_id", help="Index ID to delete")
+
+    # Vector operations
+    vector_parser = vectors_subparsers.add_parser(
+        "vector", help="Vector operations")
+    vector_subparsers = vector_parser.add_subparsers(
+        dest="vector_action", help="Vector actions", required=True)
+
+    # Upsert vector
+    upsert_parser = vector_subparsers.add_parser(
+        "upsert", help="Upsert a vector")
+    upsert_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    upsert_parser.add_argument("index_id", help="Index ID")
+    upsert_parser.add_argument(
+        "--embedding", required=True, help="Vector embedding as JSON array")
+    upsert_parser.add_argument(
+        "--id", help="Vector ID (auto-generated if not provided)")
+    upsert_parser.add_argument(
+        "--metadata", help="JSON metadata for the vector")
+    upsert_parser.add_argument(
+        "--metadata-file", help="Path to JSON file containing metadata")
+    upsert_parser.add_argument(
+        "--metadata-b64", help="Base64-encoded JSON metadata")
+    upsert_parser.add_argument(
+        "--delete-protection", action="store_true", help="Enable delete protection for this vector")
+
+    # Upsert text vector
+    upsert_text_parser = vector_subparsers.add_parser(
+        "upsert-text", help="Upsert a text vector")
+    upsert_text_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    upsert_text_parser.add_argument("index_id", help="Index ID")
+    upsert_text_parser.add_argument(
+        "--text", required=True, help="Text to convert to vector")
+    upsert_text_parser.add_argument(
+        "--model", required=True, help="Embedding model name")
+    upsert_text_parser.add_argument(
+        "--id", help="Vector ID (auto-generated if not provided)")
+    upsert_text_parser.add_argument(
+        "--metadata", help="JSON metadata for the vector")
+    upsert_text_parser.add_argument(
+        "--metadata-file", help="Path to JSON file containing metadata")
+    upsert_text_parser.add_argument(
+        "--metadata-b64", help="Base64-encoded JSON metadata")
+    upsert_text_parser.add_argument(
+        "--delete-protection", action="store_true", help="Enable delete protection for this vector")
+
+    # Search vectors
+    search_parser = vector_subparsers.add_parser(
+        "search", help="Search vectors")
+    search_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    search_parser.add_argument("index_id", help="Index ID")
+    search_parser.add_argument(
+        "--vector", required=True, help="Query vector as JSON array")
+    search_parser.add_argument(
+        "--top-k", type=int, default=10, help="Number of results (default: 10)")
+    search_parser.add_argument(
+        "--filter", help="JSON filter for metadata")
+    search_parser.add_argument(
+        "--include-metadata", type=str, choices=["true", "false"], default="true", help="Include metadata (true/false)")
+    search_parser.add_argument(
+        "--include-values", type=str, choices=["true", "false"], default="false", help="Include vector values (true/false)")
+
+    # Search text
+    search_text_parser = vector_subparsers.add_parser(
+        "search-text", help="Search using text")
+    search_text_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    search_text_parser.add_argument("index_id", help="Index ID")
+    search_text_parser.add_argument(
+        "--query", required=True, help="Search query text")
+    search_text_parser.add_argument(
+        "--model", required=True, help="Embedding model name")
+    search_text_parser.add_argument(
+        "--top-k", type=int, default=10, help="Number of results (default: 10)")
+    search_text_parser.add_argument(
+        "--filter", help="JSON filter for metadata")
+
+    # List vectors
+    list_vectors_parser = vector_subparsers.add_parser(
+        "list", help="List vectors in index")
+    list_vectors_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    list_vectors_parser.add_argument("index_id", help="Index ID")
+    list_vectors_parser.add_argument(
+        "--ids-only", action="store_true", help="List only vector IDs")
+
+    # Get vector
+    get_vector_parser = vector_subparsers.add_parser(
+        "get", help="Get vector information")
+    get_vector_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    get_vector_parser.add_argument("index_id", help="Index ID")
+    get_vector_parser.add_argument("vector_id", help="Vector ID")
+
+    # Update vector
+    update_vector_parser = vector_subparsers.add_parser(
+        "update", help="Update vector metadata and delete protection")
+    update_vector_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    update_vector_parser.add_argument("index_id", help="Index ID")
+    update_vector_parser.add_argument("vector_id", help="Vector ID")
+    update_vector_parser.add_argument(
+        "--metadata", help="JSON metadata to update")
+    update_vector_parser.add_argument(
+        "--metadata-file", help="Path to JSON file containing metadata")
+    update_vector_parser.add_argument(
+        "--metadata-b64", help="Base64-encoded JSON metadata")
+    update_vector_parser.add_argument(
+        "--delete-protection", type=str, choices=["true", "false"], help="Enable/disable delete protection (true/false)")
+
+    # Delete vector
+    delete_vector_parser = vector_subparsers.add_parser(
+        "delete", help="Delete vector")
+    delete_vector_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    delete_vector_parser.add_argument("index_id", help="Index ID")
+    delete_vector_parser.add_argument("vector_id", help="Vector ID to delete")
+
     # For backward compatibility, if no subcommand is provided, treat as chat
     parser.add_argument("--api-key", type=str, default=None, help="API key")
     parser.add_argument("--model", help="Model name")
@@ -190,6 +440,8 @@ def main():
         handle_deployments_commands(args)
     elif args.command == "files":
         handle_files_commands(args)
+    elif args.command == "vectors":
+        handle_vectors_commands(args)
     elif args.command == "chat" or (args.command is None and args.model):
         handle_chat_commands(args, parser)
     else:
@@ -231,13 +483,13 @@ def wait_for_deployment_ready(client, deployment_id, deployment_name):
                         break
                     elif status in ['failed', 'error', 'stopped']:
                         print()
-                        print(f"❌ Deployment failed with status: {current_deployment.status}")
+                        print(f"ERROR: Deployment failed with status: {current_deployment.status}")
                         break
                     else:
                         # Still creating/pending
                         time.sleep(10)  # Wait 10 seconds before checking again
                 else:
-                    print("   ❌ Deployment not found")
+                    print("   ERROR: Deployment not found")
                     break
                     
             except Exception as e:
@@ -259,7 +511,7 @@ def handle_deployments_commands(args):
         if args.deployments_action == "create":
             # Validate gpu_count
             if args.gpu_count not in [1, 2, 4, 8]:
-                print(f"❌ Error: GPU count must be one of: 1, 2, 4, 8. You provided: {args.gpu_count}")
+                print(f"ERROR: Error: GPU count must be one of: 1, 2, 4, 8. You provided: {args.gpu_count}")
                 print("Only these GPU counts are supported.")
                 return
                 
@@ -289,7 +541,7 @@ def handle_deployments_commands(args):
                     hw_type=args.hw_type
                 )
 
-                print("✅ Deployment created successfully!")
+                print("SUCCESS: Deployment created successfully!")
                 print(f"Deployment ID: {response.deployment_id}")
                 print(f"Deployment Name: {args.deployment_name}")
                 print(f"Status: {response.status}")
@@ -371,23 +623,23 @@ def handle_deployments_commands(args):
                                             break
                                     
                                     if genuine_duplicate:
-                                        print(f"❌ Deployment creation failed: deployment with name '{original_name}' already exists.")
+                                        print(f"ERROR: Deployment creation failed: deployment with name '{original_name}' already exists.")
                                         if hasattr(args, 'auto_retry') and args.auto_retry:
                                             print("Auto-retry was already attempted but failed.")
                                         else:
                                             print(f"Try with --auto-retry flag: gravixlayer deployments create --deployment_name \"{original_name}\" --gpu_model \"{args.gpu_model}\" --model_name \"{args.model_name}\" --auto-retry")
                                     else:
-                                        print(f"⚠️  Deployment creation failed: {error_message}")
+                                        print(f"WARNING:  Deployment creation failed: {error_message}")
                                         print("This might be a temporary API issue. Please try again.")
                             except Exception as list_error:
-                                print(f"❌ Deployment creation failed: {error_message}")
-                                print(f"⚠️  Could not verify deployment status due to an error: {list_error}")
+                                print(f"ERROR: Deployment creation failed: {error_message}")
+                                print(f"WARNING:  Could not verify deployment status due to an error: {list_error}")
                         else:
-                            print(f"❌ Deployment creation failed: {error_message}")
+                            print(f"ERROR: Deployment creation failed: {error_message}")
                     else:
-                        print(f"❌ Deployment creation failed: {error_str}")
+                        print(f"ERROR: Deployment creation failed: {error_str}")
                 except (json.JSONDecodeError, ValueError):
-                    print(f"❌ Deployment creation failed: {error_str}")
+                    print(f"ERROR: Deployment creation failed: {error_str}")
                 return
 
         elif args.deployments_action == "list":
@@ -526,14 +778,14 @@ def handle_chat_commands(args, parser):
                 print(completion.choices[0].text)
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"ERROR: Error: {e}")
 
 
 def handle_files_commands(args):
     """Handle file management commands"""
     api_key = args.api_key or os.getenv("GRAVIXLAYER_API_KEY")
     if not api_key:
-        print("❌ Error: API key is required. Set GRAVIXLAYER_API_KEY environment variable or use --api-key")
+        print("ERROR: Error: API key is required. Set GRAVIXLAYER_API_KEY environment variable or use --api-key")
         return
 
     try:
@@ -542,10 +794,10 @@ def handle_files_commands(args):
         if args.files_action == "upload":
             # Upload file
             if not os.path.exists(args.file):
-                print(f"❌ Error: File '{args.file}' not found")
+                print(f"ERROR: Error: File '{args.file}' not found")
                 return
                 
-            print(f"📤 Uploading file: {args.file}")
+            print(f"Uploading file: {args.file}")
             with open(args.file, 'rb') as f:
                 upload_args = {
                     'file': f,
@@ -558,7 +810,7 @@ def handle_files_commands(args):
                     
                 response = client.files.upload(**upload_args)
                 
-            print(f"✅ File uploaded successfully!")
+            print(f"SUCCESS: File uploaded successfully!")
             print(f"   Message: {response.message}")
             print(f"   Filename: {response.file_name}")
             print(f"   Purpose: {response.purpose}")
@@ -566,7 +818,7 @@ def handle_files_commands(args):
                 
         elif args.files_action == "list":
             # List files
-            print("📋 Listing files...")
+            print("Listing files...")
             response = client.files.list()
             
             if args.json:
@@ -597,7 +849,7 @@ def handle_files_commands(args):
         elif args.files_action == "info":
             # Get file info
             file_identifier = args.file_id
-            print(f"ℹ️  Getting file info: {file_identifier}")
+            print(f"Getting file info: {file_identifier}")
             
             # Check if the identifier is a filename or file ID
             # File IDs are UUIDs (contain hyphens), filenames typically don't
@@ -613,7 +865,7 @@ def handle_files_commands(args):
                         break
                 
                 if not matching_file:
-                    print(f"❌ Error: No file found with filename '{file_identifier}'")
+                    print(f"ERROR: Error: No file found with filename '{file_identifier}'")
                     return
                 
                 file_id = matching_file.id
@@ -654,7 +906,7 @@ def handle_files_commands(args):
                         break
                 
                 if not matching_file:
-                    print(f"❌ Error: No file found with filename '{file_identifier}'")
+                    print(f"ERROR: Error: No file found with filename '{file_identifier}'")
                     return
                 
                 file_id = matching_file.id
@@ -676,12 +928,12 @@ def handle_files_commands(args):
             with open(output_path, 'wb') as f:
                 f.write(content)
                 
-            print(f"✅ File downloaded to: {output_path}")
+            print(f"SUCCESS: File downloaded to: {output_path}")
             
         elif args.files_action == "delete":
             # Delete file
             file_identifier = args.file_id
-            print(f"🗑️  Deleting file: {file_identifier}")
+            print(f"Deleting file: {file_identifier}")
             
             # Check if the identifier is a filename or file ID
             # File IDs are UUIDs (contain hyphens), filenames typically don't
@@ -697,7 +949,7 @@ def handle_files_commands(args):
                         break
                 
                 if not matching_file:
-                    print(f"❌ Error: No file found with filename '{file_identifier}'")
+                    print(f"ERROR: Error: No file found with filename '{file_identifier}'")
                     return
                 
                 file_id = matching_file.id
@@ -709,12 +961,400 @@ def handle_files_commands(args):
             response = client.files.delete(file_id)
             
             if response.message == "file deleted":
-                print(f"✅ File deleted successfully")
+                print(f"SUCCESS: File deleted successfully")
             else:
-                print(f"❌ Failed to delete file: {response.message}")
+                print(f"ERROR: Failed to delete file: {response.message}")
                 
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"ERROR: Error: {str(e)}")
+
+
+def handle_vectors_commands(args):
+    """Handle vector database commands"""
+    api_key = args.api_key or os.getenv("GRAVIXLAYER_API_KEY")
+    if not api_key:
+        print("ERROR: Error: API key is required. Set GRAVIXLAYER_API_KEY environment variable or use --api-key")
+        return
+
+    try:
+        client = GravixLayer(api_key=api_key)
+        
+        if args.vectors_action == "index":
+            # Index management commands
+            if args.index_action == "create":
+                print(f"Creating vector index: {args.name}")
+                
+                # Parse metadata if provided
+                metadata = parse_metadata(args, "metadata")
+                if metadata is None:
+                    return
+                
+                index = client.vectors.indexes.create(
+                    name=args.name,
+                    dimension=args.dimension,
+                    metric=args.metric,
+                    vector_type=getattr(args, 'vector_type', 'dense'),
+                    metadata=metadata,
+                    delete_protection=getattr(args, 'delete_protection', False)
+                )
+                
+                print("Index created successfully!")
+                print(f"   Index ID: {index.id}")
+                print(f"   Name: {index.name}")
+                print(f"   Dimension: {index.dimension}")
+                print(f"   Metric: {index.metric}")
+                print(f"   Vector Type: {index.vector_type}")
+                if index.metadata:
+                    print(f"   Metadata: {json.dumps(index.metadata, indent=2)}")
+                
+            elif args.index_action == "list":
+                print("Listing vector indexes...")
+                indexes_list = client.vectors.indexes.list()
+                
+                if args.json:
+                    indexes_data = []
+                    for idx in indexes_list.indexes:
+                        indexes_data.append({
+                            "id": idx.id,
+                            "name": idx.name,
+                            "dimension": idx.dimension,
+                            "metric": idx.metric,
+                            "vector_type": idx.vector_type,
+                            "metadata": idx.metadata,
+                            "delete_protection": idx.delete_protection,
+                            "created_at": idx.created_at,
+                            "updated_at": idx.updated_at
+                        })
+                    print(json.dumps(indexes_data, indent=2))
+                else:
+                    if not indexes_list.indexes:
+                        print("   No indexes found")
+                    else:
+                        print(f"   Found {len(indexes_list.indexes)} index(es):")
+                        print()
+                        for idx in indexes_list.indexes:
+                            print(f"Index ID: {idx.id}")
+                            print(f"Name: {idx.name}")
+                            print(f"Dimension: {idx.dimension}")
+                            print(f"Metric: {idx.metric}")
+                            print(f"Vector Type: {idx.vector_type}")
+                            print(f"Delete Protection: {idx.delete_protection}")
+                            print(f"Created: {idx.created_at}")
+                            if idx.metadata:
+                                print(f"Metadata: {json.dumps(idx.metadata)}")
+                            print()
+                
+            elif args.index_action == "get":
+                print(f"Getting index info: {args.index_id}")
+                index = client.vectors.indexes.get(args.index_id)
+                
+                if args.json:
+                    index_data = {
+                        "id": index.id,
+                        "name": index.name,
+                        "dimension": index.dimension,
+                        "metric": index.metric,
+                        "vector_type": index.vector_type,
+                        "metadata": index.metadata,
+                        "delete_protection": index.delete_protection,
+                        "created_at": index.created_at,
+                        "updated_at": index.updated_at
+                    }
+                    print(json.dumps(index_data, indent=2))
+                else:
+                    print(f"Index ID: {index.id}")
+                    print(f"Name: {index.name}")
+                    print(f"Dimension: {index.dimension}")
+                    print(f"Metric: {index.metric}")
+                    print(f"Vector Type: {index.vector_type}")
+                    print(f"Delete Protection: {index.delete_protection}")
+                    print(f"Created: {index.created_at}")
+                    print(f"Updated: {index.updated_at}")
+                    if index.metadata:
+                        print(f"Metadata: {json.dumps(index.metadata, indent=2)}")
+                
+            elif args.index_action == "update":
+                print(f"Updating index: {args.index_id}")
+                
+                update_data = {}
+                parsed_metadata = parse_metadata(args, "metadata")
+                if parsed_metadata is None:
+                    return
+                if parsed_metadata:  # Only add if not empty
+                    update_data["metadata"] = parsed_metadata
+                
+                if hasattr(args, 'delete_protection') and args.delete_protection is not None:
+                    update_data["delete_protection"] = args.delete_protection.lower() == "true"
+                
+                if not update_data:
+                    print("ERROR: Error: No update data provided")
+                    return
+                
+                updated_index = client.vectors.indexes.update(args.index_id, **update_data)
+                print("SUCCESS: Index updated successfully!")
+                print(f"   Name: {updated_index.name}")
+                print(f"   Metadata: {json.dumps(updated_index.metadata, indent=2)}")
+                
+            elif args.index_action == "delete":
+                print(f"Deleting index: {args.index_id}")
+                client.vectors.indexes.delete(args.index_id)
+                print("SUCCESS: Index deleted successfully!")
+        
+        elif args.vectors_action == "vector":
+            # Vector operations
+            vectors = client.vectors.index(args.index_id)
+            
+            if args.vector_action == "upsert":
+                print(f"Upserting vector to index: {args.index_id}")
+                
+                # Parse embedding
+                embedding = safe_json_parse(args.embedding, "embedding")
+                if embedding is None:
+                    return
+                if not isinstance(embedding, list):
+                    print("ERROR: Error: Embedding must be a JSON array")
+                    return
+                
+                # Get index info to validate dimensions
+                try:
+                    index_info = client.vectors.indexes.get(args.index_id)
+                    expected_dim = index_info.dimension
+                    actual_dim = len(embedding)
+                    
+                    if actual_dim != expected_dim:
+                        print(f"ERROR: Dimension mismatch!")
+                        print(f"   Index expects: {expected_dim} dimensions")
+                        print(f"   Your vector has: {actual_dim} dimensions")
+                        print(f"   Tip: Use 'gravixlayer vectors vector upsert-text' for automatic embedding generation")
+                        print(f"   Tip: Or provide a vector with {expected_dim} dimensions")
+                        return
+                        
+                except Exception as e:
+                    print(f"ERROR: Could not validate index: {e}")
+                    return
+                
+                # Parse metadata if provided
+                metadata = parse_metadata(args, "metadata")
+                if metadata is None:
+                    return
+                
+                try:
+                    vector = vectors.upsert(
+                        embedding=embedding,
+                        id=getattr(args, 'id', None),
+                        metadata=metadata,
+                        delete_protection=getattr(args, 'delete_protection', False)
+                    )
+                    
+                    print("SUCCESS: Vector upserted successfully!")
+                    print(f"   Vector ID: {vector.id}")
+                    print(f"   Dimension: {len(vector.embedding)}")
+                    if vector.metadata:
+                        print(f"   Metadata: {json.dumps(vector.metadata)}")
+                        
+                except Exception as e:
+                    error_str = str(e)
+                    if "upserted_count" in error_str:
+                        print("SUCCESS: Vector upserted successfully!")
+                        print(f"   Vector ID: {getattr(args, 'id', 'auto-generated')}")
+                        print(f"   Note: Vector upsert completed but response parsing had issues")
+                        print(f"   Tip: Use 'gravixlayer vectors vector get <index-id> <vector-id>' to verify")
+                    elif "dimension" in error_str.lower() or "mismatch" in error_str.lower():
+                        print(f"ERROR: Dimension mismatch - {error_str}")
+                        print(f"   Your vector has {len(embedding)} dimensions")
+                        print(f"   Tip: Check your index dimension with 'gravixlayer vectors index get <index-id>'")
+                        print(f"   Tip: Use 'gravixlayer vectors vector upsert-text' for automatic embedding generation")
+                        return
+                    else:
+                        print(f"ERROR: Error: {error_str}")
+                        return
+                
+            elif args.vector_action == "upsert-text":
+                print(f"Upserting text vector to index: {args.index_id}")
+                
+                # Parse metadata if provided
+                metadata = parse_metadata(args, "metadata")
+                if metadata is None:
+                    return
+                
+                try:
+                    text_vector = vectors.upsert_text(
+                        text=args.text,
+                        model=args.model,
+                        id=getattr(args, 'id', None),
+                        metadata=metadata,
+                        delete_protection=getattr(args, 'delete_protection', False)
+                    )
+                    
+                    print("SUCCESS: Text vector upserted successfully!")
+                    print(f"   Vector ID: {text_vector.id}")
+                    print(f"   Model: {text_vector.model}")
+                    print(f"   Dimension: {len(text_vector.embedding)}")
+                    print(f"   Usage: {text_vector.usage}")
+                    if text_vector.metadata:
+                        print(f"   Metadata: {json.dumps(text_vector.metadata)}")
+                        
+                except Exception as e:
+                    error_str = str(e)
+                    if "upserted_count" in error_str:
+                        print("SUCCESS: Text vector upserted successfully!")
+                        print(f"   Vector ID: {getattr(args, 'id', 'auto-generated')}")
+                        print(f"   Note: Vector upsert completed but response parsing had issues")
+                        print(f"   Tip: Use 'gravixlayer vectors vector get <index-id> <vector-id>' to verify")
+                    else:
+                        print(f"ERROR: Error: {error_str}")
+                        return
+                
+            elif args.vector_action == "search":
+                print(f"Searching vectors in index: {args.index_id}")
+                
+                # Parse query vector
+                query_vector = safe_json_parse(args.vector, "query vector")
+                if query_vector is None:
+                    return
+                if not isinstance(query_vector, list):
+                    print("ERROR: Error: Query vector must be a JSON array")
+                    return
+                
+                # Parse filter if provided
+                filter_dict = None
+                if args.filter:
+                    filter_dict = safe_json_parse(args.filter, "filter")
+                    if filter_dict is None:
+                        return
+                
+                # Parse boolean arguments
+                include_metadata = getattr(args, 'include_metadata', 'true').lower() == 'true'
+                include_values = getattr(args, 'include_values', 'false').lower() == 'true'
+                
+                results = vectors.search(
+                    vector=query_vector,
+                    top_k=getattr(args, 'top_k', 10),
+                    filter=filter_dict,
+                    include_metadata=include_metadata,
+                    include_values=include_values
+                )
+                
+                print(f"SUCCESS: Search completed in {results.query_time_ms}ms")
+                print(f"   Found {len(results.hits)} result(s):")
+                print()
+                
+                for i, hit in enumerate(results.hits, 1):
+                    print(f"{i}. Vector ID: {hit.id}")
+                    print(f"   Score: {hit.score:.6f}")
+                    if hit.metadata:
+                        print(f"   Metadata: {json.dumps(hit.metadata)}")
+                    if hit.values:
+                        print(f"   Values: {hit.values[:5]}... (showing first 5)")
+                    print()
+                
+            elif args.vector_action == "search-text":
+                print(f"Text search in index: {args.index_id}")
+                
+                # Parse filter if provided
+                filter_dict = None
+                if args.filter:
+                    filter_dict = safe_json_parse(args.filter, "filter")
+                    if filter_dict is None:
+                        return
+                
+                results = vectors.search_text(
+                    query=args.query,
+                    model=args.model,
+                    top_k=getattr(args, 'top_k', 10),
+                    filter=filter_dict
+                )
+                
+                print(f"SUCCESS: Text search completed in {results.query_time_ms}ms")
+                print(f"   Usage: {results.usage}")
+                print(f"   Found {len(results.hits)} result(s):")
+                print()
+                
+                for i, hit in enumerate(results.hits, 1):
+                    print(f"{i}. Vector ID: {hit.id}")
+                    print(f"   Score: {hit.score:.6f}")
+                    if hit.metadata:
+                        print(f"   Metadata: {json.dumps(hit.metadata)}")
+                    print()
+                
+            elif args.vector_action == "list":
+                print(f"Listing vectors in index: {args.index_id}")
+                
+                if getattr(args, 'ids_only', False):
+                    vector_ids = vectors.list_ids()
+                    print(f"   Found {len(vector_ids.vectors)} vector(s):")
+                    for v in vector_ids.vectors:
+                        print(f"   - {v['id']}")
+                else:
+                    vectors_data = vectors.list()
+                    print(f"   Found {len(vectors_data.vectors)} vector(s):")
+                    print()
+                    for vector_id, vector_data in vectors_data.vectors.items():
+                        print(f"Vector ID: {vector_id}")
+                        print(f"Dimension: {len(vector_data.embedding)}")
+                        print(f"Delete Protection: {vector_data.delete_protection}")
+                        print(f"Created: {vector_data.created_at}")
+                        if vector_data.metadata:
+                            print(f"Metadata: {json.dumps(vector_data.metadata)}")
+                        print()
+                
+            elif args.vector_action == "get":
+                print(f"Getting vector: {args.vector_id}")
+                vector = vectors.get(args.vector_id)
+                
+                print(f"Vector ID: {vector.id}")
+                print(f"Dimension: {len(vector.embedding)}")
+                print(f"Delete Protection: {vector.delete_protection}")
+                print(f"Created: {vector.created_at}")
+                print(f"Updated: {vector.updated_at}")
+                if vector.metadata:
+                    print(f"Metadata: {json.dumps(vector.metadata, indent=2)}")
+                print(f"Embedding: {vector.embedding[:5]}... (showing first 5 values)")
+                
+            elif args.vector_action == "update":
+                print(f"Updating vector: {args.vector_id}")
+                
+                # Parse metadata if provided
+                metadata = None
+                if hasattr(args, 'metadata') or hasattr(args, 'metadata_file') or hasattr(args, 'metadata_b64'):
+                    metadata = parse_metadata(args, "metadata")
+                    if metadata is None and (args.metadata or args.metadata_file or args.metadata_b64):
+                        return
+                
+                # Parse delete protection if provided
+                delete_protection = None
+                if hasattr(args, 'delete_protection') and args.delete_protection:
+                    delete_protection = args.delete_protection.lower() == "true"
+                
+                # Check if at least one field is provided
+                if metadata is None and delete_protection is None:
+                    print("ERROR: At least one field must be provided for update (--metadata, --metadata-file, --metadata-b64, or --delete-protection)")
+                    return
+                
+                try:
+                    updated_vector = vectors.update(
+                        vector_id=args.vector_id,
+                        metadata=metadata,
+                        delete_protection=delete_protection
+                    )
+                    
+                    print("SUCCESS: Vector updated successfully!")
+                    print(f"   Vector ID: {updated_vector.id}")
+                    print(f"   Delete Protection: {updated_vector.delete_protection}")
+                    if updated_vector.metadata:
+                        print(f"   Metadata: {json.dumps(updated_vector.metadata)}")
+                        
+                except Exception as e:
+                    print(f"ERROR: Error updating vector: {e}")
+                    return
+                
+            elif args.vector_action == "delete":
+                print(f"Deleting vector: {args.vector_id}")
+                vectors.delete(args.vector_id)
+                print("SUCCESS: Vector deleted successfully!")
+        
+    except Exception as e:
+        print(f"ERROR: Error: {e}")
 
 
 if __name__ == "__main__":

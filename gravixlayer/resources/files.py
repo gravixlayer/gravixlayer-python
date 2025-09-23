@@ -25,16 +25,16 @@ class Files:
     ) -> FileUploadResponse:
         """
         Upload a file for use with AI models.
-        
+
         Args:
             file: File to upload (file path string or file-like object)
             purpose: File purpose (assistants, batch, batch_output, fine-tune, vision, user_data, evals)
             expires_after: Optional expiration time in seconds
             filename: Optional custom filename for the uploaded file
-            
+
         Returns:
             FileUploadResponse: Upload response with file details
-            
+
         Raises:
             GravixLayerBadRequestError: If purpose is invalid or file is invalid
         """
@@ -43,7 +43,7 @@ class Files:
             raise GravixLayerBadRequestError(
                 f"Invalid purpose. Supported: {', '.join(FILE_PURPOSES)}"
             )
-        
+
         # Prepare form data
         form_data = {'purpose': purpose}
         if expires_after is not None:
@@ -52,34 +52,38 @@ class Files:
                     "expires_after must be a positive integer (seconds)"
                 )
             form_data['expires_after'] = str(expires_after)
-        
+
         # Handle file input
         files = {}
         if isinstance(file, str):
             # File path
             if not os.path.exists(file):
                 raise GravixLayerBadRequestError(f"File not found: {file}")
-            
+
             file_size = os.path.getsize(file)
             if file_size == 0:
-                raise GravixLayerBadRequestError("File size must be between 1 byte and 200MB")
+                raise GravixLayerBadRequestError(
+                    "File size must be between 1 byte and 200MB")
             if file_size > 200 * 1024 * 1024:  # 200MB
-                raise GravixLayerBadRequestError("File size must be between 1 byte and 200MB")
-            
+                raise GravixLayerBadRequestError(
+                    "File size must be between 1 byte and 200MB")
+
             # Use custom filename if provided, otherwise use the original filename
             upload_filename = filename if filename else os.path.basename(file)
             files['file'] = (upload_filename, open(file, 'rb'))
             should_close = True
         else:
             # File-like object
-            upload_filename = filename if filename else getattr(file, 'name', 'uploaded_file')
+            upload_filename = filename if filename else getattr(
+                file, 'name', 'uploaded_file')
             files['file'] = (upload_filename, file)
             should_close = False
-        
+
         # Use a different base URL for files API
         original_base_url = self.client.base_url
-        self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
-        
+        self.client.base_url = self.client.base_url.replace(
+            "/v1/inference", "/v1/files")
+
         try:
             response = self.client._make_request(
                 method="POST",
@@ -87,7 +91,7 @@ class Files:
                 data=form_data,
                 files=files
             )
-            
+
             result = response.json()
             return FileUploadResponse(
                 message=result.get('message', ''),
@@ -110,13 +114,13 @@ class Files:
     ) -> FileUploadResponse:
         """
         Upload a file for use with AI models (alias for create).
-        
+
         Args:
             file: File to upload (file path string or file-like object)
             purpose: File purpose (assistants, batch, batch_output, fine-tune, vision, user_data, evals)
             expires_after: Optional expiration time in seconds
             filename: Optional custom filename for the uploaded file
-            
+
         Returns:
             FileUploadResponse: Upload response with file details
         """
@@ -125,23 +129,24 @@ class Files:
     def list(self) -> FileListResponse:
         """
         List all files belonging to the user.
-        
+
         Returns:
             FileListResponse: List of file objects
         """
         # Use a different base URL for files API
         original_base_url = self.client.base_url
-        self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
-        
+        self.client.base_url = self.client.base_url.replace(
+            "/v1/inference", "/v1/files")
+
         try:
             response = self.client._make_request(
                 method="GET",
                 endpoint=""
             )
-            
+
             result = response.json()
             files_data = result.get('data', [])
-            
+
             files = []
             for file_data in files_data:
                 files.append(FileObject(
@@ -153,7 +158,7 @@ class Files:
                     purpose=file_data.get('purpose', ''),
                     expires_after=file_data.get('expires_after')
                 ))
-            
+
             return FileListResponse(data=files)
         finally:
             self.client.base_url = original_base_url
@@ -161,29 +166,30 @@ class Files:
     def retrieve(self, file_id: str) -> FileObject:
         """
         Retrieve metadata for a specific file by its ID.
-        
+
         Args:
             file_id: File ID (UUID format)
-            
+
         Returns:
             FileObject: File metadata
-            
+
         Raises:
             GravixLayerBadRequestError: If file_id is missing
         """
         if not file_id:
             raise GravixLayerBadRequestError("file ID required")
-        
+
         # Use a different base URL for files API
         original_base_url = self.client.base_url
-        self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
-        
+        self.client.base_url = self.client.base_url.replace(
+            "/v1/inference", "/v1/files")
+
         try:
             response = self.client._make_request(
                 method="GET",
                 endpoint=file_id
             )
-            
+
             result = response.json()
             return FileObject(
                 id=result.get('id', ''),
@@ -200,67 +206,69 @@ class Files:
     def content(self, file_id: str) -> bytes:
         """
         Download the actual file content.
-        
+
         Args:
             file_id: File ID (UUID format)
-            
+
         Returns:
             bytes: Raw file content
-            
+
         Raises:
             GravixLayerBadRequestError: If file_id is missing
         """
         if not file_id:
             raise GravixLayerBadRequestError("file ID required")
-        
+
         # Use raw request for binary content
         import requests
-        
+
         headers = {
             "Authorization": f"Bearer {self.client.api_key}",
             "User-Agent": self.client.user_agent
         }
-        
+
         # Use the correct base URL for files API
-        files_base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
-        
+        files_base_url = self.client.base_url.replace(
+            "/v1/inference", "/v1/files")
+
         response = requests.get(
             f"{files_base_url}/{file_id}/content",
             headers=headers,
             timeout=self.client.timeout
         )
-        
+
         if response.status_code != 200:
             self.client._handle_error_response(response)
-        
+
         return response.content
 
     def delete(self, file_id: str) -> FileDeleteResponse:
         """
         Delete a file permanently. This action cannot be undone.
-        
+
         Args:
             file_id: File ID (UUID format)
-            
+
         Returns:
             FileDeleteResponse: Delete confirmation
-            
+
         Raises:
             GravixLayerBadRequestError: If file_id is missing
         """
         if not file_id:
             raise GravixLayerBadRequestError("File ID is required")
-        
+
         # Use a different base URL for files API
         original_base_url = self.client.base_url
-        self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
-        
+        self.client.base_url = self.client.base_url.replace(
+            "/v1/inference", "/v1/files")
+
         try:
             response = self.client._make_request(
                 method="DELETE",
                 endpoint=file_id
             )
-            
+
             result = response.json()
             return FileDeleteResponse(
                 message=result.get('message', ''),

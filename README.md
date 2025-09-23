@@ -425,10 +425,155 @@ except GravixLayerError as e:
 ```
 
 
+### Vector Database
+
+The GravixLayer SDK provides comprehensive vector database capabilities for storing, searching, and managing high-dimensional vectors with text-to-vector conversion.
+
+#### Create and Manage Indexes
+
+```python
+# Create a vector index
+index = client.vectors.indexes.create(
+    name="product-embeddings",
+    dimension=1536,
+    metric="cosine",
+    metadata={
+        "description": "Product description embeddings",
+        "model": "text-embedding-ada-002"
+    }
+)
+
+# List all indexes
+indexes = client.vectors.indexes.list()
+for idx in indexes.indexes:
+    print(f"Index: {idx.name} (ID: {idx.id})")
+
+# Get index information
+index_info = client.vectors.indexes.get(index.id)
+```
+
+#### Vector Operations
+
+```python
+# Get vector operations for an index
+vectors = client.vectors.index(index.id)
+
+# Upsert vectors with embeddings
+vector = vectors.upsert(
+    embedding=[0.1, 0.2, 0.3, ...],  # Your embedding
+    id="product-1",
+    metadata={
+        "title": "Wireless Headphones",
+        "category": "electronics",
+        "price": 99.99
+    }
+)
+
+# Upsert vectors from text (automatic embedding)
+text_vector = vectors.upsert_text(
+    text="Premium wireless bluetooth headphones with noise cancellation",
+    model="text-embedding-ada-002",
+    id="product-2",
+    metadata={
+        "title": "Premium Headphones",
+        "category": "electronics"
+    }
+)
+
+# Batch operations
+batch_vectors = [
+    {
+        "id": "product-3",
+        "embedding": [0.4, 0.5, 0.6, ...],
+        "metadata": {"title": "Running Shoes"}
+    },
+    {
+        "id": "product-4", 
+        "embedding": [0.7, 0.8, 0.9, ...],
+        "metadata": {"title": "Sports Watch"}
+    }
+]
+batch_result = vectors.batch_upsert(batch_vectors)
+```
+
+#### Search Operations
+
+```python
+# Vector similarity search
+search_results = vectors.search(
+    vector=[0.15, 0.25, 0.35, ...],  # Query vector
+    top_k=5,
+    filter={"category": "electronics"},  # Optional metadata filter
+    include_metadata=True
+)
+
+for hit in search_results.hits:
+    print(f"Product: {hit.metadata['title']} (Score: {hit.score:.4f})")
+
+# Text-based search
+text_results = vectors.search_text(
+    query="bluetooth headphones",
+    model="text-embedding-ada-002",
+    top_k=3,
+    include_metadata=True
+)
+
+print(f"Search completed in {text_results.query_time_ms}ms")
+for hit in text_results.hits:
+    print(f"Match: {hit.metadata['title']} (Score: {hit.score:.4f})")
+```
+
+#### Async Vector Operations
+
+```python
+import asyncio
+from gravixlayer import AsyncGravixLayer
+
+async def vector_operations():
+    client = AsyncGravixLayer()
+    
+    # Create index
+    index = await client.vectors.indexes.create(
+        name="async-embeddings",
+        dimension=768,
+        metric="cosine"
+    )
+    
+    # Get vector operations
+    vectors = client.vectors.index(index.id)
+    
+    # Concurrent operations
+    tasks = []
+    for i in range(5):
+        task = vectors.upsert_text(
+            text=f"Document {i} content",
+            model="text-embedding-ada-002",
+            id=f"doc-{i}"
+        )
+        tasks.append(task)
+    
+    # Execute concurrently
+    results = await asyncio.gather(*tasks)
+    print(f"Upserted {len(results)} vectors concurrently")
+    
+    # Concurrent searches
+    search_tasks = [
+        vectors.search_text("document", "text-embedding-ada-002", 3),
+        vectors.search_text("content", "text-embedding-ada-002", 3)
+    ]
+    
+    search_results = await asyncio.gather(*search_tasks)
+    for i, results in enumerate(search_results):
+        print(f"Query {i+1}: {len(results.hits)} results")
+
+asyncio.run(vector_operations())
+```
+
 ### Command Line Interface
 
-The SDK includes a CLI for quick testing:
+The SDK includes a comprehensive CLI for quick testing and vector database management:
 
+#### Chat and Completions
 ```bash
 # Basic chat completion
 gravixlayer --model "mistralai/mistral-nemo-instruct-2407" --user "Hello, how are you?"
@@ -561,6 +706,51 @@ gravixlayer deployments hardware --list
 
 # Get detailed information in JSON format
 gravixlayer deployments gpu --list --json
+```
+
+#### Vector Database CLI
+
+```bash
+# Create a vector index
+gravixlayer vectors index create \
+  --name "product-embeddings" \
+  --dimension 1536 \
+  --metric cosine \
+  --metadata '{"description": "Product embeddings"}'
+
+# List all indexes
+gravixlayer vectors index list
+
+# Upsert a text vector
+gravixlayer vectors vector upsert-text <index-id> \
+  --text "Wireless bluetooth headphones" \
+  --model "text-embedding-ada-002" \
+  --id "product-1" \
+  --metadata '{"category": "electronics"}'
+
+# Search using text
+gravixlayer vectors vector search-text <index-id> \
+  --query "headphones" \
+  --model "text-embedding-ada-002" \
+  --top-k 5
+
+# Search using vector
+gravixlayer vectors vector search <index-id> \
+  --vector '[0.1, 0.2, 0.3, ...]' \
+  --top-k 5 \
+  --filter '{"category": "electronics"}'
+
+# List vectors in index
+gravixlayer vectors vector list <index-id>
+
+# Get vector information
+gravixlayer vectors vector get <index-id> <vector-id>
+
+# Delete vector
+gravixlayer vectors vector delete <index-id> <vector-id>
+
+# Delete index
+gravixlayer vectors index delete <index-id>
 ```
 
 

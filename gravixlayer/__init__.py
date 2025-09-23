@@ -36,6 +36,20 @@ from .types.files import (
     FileDeleteResponse,
     FILE_PURPOSES,
 )
+from .types.vectors import (
+    VectorIndex,
+    VectorIndexList,
+    Vector,
+    TextVector,
+    VectorSearchResponse,
+    TextSearchResponse,
+    BatchUpsertResponse,
+    VectorListResponse,
+    VectorDictResponse,
+    VectorSearchHit,
+    SUPPORTED_METRICS,
+    SUPPORTED_VECTOR_TYPES,
+)
 
 __all__ = [
     "GravixLayer",
@@ -61,4 +75,16 @@ __all__ = [
     "FileListResponse",
     "FileDeleteResponse",
     "FILE_PURPOSES",
+    "VectorIndex",
+    "VectorIndexList",
+    "Vector",
+    "TextVector",
+    "VectorSearchResponse",
+    "TextSearchResponse",
+    "BatchUpsertResponse",
+    "VectorListResponse",
+    "VectorDictResponse",
+    "VectorSearchHit",
+    "SUPPORTED_METRICS",
+    "SUPPORTED_VECTOR_TYPES",
 ]
