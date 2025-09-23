@@ -1,5 +1,0 @@
-{
-  "description": "Product embeddings with spaces",
-  "model": "text-embedding-ada-002",
-  "version": "1.0"
-}
