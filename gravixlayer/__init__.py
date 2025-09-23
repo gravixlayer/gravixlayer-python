@@ -1,7 +1,7 @@
 """
 GravixLayer Python SDK - Industry Standard Compatible
 """
-__version__ = "0.0.30"
+__version__ = "0.0.31"
 
 from .client import GravixLayer
 from .types.async_client import AsyncGravixLayer
