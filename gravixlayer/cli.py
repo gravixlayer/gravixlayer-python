@@ -36,13 +36,18 @@ def safe_json_parse(json_str, field_name="JSON"):
         print()
         print("Tips for fixing JSON:")
         print("1. Use double quotes for strings: {\"key\": \"value\"}")
-        print("2. PowerShell: Use escaped quotes: --metadata '{\\\"key\\\":\\\"value\\\"}'")
+        print("2. PowerShell IMPORTANT: Use single quotes around JSON and escape inner quotes:")
+        print("   CORRECT:   --metadata '{\\\"key\\\":\\\"value\\\"}'")
+        print("   INCORRECT: --metadata '{\"key\": \"value\"}'  (PowerShell strips quotes)")
         print("3. For complex JSON, save to file and use --metadata-file")
         print("4. For very complex JSON, use --metadata-b64 <base64-encoded-json>")
         print("5. Example working formats:")
         print("   PowerShell: --metadata '{\\\"type\\\":\\\"test\\\"}'")
+        print("   PowerShell: --metadata '{\\\"title\\\": \\\"Updated Document\\\"}'")
         print("   Bash/Linux: --metadata '{\"type\":\"test\"}'")
         print("   CMD: --metadata \"{\\\"type\\\":\\\"test\\\"}\"")
+        print("6. PowerShell common mistake: Using unescaped quotes causes quote stripping")
+        print("7. Alternative: Use --metadata-file for complex JSON with spaces")
         return None
 
 
@@ -71,7 +76,12 @@ def parse_metadata(args, field_name="metadata"):
             print("   Tip: Encode your JSON with: echo '{\"key\":\"value\"}' | base64")
             return None
     elif hasattr(args, 'metadata') and args.metadata:
-        return safe_json_parse(args.metadata, field_name)
+        # Handle case where metadata is a list (from nargs='*')
+        if isinstance(args.metadata, list):
+            metadata_str = ' '.join(args.metadata)
+        else:
+            metadata_str = args.metadata
+        return safe_json_parse(metadata_str, field_name)
     else:
         return {}
 
@@ -252,7 +262,7 @@ def main():
     create_index_parser.add_argument(
         "--vector-type", default="dense", help="Vector type (default: dense)")
     create_index_parser.add_argument(
-        "--metadata", help="JSON metadata for the index")
+        "--metadata", nargs='*', help="JSON metadata for the index")
     create_index_parser.add_argument(
         "--metadata-file", help="Path to JSON file containing metadata")
     create_index_parser.add_argument(
@@ -284,7 +294,7 @@ def main():
         "--api-key", type=str, default=None, help="API key")
     update_index_parser.add_argument("index_id", help="Index ID")
     update_index_parser.add_argument(
-        "--metadata", help="JSON metadata to update")
+        "--metadata", nargs='*', help="JSON metadata to update")
     update_index_parser.add_argument(
         "--metadata-file", help="Path to JSON file containing metadata")
     update_index_parser.add_argument(
@@ -312,11 +322,11 @@ def main():
         "--api-key", type=str, default=None, help="API key")
     upsert_parser.add_argument("index_id", help="Index ID")
     upsert_parser.add_argument(
-        "--embedding", required=True, help="Vector embedding as JSON array")
+        "--embedding", nargs='*', required=True, help="Vector embedding as JSON array")
     upsert_parser.add_argument(
         "--id", help="Vector ID (auto-generated if not provided)")
     upsert_parser.add_argument(
-        "--metadata", help="JSON metadata for the vector")
+        "--metadata", nargs='*', help="JSON metadata for the vector")
     upsert_parser.add_argument(
         "--metadata-file", help="Path to JSON file containing metadata")
     upsert_parser.add_argument(
@@ -337,7 +347,7 @@ def main():
     upsert_text_parser.add_argument(
         "--id", help="Vector ID (auto-generated if not provided)")
     upsert_text_parser.add_argument(
-        "--metadata", help="JSON metadata for the vector")
+        "--metadata", nargs='*', help="JSON metadata for the vector")
     upsert_text_parser.add_argument(
         "--metadata-file", help="Path to JSON file containing metadata")
     upsert_text_parser.add_argument(
@@ -352,11 +362,11 @@ def main():
         "--api-key", type=str, default=None, help="API key")
     search_parser.add_argument("index_id", help="Index ID")
     search_parser.add_argument(
-        "--vector", required=True, help="Query vector as JSON array")
+        "--vector", nargs='*', required=True, help="Query vector as JSON array")
     search_parser.add_argument(
         "--top-k", type=int, default=10, help="Number of results (default: 10)")
     search_parser.add_argument(
-        "--filter", help="JSON filter for metadata")
+        "--filter", nargs='*', help="JSON filter for metadata")
     search_parser.add_argument(
         "--include-metadata", type=str, choices=["true", "false"], default="true", help="Include metadata (true/false)")
     search_parser.add_argument(
@@ -375,7 +385,7 @@ def main():
     search_text_parser.add_argument(
         "--top-k", type=int, default=10, help="Number of results (default: 10)")
     search_text_parser.add_argument(
-        "--filter", help="JSON filter for metadata")
+        "--filter", nargs='*', help="JSON filter for metadata")
 
     # List vectors
     list_vectors_parser = vector_subparsers.add_parser(
@@ -402,7 +412,7 @@ def main():
     update_vector_parser.add_argument("index_id", help="Index ID")
     update_vector_parser.add_argument("vector_id", help="Vector ID")
     update_vector_parser.add_argument(
-        "--metadata", help="JSON metadata to update")
+        "--metadata", nargs='*', help="JSON metadata to update")
     update_vector_parser.add_argument(
         "--metadata-file", help="Path to JSON file containing metadata")
     update_vector_parser.add_argument(
@@ -1108,7 +1118,12 @@ def handle_vectors_commands(args):
                 print(f"Upserting vector to index: {args.index_id}")
                 
                 # Parse embedding
-                embedding = safe_json_parse(args.embedding, "embedding")
+                # Handle case where embedding is a list (from nargs='*')
+                if isinstance(args.embedding, list):
+                    embedding_str = ' '.join(args.embedding)
+                else:
+                    embedding_str = args.embedding
+                embedding = safe_json_parse(embedding_str, "embedding")
                 if embedding is None:
                     return
                 if not isinstance(embedding, list):
@@ -1209,7 +1224,12 @@ def handle_vectors_commands(args):
                 print(f"Searching vectors in index: {args.index_id}")
                 
                 # Parse query vector
-                query_vector = safe_json_parse(args.vector, "query vector")
+                # Handle case where vector is a list (from nargs='*')
+                if isinstance(args.vector, list):
+                    vector_str = ' '.join(args.vector)
+                else:
+                    vector_str = args.vector
+                query_vector = safe_json_parse(vector_str, "query vector")
                 if query_vector is None:
                     return
                 if not isinstance(query_vector, list):
@@ -1219,7 +1239,12 @@ def handle_vectors_commands(args):
                 # Parse filter if provided
                 filter_dict = None
                 if args.filter:
-                    filter_dict = safe_json_parse(args.filter, "filter")
+                    # Handle case where filter is a list (from nargs='*')
+                    if isinstance(args.filter, list):
+                        filter_str = ' '.join(args.filter)
+                    else:
+                        filter_str = args.filter
+                    filter_dict = safe_json_parse(filter_str, "filter")
                     if filter_dict is None:
                         return
                 
@@ -1254,7 +1279,12 @@ def handle_vectors_commands(args):
                 # Parse filter if provided
                 filter_dict = None
                 if args.filter:
-                    filter_dict = safe_json_parse(args.filter, "filter")
+                    # Handle case where filter is a list (from nargs='*')
+                    if isinstance(args.filter, list):
+                        filter_str = ' '.join(args.filter)
+                    else:
+                        filter_str = args.filter
+                    filter_dict = safe_json_parse(filter_str, "filter")
                     if filter_dict is None:
                         return
                 
