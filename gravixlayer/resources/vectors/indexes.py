@@ -20,6 +20,9 @@ class VectorIndexes:
         name: str,
         dimension: int,
         metric: str,
+        cloud_provider: str,
+        region: str,
+        index_type: str,
         vector_type: str = "dense",
         metadata: Optional[Dict[str, Any]] = None,
         delete_protection: bool = False
@@ -30,7 +33,10 @@ class VectorIndexes:
         Args:
             name: Index name (1-255 characters)
             dimension: Vector dimension (1-2000)
-            metric: Similarity metric (cosine, euclidean, dot_product)
+            metric: Similarity metric (cosine, euclidean, dotproduct)
+            cloud_provider: Cloud provider (AWS, GCP, Azure, Gravix)
+            region: Region ID (e.g., us-east-1, us-central1, eastus)
+            index_type: Index type (serverless, dedicated)
             vector_type: Vector type (dense)
             metadata: Additional metadata
             delete_protection: Prevent accidental deletion
@@ -50,11 +56,24 @@ class VectorIndexes:
         if not (1 <= len(name) <= 255):
             raise ValueError("Name must be between 1 and 255 characters")
         
+        # Validate required fields
+        valid_providers = ["AWS", "GCP", "Azure", "Gravix"]
+        valid_index_types = ["serverless", "dedicated"]
+        
+        if cloud_provider not in valid_providers:
+            raise ValueError(f"Cloud provider must be one of: {valid_providers}")
+        
+        if index_type not in valid_index_types:
+            raise ValueError(f"Index type must be one of: {valid_index_types}")
+        
         data = {
             "name": name,
             "dimension": dimension,
             "metric": metric,
             "vector_type": vector_type,
+            "cloud_provider": cloud_provider,
+            "region": region,
+            "index_type": index_type,
             "metadata": metadata or {},
             "delete_protection": delete_protection
         }
@@ -101,9 +120,16 @@ class VectorIndexes:
         result = response.json()
         indexes = [VectorIndex(**idx) for idx in result["indexes"]]
         
+        # Handle pagination field - may not be present in all API responses
+        pagination = result.get("pagination", {
+            "page": page,
+            "page_size": page_size,
+            "total": len(indexes)
+        })
+        
         return VectorIndexList(
             indexes=indexes,
-            pagination=result["pagination"]
+            pagination=pagination
         )
     
     def get(self, index_id: str) -> VectorIndex:
@@ -157,6 +183,11 @@ class VectorIndexes:
         )
         
         result = response.json()
+        
+        # If the update response doesn't include all fields, fetch the complete index
+        if "created_at" not in result:
+            return self.get(index_id)
+        
         return VectorIndex(**result)
     
     def delete(self, index_id: str) -> None:
@@ -168,5 +199,5 @@ class VectorIndexes:
         """
         self.client._make_request(
             "DELETE",
-            f"{self.base_url}/indexes/{index_id}"
+            f"https://api.gravixlayer.com/v1/vectors/indexes/{index_id}"
         )

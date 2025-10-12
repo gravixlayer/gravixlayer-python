@@ -615,17 +615,17 @@ gravixlayer deployments gpu --list --json
 
 #### Deployment Create Parameters
 
-| Parameter           | Type    | Required | Description                                    |
-| ------------------- | ------- | -------- | ---------------------------------------------- |
-| `--deployment_name` | `str`   | Yes      | Unique name for the deployment                 |
-| `--model_name`      | `str`   | Yes      | Model name to deploy                           |
-| `--gpu_model`       | `str`   | Yes      | GPU model (e.g., NVIDIA_T4_16GB)              |
-| `--gpu_count`       | `int`   | No       | Number of GPUs (supported: 1, 2, 4, 8)        |
-| `--min_replicas`    | `int`   | No       | Minimum replicas (default: 1)                 |
-| `--max_replicas`    | `int`   | No       | Maximum replicas (default: 1)                 |
-| `--hw_type`         | `str`   | No       | Hardware type (default: dedicated)            |
-| `--auto-retry`      | `flag`  | No       | Auto-retry with unique name if name exists     |
-| `--wait`            | `flag`  | No       | Wait for deployment to be ready before exiting |
+| Parameter           | Type   | Required | Description                                    |
+| ------------------- | ------ | -------- | ---------------------------------------------- |
+| `--deployment_name` | `str`  | Yes      | Unique name for the deployment                 |
+| `--model_name`      | `str`  | Yes      | Model name to deploy                           |
+| `--gpu_model`       | `str`  | Yes      | GPU model (e.g., NVIDIA_T4_16GB)               |
+| `--gpu_count`       | `int`  | No       | Number of GPUs (supported: 1, 2, 4, 8)         |
+| `--min_replicas`    | `int`  | No       | Minimum replicas (default: 1)                  |
+| `--max_replicas`    | `int`  | No       | Maximum replicas (default: 1)                  |
+| `--hw_type`         | `str`  | No       | Hardware type (default: dedicated)             |
+| `--auto-retry`      | `flag` | No       | Auto-retry with unique name if name exists     |
+| `--wait`            | `flag` | No       | Wait for deployment to be ready before exiting |
 
 #### GPU Count Validation
 
@@ -688,6 +688,9 @@ gravixlayer vectors index create \
   --name "product-embeddings" \
   --dimension 1536 \
   --metric cosine \
+  --cloud-provider AWS \
+  --region us-east-1 \
+  --index-type serverless \
   --metadata '{"description": "Product embeddings"}'
 
 # List all indexes

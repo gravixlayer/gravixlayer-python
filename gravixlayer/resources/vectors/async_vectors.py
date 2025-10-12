@@ -132,7 +132,36 @@ class AsyncVectors:
             errors = result.get("errors", ["Unknown error"])
             raise ValueError(f"Text vector upsert failed: {errors[0]}")
         else:
-            return TextVector(**result)
+            # If it returns the vector directly, but need to handle 'ids' field
+            if "ids" in result and result["ids"]:
+                # Get the vector using the returned ID
+                vector_id = result["ids"][0]
+                vector = await self.get(vector_id)
+                return TextVector(
+                    id=vector.id,
+                    text=text,
+                    model=model,
+                    embedding=vector.embedding,
+                    metadata=vector.metadata,
+                    delete_protection=vector.delete_protection,
+                    created_at=vector.created_at,
+                    updated_at=vector.updated_at,
+                    usage=result.get("usage", {})
+                )
+            else:
+                # Only keep fields that TextVector expects
+                vector_fields = {
+                    "id": result.get("id", "unknown"),
+                    "text": text,
+                    "model": model,
+                    "embedding": result.get("embedding", []),
+                    "metadata": result.get("metadata", {}),
+                    "delete_protection": result.get("delete_protection", False),
+                    "created_at": result.get("created_at", ""),
+                    "updated_at": result.get("updated_at", ""),
+                    "usage": result.get("usage", {})
+                }
+                return TextVector(**vector_fields)
     
     async def batch_upsert(
         self,
@@ -242,14 +271,15 @@ class AsyncVectors:
     
     async def delete(self, vector_id: str) -> None:
         """
-        Delete a specific vector
+        Delete a specific vector using batch delete endpoint
         
         Args:
             vector_id: The vector ID
         """
         await self.client._make_request(
-            "DELETE",
-            f"{self.base_url}/{vector_id}"
+            "POST",
+            f"{self.base_url}/delete",
+            data={"vector_ids": [vector_id]}
         )
     
     async def list_ids(self) -> VectorListResponse:

@@ -257,8 +257,16 @@ def main():
     create_index_parser.add_argument(
         "--dimension", type=int, required=True, help="Vector dimension (1-2000)")
     create_index_parser.add_argument(
-        "--metric", required=True, choices=["cosine", "euclidean", "dot_product"],
+        "--metric", required=True, choices=["cosine", "euclidean", "dotproduct"],
         help="Similarity metric")
+    create_index_parser.add_argument(
+        "--cloud-provider", required=True, choices=["AWS", "GCP", "Azure", "Gravix"],
+        help="Cloud provider")
+    create_index_parser.add_argument(
+        "--region", required=True, help="Region ID (e.g., us-east-1, us-central1, eastus)")
+    create_index_parser.add_argument(
+        "--index-type", required=True, choices=["serverless", "dedicated"],
+        help="Index type")
     create_index_parser.add_argument(
         "--vector-type", default="dense", help="Vector type (default: dense)")
     create_index_parser.add_argument(
@@ -427,6 +435,15 @@ def main():
         "--api-key", type=str, default=None, help="API key")
     delete_vector_parser.add_argument("index_id", help="Index ID")
     delete_vector_parser.add_argument("vector_id", help="Vector ID to delete")
+
+    # Batch delete vectors
+    batch_delete_parser = vector_subparsers.add_parser(
+        "batch-delete", help="Delete multiple vectors")
+    batch_delete_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    batch_delete_parser.add_argument("index_id", help="Index ID")
+    batch_delete_parser.add_argument(
+        "--vector-ids", required=True, help="Comma-separated list of vector IDs to delete")
 
     # For backward compatibility, if no subcommand is provided, treat as chat
     parser.add_argument("--api-key", type=str, default=None, help="API key")
@@ -1003,6 +1020,9 @@ def handle_vectors_commands(args):
                     name=args.name,
                     dimension=args.dimension,
                     metric=args.metric,
+                    cloud_provider=getattr(args, 'cloud_provider'),
+                    region=getattr(args, 'region'),
+                    index_type=getattr(args, 'index_type'),
                     vector_type=getattr(args, 'vector_type', 'dense'),
                     metadata=metadata,
                     delete_protection=getattr(args, 'delete_protection', False)
@@ -1013,6 +1033,9 @@ def handle_vectors_commands(args):
                 print(f"   Name: {index.name}")
                 print(f"   Dimension: {index.dimension}")
                 print(f"   Metric: {index.metric}")
+                print(f"   Cloud Provider: {index.cloud_provider}")
+                print(f"   Region: {index.region}")
+                print(f"   Index Type: {index.index_type}")
                 print(f"   Vector Type: {index.vector_type}")
                 if index.metadata:
                     print(f"   Metadata: {json.dumps(index.metadata, indent=2)}")
@@ -1382,6 +1405,20 @@ def handle_vectors_commands(args):
                 print(f"Deleting vector: {args.vector_id}")
                 vectors.delete(args.vector_id)
                 print("SUCCESS: Vector deleted successfully!")
+                
+            elif args.vector_action == "batch-delete":
+                # Parse comma-separated vector IDs
+                vector_ids = [vid.strip() for vid in args.vector_ids.split(",")]
+                print(f"Deleting {len(vector_ids)} vectors: {vector_ids}")
+                
+                try:
+                    result = vectors.batch_delete(vector_ids)
+                    print("SUCCESS: Batch delete completed!")
+                    print(f"   Deleted IDs: {result.get('deleted_ids', [])}")
+                    print(f"   Count: {result.get('count', 0)}")
+                except Exception as e:
+                    print(f"ERROR: Batch delete failed: {e}")
+                    return
         
     except Exception as e:
         print(f"ERROR: Error: {e}")

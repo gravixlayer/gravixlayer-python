@@ -11,10 +11,13 @@ class VectorIndex:
     """Represents a vector index"""
     id: str
     name: str
-    vector_type: str
-    delete_protection: bool
     dimension: int
     metric: str
+    vector_type: str
+    cloud_provider: str
+    region: str
+    index_type: str
+    delete_protection: bool
     created_at: str
     metadata: Optional[Dict[str, Any]] = None
     updated_at: Optional[str] = None
@@ -88,8 +91,9 @@ class BatchUpsertResponse:
 
 @dataclass
 class VectorListResponse:
-    """Response for listing vectors"""
-    vectors: List[Dict[str, str]]
+    """Response for listing vector IDs"""
+    vector_ids: List[str]
+    count: Optional[int] = None
 
 
 @dataclass
@@ -105,6 +109,9 @@ class CreateIndexRequest:
     name: str
     dimension: int
     metric: str
+    cloud_provider: str
+    region: str
+    index_type: str
     vector_type: str = "dense"
     metadata: Optional[Dict[str, Any]] = None
     delete_protection: bool = False

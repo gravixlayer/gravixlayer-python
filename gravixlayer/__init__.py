@@ -50,6 +50,7 @@ from .types.vectors import (
     SUPPORTED_METRICS,
     SUPPORTED_VECTOR_TYPES,
 )
+# Memory imports will be done lazily to avoid circular imports
 
 __all__ = [
     "GravixLayer",
@@ -88,3 +89,22 @@ __all__ = [
     "SUPPORTED_METRICS",
     "SUPPORTED_VECTOR_TYPES",
 ]
+
+# Lazy imports to avoid circular dependencies
+def __getattr__(name):
+    if name == "Memory":
+        from .resources.memory import Memory
+        return Memory
+    elif name == "MemoryType":
+        from .resources.memory import MemoryType
+        return MemoryType
+    elif name == "MemoryEntry":
+        from .resources.memory import MemoryEntry
+        return MemoryEntry
+    elif name == "MemorySearchResult":
+        from .resources.memory import MemorySearchResult
+        return MemorySearchResult
+    elif name == "MemoryStats":
+        from .resources.memory import MemoryStats
+        return MemoryStats
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
