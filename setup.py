@@ -21,6 +21,7 @@ setup(
     author="Sukrith",
     author_email="sukrithpvs@gmail.com",
     description="GravixLayer Python SDK - Industry Standard Compatible",
+    license="Apache-2.0",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/sukrithpvs/gravixlayer-python",
@@ -28,7 +29,7 @@ setup(
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
