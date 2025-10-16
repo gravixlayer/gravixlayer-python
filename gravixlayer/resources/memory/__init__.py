@@ -1,19 +1,22 @@
 """
-Memory resources for GravixLayer SDK - Mem0-compatible functionality
+Memory resources for GravixLayer SDK
 """
-# Mem0-compatible implementation (recommended)
-from .mem0_compatible import Memory, SyncMemory
+# Main GravixLayer Memory API (recommended)
+from .gravix_memory import GravixMemory
 
-# Mem0-style backend
-from .mem0_style_memory import Mem0StyleMemory
+# Compatibility layers for existing code
+from .compatibility import LegacyMemoryCompatibility, ExternalCompatibilityLayer
 
-# Unified memory system (alternative)
+# Unified memory implementations
 from .unified_memory import UnifiedMemory
 from .unified_sync_memory import UnifiedSyncMemory
 
-# Legacy per-user index system (deprecated)
-from .memory import Memory as LegacyMemory
-from .sync_memory import SyncMemory as LegacySyncMemory
+# Simple memory interfaces
+from .simple_memory import Memory as SimpleMemory
+from .sync_memory import SyncMemory
+
+# Default exports (backward compatibility)
+Memory = ExternalCompatibilityLayer  # Default to external compatibility
 
 # Types and utilities
 from .types import MemoryType, MemoryEntry, MemorySearchResult, MemoryStats
@@ -21,12 +24,16 @@ from .agent import MemoryAgent
 from .unified_agent import UnifiedMemoryAgent
 
 __all__ = [
-    # Mem0-compatible (recommended)
-    "Memory", "SyncMemory", "Mem0StyleMemory",
-    # Unified system (alternative)
+    # Main API (recommended for new code)
+    "GravixMemory",
+    # Compatibility layers
+    "LegacyMemoryCompatibility", "ExternalCompatibilityLayer",
+    # Default exports (backward compatibility)
+    "Memory", "SyncMemory",
+    # Unified implementations
     "UnifiedMemory", "UnifiedSyncMemory",
-    # Legacy system (deprecated)
-    "LegacyMemory", "LegacySyncMemory", 
+    # Simple interfaces
+    "SimpleMemory",
     # Types and utilities
     "MemoryType", "MemoryEntry", "MemorySearchResult", "MemoryStats", 
     "MemoryAgent", "UnifiedMemoryAgent"

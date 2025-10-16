@@ -8,7 +8,7 @@ from datetime import datetime
 
 
 class MemoryType(Enum):
-    """Memory types based on Mem0 classification"""
+    """Memory types for semantic memory classification"""
     FACTUAL = "factual"          # Long-term structured knowledge (preferences, attributes)
     EPISODIC = "episodic"        # Specific past conversations or events
     WORKING = "working"          # Short-term context for current session

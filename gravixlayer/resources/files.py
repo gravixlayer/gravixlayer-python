@@ -1,5 +1,5 @@
 """
-Files resource for GravixLayer SDK - OpenAI compatible File Management API
+Files resource for GravixLayer SDK 
 """
 from typing import Optional, Union, BinaryIO, IO
 import os

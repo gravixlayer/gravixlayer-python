@@ -1,263 +1,125 @@
 # GravixLayer Memory System
 
-A Mem0-inspired memory system built on top of GravixLayer's vector database, providing personalized, adaptive memory capabilities for AI applications.
+A powerful semantic memory system built on GravixLayer's vector database, providing personalized, adaptive memory capabilities for AI applications.
 
 ## Features
 
-- **User-specific Memory Storage**: Each user gets their own vector index (`mem_user_{user_id}`)
-- **Four Memory Types**: Factual, Episodic, Working, and Semantic memory
-- **Semantic Search**: Find relevant memories using natural language queries
-- **Automatic Embeddings**: Text-to-vector conversion using configurable models
-- **Memory Management**: Add, search, update, delete, and organize memories
-- **Both Sync & Async**: Support for both synchronous and asynchronous operations
+- **Semantic Memory Storage**: Store and retrieve memories using natural language
+- **User Isolation**: Each user gets their own secure memory space
+- **Four Memory Types**: Factual, Episodic, Working, and Semantic memory classification
+- **AI-Powered Inference**: Automatically extract meaningful memories from conversations
+- **Vector Search**: Fast semantic similarity search using embeddings
+- **Flexible APIs**: Multiple API styles for different use cases
 
 ## Memory Types
 
-| Type | Description | Example |
-|------|-------------|---------|
-| **Factual** | Long-term structured knowledge (preferences, attributes) | "User's favorite color is blue" |
-| **Episodic** | Specific past conversations or events | "Last week, user asked for help troubleshooting their TV" |
-| **Working** | Short-term context for current session | "User just mentioned the model number of their TV" |
-| **Semantic** | Generalized knowledge from patterns | "Users who own this TV model often ask about sound settings" |
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **Factual** | Long-term structured knowledge | User preferences, attributes, settings |
+| **Episodic** | Specific past events | Conversation history, interactions |
+| **Working** | Short-term session context | Current task, temporary information |
+| **Semantic** | Learned patterns | Behavioral insights, generalizations |
 
 ## Quick Start
 
-### Synchronous Usage
+### Basic Usage
 
 ```python
-from gravixlayer import GravixLayer
-from gravixlayer.resources.memory import SyncMemory, MemoryType
-
-# Initialize
-client = GravixLayer()
-memory = SyncMemory(client)
-
-user_id = "john_doe"
-
-# Add memories
-memory.add(
-    "User prefers concise explanations and works with Python",
-    user_id,
-    MemoryType.FACTUAL
-)
-
-memory.add(
-    "Yesterday, user asked about Flask debugging",
-    user_id,
-    MemoryType.EPISODIC
-)
-
-# Search memories
-results = memory.search("Python help", user_id, top_k=5)
-for result in results:
-    print(f"{result.memory.content} (score: {result.relevance_score})")
-```
-
-### Asynchronous Usage
-
-```python
-import asyncio
 from gravixlayer import AsyncGravixLayer
 from gravixlayer.resources.memory import Memory, MemoryType
 
-async def main():
-    client = AsyncGravixLayer()
-    memory = Memory(client)
-    
-    user_id = "jane_doe"
-    
-    # Add memory
-    await memory.add(
-        "User is a data scientist using pandas",
-        user_id,
-        MemoryType.FACTUAL
-    )
-    
-    # Search memories
-    results = await memory.search("data analysis", user_id)
-    for result in results:
-        print(result.memory.content)
+# Initialize
+client = AsyncGravixLayer()
+memory = Memory(client)
 
-asyncio.run(main())
+# Add memories
+await memory.add("User prefers Python for backend development", user_id="john")
+
+# Search memories
+results = await memory.search("programming preferences", user_id="john")
+```
+
+### Advanced Usage with GravixMemory
+
+```python
+from gravixlayer.resources.memory import GravixMemory
+
+# Use the advanced API
+memory = GravixMemory(client)
+
+# Store with metadata
+await memory.store_memory(
+    content="User completed Python course",
+    user_id="john",
+    memory_type=MemoryType.EPISODIC,
+    metadata={"course": "python-basics", "score": 95}
+)
+
+# Process conversations
+messages = [
+    {"role": "user", "content": "I love working with React"},
+    {"role": "assistant", "content": "Great! React is very popular."}
+]
+memories = await memory.process_conversation(messages, user_id="john")
 ```
 
 ## API Reference
 
 ### Core Methods
 
-#### `add(content, user_id, memory_type, metadata=None, memory_id=None)`
-Add a new memory for a user.
+- `add(content, user_id, **kwargs)` - Add memory
+- `search(query, user_id, **kwargs)` - Search memories
+- `get(memory_id, user_id)` - Retrieve specific memory
+- `update(memory_id, user_id, **kwargs)` - Update memory
+- `delete(memory_id, user_id)` - Delete memory
+- `get_all(user_id, **kwargs)` - List all memories
 
-```python
-memory_entry = memory.add(
-    content="User prefers detailed code examples",
-    user_id="user123",
-    memory_type=MemoryType.FACTUAL,
-    metadata={"category": "preferences", "confidence": 0.9}
-)
-```
+### Advanced Methods (GravixMemory)
 
-#### `search(query, user_id, memory_types=None, top_k=10, min_relevance=0.7)`
-Search memories using semantic similarity.
-
-```python
-results = memory.search(
-    query="programming help",
-    user_id="user123",
-    memory_types=[MemoryType.FACTUAL, MemoryType.EPISODIC],
-    top_k=5
-)
-```
-
-#### `get(memory_id, user_id)`
-Retrieve a specific memory by ID.
-
-```python
-memory_entry = memory.get("memory-id-123", "user123")
-```
-
-#### `update(memory_id, user_id, content=None, metadata=None, importance_score=None)`
-Update an existing memory.
-
-```python
-updated_memory = memory.update(
-    memory_id="memory-id-123",
-    user_id="user123",
-    content="Updated content",
-    importance_score=1.5
-)
-```
-
-#### `delete(memory_id, user_id)`
-Delete a memory.
-
-```python
-success = memory.delete("memory-id-123", "user123")
-```
-
-### Utility Methods
-
-#### `get_memories_by_type(user_id, memory_type, limit=50)`
-Get all memories of a specific type.
-
-```python
-factual_memories = memory.get_memories_by_type(
-    user_id="user123",
-    memory_type=MemoryType.FACTUAL
-)
-```
-
-#### `get_stats(user_id)`
-Get memory statistics for a user.
-
-```python
-stats = memory.get_stats("user123")
-print(f"Total: {stats.total_memories}")
-print(f"Factual: {stats.factual_count}")
-```
-
-#### `cleanup_working_memory(user_id)`
-Clean up expired working memory (older than 2 hours).
-
-```python
-cleaned_count = memory.cleanup_working_memory("user123")
-```
-
-## Use Cases
-
-### Personalized AI Assistant
-
-```python
-# Learn about user
-memory.add("User is a React developer", user_id, MemoryType.FACTUAL)
-memory.add("User prefers TypeScript", user_id, MemoryType.FACTUAL)
-
-# When user asks a question
-user_query = "How should I handle state management?"
-
-# Get relevant context
-context = memory.search(user_query, user_id, top_k=3)
-
-# Use context to personalize AI response
-personalized_prompt = f"""
-User Context: {[r.memory.content for r in context]}
-Query: {user_query}
-
-Provide a response tailored to this React/TypeScript developer.
-"""
-```
-
-### Customer Support
-
-```python
-# Store customer interaction history
-memory.add(
-    "Customer reported login issues on mobile app",
-    customer_id,
-    MemoryType.EPISODIC,
-    {"ticket_id": "T-12345", "priority": "high"}
-)
-
-# When customer contacts again
-previous_issues = memory.search(
-    "login problems",
-    customer_id,
-    memory_types=[MemoryType.EPISODIC]
-)
-```
-
-### Learning System
-
-```python
-# Track learning progress
-memory.add(
-    "Student completed Python basics module",
-    student_id,
-    MemoryType.EPISODIC,
-    {"module": "python_basics", "score": 85}
-)
-
-# Store learning preferences
-memory.add(
-    "Student learns better with visual examples",
-    student_id,
-    MemoryType.FACTUAL,
-    {"learning_style": "visual"}
-)
-```
+- `store_memory()` - Store individual memory
+- `process_conversation()` - Extract from conversations
+- `find_memories()` - Semantic search
+- `list_memories()` - List with sorting/filtering
+- `get_memory_stats()` - Usage statistics
 
 ## Configuration
 
-### Embedding Model
-Default model is `text-embedding-ada-002`, but you can specify any supported model:
+### Default Models
+
+- **Embedding**: `baai/bge-large-en-v1.5` (1024 dimensions)
+- **Inference**: `mistralai/mistral-nemo-instruct-2407`
+
+### Custom Models
 
 ```python
-memory = Memory(client, embedding_model="text-embedding-3-small")
+memory = GravixMemory(
+    client,
+    embedding_model="your-embedding-model",
+    inference_model="your-inference-model"
+)
 ```
-
-### Working Memory TTL
-Working memory expires after 2 hours by default. You can modify this:
-
-```python
-memory.working_memory_ttl = timedelta(hours=4)  # 4 hours
-```
-
-## Vector Index Management
-
-The memory system automatically creates vector indexes for each user:
-- Index name format: `mem_user_{sanitized_user_id}`
-- Dimension: 1536 (for text-embedding-ada-002)
-- Metric: cosine similarity
-- Metadata includes user_id, memory_type, timestamps, and custom fields
-
-## Best Practices
-
-1. **Use appropriate memory types**: Choose the right type for each piece of information
-2. **Add metadata**: Include relevant metadata for better filtering and organization
-3. **Regular cleanup**: Use `cleanup_working_memory()` to remove expired working memory
-4. **Relevance thresholds**: Adjust `min_relevance` based on your use case
-5. **Batch operations**: For multiple memories, consider adding them in sequence rather than parallel to avoid rate limits
 
 ## Examples
 
-See the `examples.py` and `sync_examples.py` files for comprehensive usage examples.
+See `sync_examples.py` for comprehensive usage examples.
+
+## Architecture
+
+The memory system uses GravixLayer's vector database for storage and retrieval:
+
+- **Vector Embeddings**: Text content is converted to vectors for semantic search
+- **Metadata Filtering**: Efficient filtering by user, type, and custom metadata
+- **User Isolation**: Secure separation of user data
+- **Scalable Storage**: Handles large amounts of memory data efficiently
+
+## Best Practices
+
+1. **Choose appropriate memory types** for different kinds of information
+2. **Use metadata** for better organization and filtering
+3. **Regular cleanup** of working memory to prevent bloat
+4. **Batch operations** when adding multiple memories
+5. **Monitor usage** with memory statistics
+
+## Migration
+
+The system provides backward compatibility for existing code while offering enhanced features through the new GravixMemory API.

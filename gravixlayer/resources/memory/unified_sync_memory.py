@@ -15,7 +15,7 @@ class UnifiedSyncMemory:
     Synchronous unified memory system using a single shared GravixLayer vector index
     """
     
-    def __init__(self, client, embedding_model: str = "text-embedding-ada-002", 
+    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
                  shared_index_name: str = "gravixlayer_memories"):
         """
         Initialize Unified Sync Memory system

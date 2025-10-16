@@ -1,5 +1,5 @@
 """
-Simple Memory wrapper that maintains Mem0 API compatibility
+Simple Memory wrapper for GravixLayer unified memory system
 Uses the unified memory system under the hood
 """
 from typing import Dict, Any, List, Optional, Union
@@ -10,13 +10,13 @@ from .types import MemoryType, MemoryEntry, MemorySearchResult, MemoryStats
 
 class Memory:
     """
-    Mem0-compatible memory interface using unified memory system
+    GravixLayer memory interface using unified memory system
     """
     
-    def __init__(self, client, embedding_model: str = "text-embedding-ada-002", 
-                 inference_model: str = "gpt-4"):
+    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
+                 inference_model: str = "mistralai/mistral-nemo-instruct-2407"):
         """
-        Initialize Memory system with Mem0-compatible API
+        Initialize Memory system with GravixLayer API
         
         Args:
             client: GravixLayer client instance
@@ -39,7 +39,7 @@ class Memory:
                   memory_type: Optional[MemoryType] = None, metadata: Optional[Dict[str, Any]] = None, 
                   memory_id: Optional[str] = None, infer: bool = True) -> Union[MemoryEntry, List[MemoryEntry]]:
         """
-        Add memory for a user - EXACT Mem0 API
+        Add memory for a user
         
         Args:
             content: Memory content (string) or conversation messages (list of dicts)
@@ -64,7 +64,7 @@ class Memory:
     async def search(self, query: str, user_id: str, memory_types: Optional[List[MemoryType]] = None,
                      top_k: int = 10, min_relevance: float = 0.7) -> List[MemorySearchResult]:
         """
-        Search memories for a user - EXACT Mem0 API
+        Search memories for a user
         
         Args:
             query: Search query
@@ -86,7 +86,7 @@ class Memory:
     
     async def get(self, memory_id: str, user_id: str) -> Optional[MemoryEntry]:
         """
-        Retrieve a specific memory by ID - EXACT Mem0 API
+        Retrieve a specific memory by ID
         
         Args:
             memory_id: Memory identifier
@@ -100,7 +100,7 @@ class Memory:
     async def update(self, memory_id: str, user_id: str, content: Optional[str] = None,
                      metadata: Optional[Dict[str, Any]] = None, importance_score: Optional[float] = None) -> Optional[MemoryEntry]:
         """
-        Update an existing memory - EXACT Mem0 API
+        Update an existing memory
         
         Args:
             memory_id: Memory identifier
@@ -122,7 +122,7 @@ class Memory:
     
     async def delete(self, memory_id: str, user_id: str) -> bool:
         """
-        Delete a memory - EXACT Mem0 API
+        Delete a memory
         
         Args:
             memory_id: Memory identifier

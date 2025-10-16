@@ -13,13 +13,13 @@ class UnifiedMemoryAgent:
     Memory inference agent that uses GravixLayer's chat API for memory extraction
     """
     
-    def __init__(self, client, model: str = "meta-llama/llama-3.1-8b-instruct"):
+    def __init__(self, client, model: str = "mistralai/mistral-nemo-instruct-2407"):
         """
         Initialize the unified memory agent
         
         Args:
             client: GravixLayer client for chat API calls
-            model: LLM model to use for inference (default: meta-llama/llama-3.1-8b-instruct)
+            model: LLM model to use for inference (default: mistralai/mistral-nemo-instruct-2407)
         """
         self.client = client
         self.model = model

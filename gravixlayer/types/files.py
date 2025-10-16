@@ -13,7 +13,7 @@ class FileObject:
     expires_after: Optional[int] = None
     
     def model_dump(self):
-        """Convert to dictionary for JSON serialization (OpenAI compatibility)."""
+        """Convert to dictionary for JSON serialization ."""
         result = {
             "id": self.id,
             "object": self.object,
@@ -51,7 +51,7 @@ class FileListResponse:
             self.data = []
     
     def model_dump(self):
-        """Convert to dictionary for JSON serialization (OpenAI compatibility)."""
+        """Convert to dictionary for JSON serialization ."""
         return {
             "data": [file_obj.model_dump() for file_obj in self.data]
         }

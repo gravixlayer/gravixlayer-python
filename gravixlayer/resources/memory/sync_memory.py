@@ -11,10 +11,10 @@ from .types import MemoryType, MemoryEntry, MemorySearchResult, MemoryStats
 
 class SyncMemory:
     """
-    Synchronous version of Mem0-like memory system using GravixLayer vector database
+    Synchronous semantic memory system using GravixLayer vector database
     """
     
-    def __init__(self, client, embedding_model: str = "text-embedding-ada-002"):
+    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5"):
         """
         Initialize Memory system
         

@@ -27,7 +27,7 @@ class EmbeddingResponse:
             self.data = []
     
     def model_dump(self):
-        """Convert to dictionary for JSON serialization (OpenAI compatibility)."""
+        """Convert to dictionary for JSON serialization ."""
         return {
             "object": self.object,
             "data": [

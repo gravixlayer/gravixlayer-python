@@ -18,8 +18,8 @@ class UnifiedMemory:
     Filters memories by user_id instead of creating separate indexes
     """
     
-    def __init__(self, client, embedding_model: str = "text-embedding-ada-002", 
-                 inference_model: str = "gpt-4", shared_index_name: str = "gravixlayer_memories"):
+    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
+                 inference_model: str = "mistralai/mistral-nemo-instruct-2407", shared_index_name: str = "gravixlayer_memories"):
         """
         Initialize Unified Memory system
         

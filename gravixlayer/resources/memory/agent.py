@@ -11,10 +11,10 @@ from .types import MemoryType
 class MemoryAgent:
     """
     Intelligent agent that analyzes conversations and extracts meaningful memories
-    Similar to Mem0's inference capabilities
+    Provides semantic memory inference capabilities
     """
     
-    def __init__(self, client, model: str = "gpt-4"):
+    def __init__(self, client, model: str = "mistralai/mistral-nemo-instruct-2407"):
         """
         Initialize the memory agent
         
