@@ -38,7 +38,7 @@ class SyncMemory:
         """Get the correct embedding dimension for the model"""
         # Common embedding model dimensions
         model_dimensions = {
-            "text-embedding-ada-002": 1536,
+            "microsoft/multilingual-e5-large": 1536,
             "text-embedding-3-small": 1536,
             "text-embedding-3-large": 3072,
             "baai/bge-large-en-v1.5": 1024,

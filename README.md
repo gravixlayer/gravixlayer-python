@@ -411,7 +411,7 @@ index = client.vectors.indexes.create(
     metric="cosine",
     metadata={
         "description": "Product description embeddings",
-        "model": "text-embedding-ada-002"
+        "model": "microsoft/multilingual-e5-large"
     }
 )
 
@@ -444,7 +444,7 @@ vector = vectors.upsert(
 # Upsert vectors from text (automatic embedding)
 text_vector = vectors.upsert_text(
     text="Premium wireless bluetooth headphones with noise cancellation",
-    model="text-embedding-ada-002",
+    model="microsoft/multilingual-e5-large",
     id="product-2",
     metadata={
         "title": "Premium Headphones",
@@ -485,7 +485,7 @@ for hit in search_results.hits:
 # Text-based search
 text_results = vectors.search_text(
     query="bluetooth headphones",
-    model="text-embedding-ada-002",
+    model="microsoft/multilingual-e5-large",
     top_k=3,
     include_metadata=True
 )
@@ -519,7 +519,7 @@ async def vector_operations():
     for i in range(5):
         task = vectors.upsert_text(
             text=f"Document {i} content",
-            model="text-embedding-ada-002",
+            model="microsoft/multilingual-e5-large",
             id=f"doc-{i}"
         )
         tasks.append(task)
@@ -530,8 +530,8 @@ async def vector_operations():
     
     # Concurrent searches
     search_tasks = [
-        vectors.search_text("document", "text-embedding-ada-002", 3),
-        vectors.search_text("content", "text-embedding-ada-002", 3)
+        vectors.search_text("document", "microsoft/multilingual-e5-large", 3),
+        vectors.search_text("content", "microsoft/multilingual-e5-large", 3)
     ]
     
     search_results = await asyncio.gather(*search_tasks)
@@ -699,14 +699,14 @@ gravixlayer vectors index list
 # Upsert a text vector
 gravixlayer vectors vector upsert-text <index-id> \
   --text "Wireless bluetooth headphones" \
-  --model "text-embedding-ada-002" \
+  --model "microsoft/multilingual-e5-large" \
   --id "product-1" \
   --metadata '{"category": "electronics"}'
 
 # Search using text
 gravixlayer vectors vector search-text <index-id> \
   --query "headphones" \
-  --model "text-embedding-ada-002" \
+  --model "microsoft/multilingual-e5-large" \
   --top-k 5
 
 # Search using vector

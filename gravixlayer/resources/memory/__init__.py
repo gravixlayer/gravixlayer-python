@@ -23,6 +23,9 @@ from .types import MemoryType, MemoryEntry, MemorySearchResult, MemoryStats
 from .agent import MemoryAgent
 from .unified_agent import UnifiedMemoryAgent
 
+# Dynamic configuration
+from .dynamic_config import DynamicMemoryConfig, MemoryConfig, CloudConfig
+
 __all__ = [
     # Main API (recommended for new code)
     "GravixMemory",
@@ -36,5 +39,7 @@ __all__ = [
     "SimpleMemory",
     # Types and utilities
     "MemoryType", "MemoryEntry", "MemorySearchResult", "MemoryStats", 
-    "MemoryAgent", "UnifiedMemoryAgent"
+    "MemoryAgent", "UnifiedMemoryAgent",
+    # Dynamic configuration
+    "DynamicMemoryConfig", "MemoryConfig", "CloudConfig"
 ]

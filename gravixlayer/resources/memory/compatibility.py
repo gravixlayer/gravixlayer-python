@@ -4,6 +4,7 @@ Provides backward compatibility for existing code while using the new GravixMemo
 """
 from typing import Dict, Any, List, Optional, Union
 from .gravix_memory import GravixMemory
+from .unified_memory import UnifiedMemory
 from .types import MemoryType, MemoryEntry
 
 
@@ -238,89 +239,114 @@ class LegacyMemoryCompatibility:
 class ExternalCompatibilityLayer:
     """
     Compatibility layer for external APIs (like the old interface)
-    Provides the exact same method signatures as before
+    Provides the exact same method signatures as before with dynamic configuration support
     """
     
-    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
-                 inference_model: str = "mistralai/mistral-nemo-instruct-2407"):
+    def __init__(self, client, embedding_model: Optional[str] = None, 
+                 inference_model: Optional[str] = None, index_name: Optional[str] = None,
+                 cloud_provider: Optional[str] = None, region: Optional[str] = None):
         """
-        Initialize external compatibility layer
+        Initialize external compatibility layer with simplified configuration
         
         Args:
             client: GravixLayer client instance
-            embedding_model: Model for text embeddings
-            inference_model: Model for memory inference
+            embedding_model: Model for text embeddings (None = use system default)
+            inference_model: Model for memory inference (None = use system default)
+            index_name: Memory database name (None = use default "gravixlayer_memories")
+            cloud_provider: Cloud provider (AWS, GCP, Azure) (None = use default AWS)
+            region: Cloud region (None = use default region for provider)
         """
-        self.gravix_memory = GravixMemory(
+        # Convert simple parameters to cloud_config format
+        cloud_config = None
+        if cloud_provider or region:
+            cloud_config = {
+                "cloud_provider": cloud_provider or "AWS",
+                "region": region or "us-east-1",
+                "index_type": "serverless"
+            }
+        
+        # Use UnifiedMemory for better dynamic configuration support
+        self.unified_memory = UnifiedMemory(
             client=client,
             embedding_model=embedding_model,
-            inference_model=inference_model
+            inference_model=inference_model,
+            shared_index_name=index_name,
+            cloud_config=cloud_config
         )
+        
+        # Expose configuration methods
+        self.switch_configuration = self.unified_memory.switch_configuration
+        self.get_current_configuration = self.unified_memory.get_current_configuration
+        self.reset_to_defaults = self.unified_memory.reset_to_defaults
+        self.switch_database = self.unified_memory.switch_database
+        self.list_available_databases = self.unified_memory.list_available_databases
     
     async def add(self, messages: Union[str, List[Dict[str, str]]], user_id: str,
                   metadata: Optional[Dict[str, Any]] = None, 
-                  infer: bool = True) -> Dict[str, Any]:
+                  infer: bool = True, embedding_model: Optional[str] = None,
+                  database_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Add memories - External API compatibility
+        Add memories - External API compatibility with dynamic configuration
         
         Args:
             messages: Content to store
             user_id: User identifier
             metadata: Additional metadata
             infer: Whether to use AI inference
+            embedding_model: Override embedding model for this operation
+            database_name: Override database for this operation
             
         Returns:
             Dict with results list (external format)
         """
-        if isinstance(messages, str):
-            # Single string content
-            memory_entry = await self.gravix_memory.store_memory(
-                content=messages,
-                user_id=user_id,
-                metadata=metadata
-            )
-            results = [{
-                "id": memory_entry.id,
-                "memory": memory_entry.content,
-                "event": "ADD"
-            }]
-        else:
-            # Conversation messages
-            memory_entries = await self.gravix_memory.process_conversation(
-                messages=messages,
-                user_id=user_id,
-                metadata=metadata,
-                use_inference=infer
-            )
-            results = [{
-                "id": entry.id,
-                "memory": entry.content,
-                "event": "ADD"
-            } for entry in memory_entries]
+        # Use unified memory for dynamic configuration support
+        memory_entries = await self.unified_memory.add(
+            content=messages,
+            user_id=user_id,
+            metadata=metadata,
+            infer=infer,
+            embedding_model=embedding_model,
+            database_name=database_name
+        )
+        
+        # Handle both single entry and list of entries
+        if not isinstance(memory_entries, list):
+            memory_entries = [memory_entries]
+        
+        results = [{
+            "id": entry.id,
+            "memory": entry.content,
+            "event": "ADD"
+        } for entry in memory_entries]
         
         return {"results": results}
     
     async def search(self, query: str, user_id: str, limit: int = 100, 
-                    threshold: Optional[float] = None) -> Dict[str, Any]:
+                    threshold: Optional[float] = None, embedding_model: Optional[str] = None,
+                    database_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Search memories - External API compatibility
+        Search memories - External API compatibility with dynamic configuration
         
         Args:
             query: Search query
             user_id: User identifier
             limit: Maximum results
             threshold: Minimum similarity score
+            embedding_model: Override embedding model for this search
+            database_name: Override database for this search
             
         Returns:
             Dict with results list (external format)
         """
         min_relevance = threshold if threshold is not None else 0.3
         
-        search_results = await self.gravix_memory.find_memories(
+        search_results = await self.unified_memory.search(
             query=query,
             user_id=user_id,
-            max_results=limit,
-            min_relevance=min_relevance
+            top_k=limit,
+            min_relevance=min_relevance,
+            embedding_model=embedding_model,
+            database_name=database_name
         )
         
         results = []
@@ -348,7 +374,7 @@ class ExternalCompatibilityLayer:
         Returns:
             Memory data or None
         """
-        memory = await self.gravix_memory.retrieve_memory(memory_id, user_id)
+        memory = await self.unified_memory.get(memory_id, user_id)
         if not memory:
             return None
         
@@ -372,10 +398,12 @@ class ExternalCompatibilityLayer:
         Returns:
             Dict with results list (external format)
         """
-        memories = await self.gravix_memory.list_memories(user_id, limit=limit)
+        memory_results = await self.unified_memory.get_all_user_memories(user_id, limit=limit)
         
         results = []
-        for memory in memories:
+        for memory_result in memory_results:
+            # Handle both MemoryEntry and MemorySearchResult objects
+            memory = memory_result.memory if hasattr(memory_result, 'memory') else memory_result
             results.append({
                 "id": memory.id,
                 "memory": memory.content,
@@ -399,7 +427,7 @@ class ExternalCompatibilityLayer:
         Returns:
             Success message
         """
-        updated_memory = await self.gravix_memory.modify_memory(
+        updated_memory = await self.unified_memory.update(
             memory_id=memory_id,
             user_id=user_id,
             content=data
@@ -421,7 +449,7 @@ class ExternalCompatibilityLayer:
         Returns:
             Success message
         """
-        success = await self.gravix_memory.remove_memory(memory_id, user_id)
+        success = await self.unified_memory.delete(memory_id, user_id)
         
         if success:
             return {"message": f"Memory {memory_id} deleted successfully!"}
@@ -438,11 +466,13 @@ class ExternalCompatibilityLayer:
         Returns:
             Success message
         """
-        memories = await self.gravix_memory.list_memories(user_id)
+        memory_results = await self.unified_memory.get_all_user_memories(user_id)
         deleted_count = 0
         
-        for memory in memories:
-            if await self.gravix_memory.remove_memory(memory.id, user_id):
+        for memory_result in memory_results:
+            # Handle both MemoryEntry and MemorySearchResult objects
+            memory = memory_result.memory if hasattr(memory_result, 'memory') else memory_result
+            if await self.unified_memory.delete(memory.id, user_id):
                 deleted_count += 1
         
         return {"message": f"Deleted {deleted_count} memories for user {user_id}"}
