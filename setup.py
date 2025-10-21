@@ -17,7 +17,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="gravixlayer",
-    version="0.0.35",
+    version="0.0.36",
     author="Team Gravix",
     author_email=" info@gravixlayer.com",
     description="GravixLayer Python SDK ",
