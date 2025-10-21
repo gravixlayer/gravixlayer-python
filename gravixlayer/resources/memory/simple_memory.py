@@ -1,5 +1,5 @@
 """
-Simple Memory wrapper for GravixLayer unified memory system
+Simple Memory for GravixLayer unified memory system
 Uses the unified memory system under the hood
 """
 from typing import Dict, Any, List, Optional, Union

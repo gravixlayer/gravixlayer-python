@@ -74,6 +74,10 @@ class GravixLayer:
         self.accelerators = Accelerators(self)
         self.files = Files(self)
         self.vectors = VectorDatabase(self)
+        
+        # Initialize memory resource
+        from .resources.memory import Memory
+        self.memory = Memory(self)
 
     def _make_request(
         self,
