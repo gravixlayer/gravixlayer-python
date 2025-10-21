@@ -20,11 +20,11 @@ setup(
     version="0.0.34",
     author="Sukrith",
     author_email="sukrithpvs@gmail.com",
-    description="GravixLayer Python SDK - Industry Standard Compatible",
+    description="GravixLayer Python SDK ",
     license="Apache-2.0",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/sukrithpvs/gravixlayer-python",
+    url=""https://github.com/gravixlayer/gravixlayer-python",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",

@@ -19,9 +19,9 @@ class UnifiedMemory:
     Supports dynamic configuration switching for embedding models, cloud settings, and databases
     """
     
-    def __init__(self, client, embedding_model: Optional[str] = None, 
-                 inference_model: Optional[str] = None, shared_index_name: Optional[str] = None,
-                 cloud_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, client, embedding_model=None, 
+                 inference_model=None, shared_index_name=None,
+                 cloud_config=None):
         """
         Initialize Unified Memory system with dynamic configuration support
         
@@ -60,7 +60,7 @@ class UnifiedMemory:
         # Set correct dimension based on current embedding model
         self.embedding_dimension = self._get_embedding_dimension(self.current_embedding_model)
     
-    def _get_embedding_dimension(self, model: str) -> int:
+    def _get_embedding_dimension(self, model):
         """Get the correct embedding dimension for the model"""
         model_dimensions = {
             # Server-side actual dimensions (what the server actually produces)
@@ -82,10 +82,10 @@ class UnifiedMemory:
         }
         return model_dimensions.get(model, 1024)  # Default to 1024
     
-    def switch_configuration(self, embedding_model: Optional[str] = None,
-                           inference_model: Optional[str] = None, 
-                           index_name: Optional[str] = None,
-                           cloud_config: Optional[Dict[str, Any]] = None):
+    def switch_configuration(self, embedding_model=None,
+                           inference_model=None, 
+                           index_name=None,
+                           cloud_config=None):
         """
         Dynamically switch configuration settings
         
@@ -155,7 +155,7 @@ class UnifiedMemory:
         )
         print("🔄 Reset to default configuration")
     
-    async def _ensure_shared_index(self, index_name: Optional[str] = None) -> str:
+    async def _ensure_shared_index(self, index_name=None):
         """
         Ensure the specified memory index exists
         
@@ -233,12 +233,12 @@ class UnifiedMemory:
             else:
                 raise Exception(f"Failed to create memory index '{target_index_name}': {error_msg}")
     
-    async def list_available_databases(self) -> List[str]:
+    async def list_available_indexes(self):
         """
-        List all available memory databases/indexes
+        List all available memory indexes
         
         Returns:
-            List of database names
+            List of index names
         """
         try:
             index_list = await self.client.vectors.indexes.list()
@@ -254,34 +254,34 @@ class UnifiedMemory:
             
             return memory_indexes
         except Exception as e:
-            print(f"Error listing databases: {e}")
+            print(f"Error listing indexes: {e}")
             return []
     
-    async def switch_database(self, database_name: str) -> bool:
+    async def switch_index(self, index_name):
         """
-        Switch to a different memory database
+        Switch to a different memory index
         
         Args:
-            database_name: Name of the database to switch to
+            index_name: Name of the index to switch to
             
         Returns:
             bool: True if switch was successful
         """
         try:
-            # Ensure the database exists (will create if needed)
-            index_id = await self._ensure_shared_index(database_name)
+            # Ensure the index exists (will create if needed)
+            index_id = await self._ensure_shared_index(index_name)
             
             # Update current configuration
-            self.current_index_name = database_name
-            print(f"✅ Switched to database: {database_name} (ID: {index_id})")
+            self.current_index_name = index_name
+            print(f"✅ Switched to index: {index_name} (ID: {index_id})")
             return True
         except Exception as e:
-            print(f"❌ Failed to switch to database '{database_name}': {e}")
+            print(f"❌ Failed to switch to index '{index_name}': {e}")
             return False
     
     async def _add_from_messages(self, messages: List[Dict[str, str]], user_id: str, 
                                 metadata: Optional[Dict[str, Any]] = None, infer: bool = True,
-                                embedding_model: Optional[str] = None, database_name: Optional[str] = None) -> List[MemoryEntry]:
+                                embedding_model: Optional[str] = None, index_name: Optional[str] = None) -> List[MemoryEntry]:
         """
         Process conversation messages and extract memories
         
@@ -316,18 +316,17 @@ class UnifiedMemory:
                 memory_type=memory_data["memory_type"],
                 metadata=combined_metadata,
                 embedding_model=embedding_model,
-                database_name=database_name
+                index_name=index_name
             )
             
             created_memories.append(memory_entry)
         
         return created_memories
     
-    def _create_memory_metadata(self, memory_type: MemoryType, user_id: str, 
-                               custom_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _create_memory_metadata(self, memory_type, user_id, custom_metadata=None):
         """Create metadata for memory entry"""
         metadata = {
-            "memory_type": memory_type.value,
+            "memory_type": memory_type.value if hasattr(memory_type, 'value') else str(memory_type),
             "user_id": user_id,  # Critical: user_id for filtering
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
@@ -337,13 +336,14 @@ class UnifiedMemory:
         
         if custom_metadata:
             metadata.update(custom_metadata)
-            
+        
+
         return metadata
     
     async def add(self, content: Union[str, List[Dict[str, str]]], user_id: str, 
                   memory_type: Optional[MemoryType] = None, metadata: Optional[Dict[str, Any]] = None, 
                   memory_id: Optional[str] = None, infer: bool = True,
-                  embedding_model: Optional[str] = None, database_name: Optional[str] = None) -> Union[MemoryEntry, List[MemoryEntry]]:
+                  embedding_model: Optional[str] = None, index_name: Optional[str] = None) -> Union[MemoryEntry, List[MemoryEntry]]:
         """
         Add memory for a user - supports both direct content and conversation messages
         
@@ -355,24 +355,24 @@ class UnifiedMemory:
             memory_id: Optional custom memory ID
             infer: Whether to infer memories from messages (default: True)
             embedding_model: Override embedding model for this operation (None = use current)
-            database_name: Override database for this operation (None = use current)
+            index_name: Override index for this operation (None = use current)
             
         Returns:
             MemoryEntry or List[MemoryEntry]: Created memory entry/entries
         """
         # Handle conversation messages
         if isinstance(content, list):
-            return await self._add_from_messages(content, user_id, metadata, infer, embedding_model, database_name)
+            return await self._add_from_messages(content, user_id, metadata, infer, embedding_model, index_name)
         
         # Handle direct content
         if memory_type is None:
             memory_type = MemoryType.FACTUAL
         
-        # Use provided models/database or current configuration
+        # Use provided models/index or current configuration
         active_embedding_model = embedding_model or self.current_embedding_model
-        target_database = database_name or self.current_index_name
+        target_index = index_name or self.current_index_name
             
-        index_id = await self._ensure_shared_index(target_database)
+        index_id = await self._ensure_shared_index(target_index)
         vectors = self.client.vectors.index(index_id)
         
         # Generate memory ID if not provided
@@ -383,7 +383,7 @@ class UnifiedMemory:
         memory_metadata = self._create_memory_metadata(memory_type, user_id, metadata)
         memory_metadata["content"] = content  # Store content in metadata for retrieval
         memory_metadata["embedding_model"] = active_embedding_model  # Track which model was used
-        memory_metadata["database_name"] = target_database  # Track which database
+        memory_metadata["index_name"] = target_index  # Track which index
         
         # Store memory as vector in shared index
         vector_result = await vectors.upsert_text(
@@ -410,7 +410,7 @@ class UnifiedMemory:
     
     async def search(self, query: str, user_id: str, memory_types: Optional[List[MemoryType]] = None,
                      top_k: int = 10, min_relevance: float = 0.7,
-                     embedding_model: Optional[str] = None, database_name: Optional[str] = None) -> List[MemorySearchResult]:
+                     embedding_model: Optional[str] = None, index_name: Optional[str] = None) -> List[MemorySearchResult]:
         """
         Search memories for a user using semantic similarity
         
@@ -421,21 +421,25 @@ class UnifiedMemory:
             top_k: Number of results to return
             min_relevance: Minimum relevance score threshold
             embedding_model: Override embedding model for this search (None = use current)
-            database_name: Override database for this search (None = use current)
+            index_name: Override index for this search (None = use current)
             
         Returns:
             List[MemorySearchResult]: Relevant memories with scores
         """
         try:
-            # Use provided models/database or current configuration
+            # Use provided models/index or current configuration
             active_embedding_model = embedding_model or self.current_embedding_model
-            target_database = database_name or self.current_index_name
+            target_index = index_name or self.current_index_name
             
-            index_id = await self._ensure_shared_index(target_database)
+            index_id = await self._ensure_shared_index(target_index)
             vectors = self.client.vectors.index(index_id)
             
-            # Handle empty query - use a generic query for "get all" behavior
-            search_query = query if query.strip() else "memory"
+            # Handle empty query - use a very generic query for "get all" behavior
+            if not query.strip():
+                # For empty queries, use a very common word that should match most content
+                search_query = "the"  # Most common English word, should match most content
+            else:
+                search_query = query
             
             # Build metadata filter - CRITICAL: filter by user_id
             filter_conditions = {"user_id": user_id}
@@ -461,7 +465,8 @@ class UnifiedMemory:
                 if hit_user_id != user_id:
                     continue
                     
-                if hit.score >= min_relevance:
+                # For empty queries or very low relevance thresholds, include all results
+                if min_relevance <= 0.0 or not query.strip() or hit.score >= min_relevance:
                     # Update access count
                     await self._increment_access_count(vectors, hit.id)
                     
@@ -478,21 +483,21 @@ class UnifiedMemory:
             print(f"Search error: {e}")
             return []
     
-    async def get(self, memory_id: str, user_id: str, database_name: Optional[str] = None) -> Optional[MemoryEntry]:
+    async def get(self, memory_id: str, user_id: str, index_name: Optional[str] = None) -> Optional[MemoryEntry]:
         """
         Retrieve a specific memory by ID
         
         Args:
             memory_id: Memory identifier
             user_id: User identifier
-            database_name: Override database for this operation (None = use current)
+            index_name: Override index for this operation (None = use current)
             
         Returns:
             MemoryEntry: Memory entry if found and belongs to user
         """
         try:
-            target_database = database_name or self.current_index_name
-            index_id = await self._ensure_shared_index(target_database)
+            target_index = index_name or self.current_index_name
+            index_id = await self._ensure_shared_index(target_index)
             vectors = self.client.vectors.index(index_id)
             
             vector = await vectors.get(memory_id)
@@ -509,7 +514,7 @@ class UnifiedMemory:
     
     async def update(self, memory_id: str, user_id: str, content: Optional[str] = None,
                      metadata: Optional[Dict[str, Any]] = None, importance_score: Optional[float] = None,
-                     embedding_model: Optional[str] = None, database_name: Optional[str] = None) -> Optional[MemoryEntry]:
+                     embedding_model: Optional[str] = None, index_name: Optional[str] = None) -> Optional[MemoryEntry]:
         """
         Update an existing memory
         
@@ -520,18 +525,18 @@ class UnifiedMemory:
             metadata: Updated metadata
             importance_score: New importance score
             embedding_model: Override embedding model for re-embedding (None = use current)
-            database_name: Override database for this operation (None = use current)
+            index_name: Override index for this operation (None = use current)
             
         Returns:
             MemoryEntry: Updated memory entry
         """
         try:
-            target_database = database_name or self.current_index_name
-            index_id = await self._ensure_shared_index(target_database)
+            target_index = index_name or self.current_index_name
+            index_id = await self._ensure_shared_index(target_index)
             vectors = self.client.vectors.index(index_id)
             
             # Get current memory and verify ownership
-            current_memory = await self.get(memory_id, user_id, target_database)
+            current_memory = await self.get(memory_id, user_id, target_index)
             if not current_memory:
                 return None
             
@@ -573,23 +578,25 @@ class UnifiedMemory:
         except Exception:
             return None
     
-    async def delete(self, memory_id: str, user_id: str) -> bool:
+    async def delete(self, memory_id: str, user_id: str, index_name: Optional[str] = None) -> bool:
         """
         Delete a memory
         
         Args:
             memory_id: Memory identifier
             user_id: User identifier
+            index_name: Override index for this operation (None = use current)
             
         Returns:
             bool: True if deleted successfully
         """
         try:
-            index_id = await self._ensure_shared_index()
+            target_index = index_name or self.current_index_name
+            index_id = await self._ensure_shared_index(target_index)
             vectors = self.client.vectors.index(index_id)
             
             # Verify memory belongs to user
-            memory = await self.get(memory_id, user_id)
+            memory = await self.get(memory_id, user_id, index_name)
             if not memory:
                 return False
             
@@ -633,11 +640,11 @@ class UnifiedMemory:
             List[MemoryEntry]: List of all user memories
         """
         return await self.search(
-            query="memory",  # Generic query instead of empty
+            query="",  # Empty query to get all
             user_id=user_id,
             memory_types=None,  # All types
             top_k=limit,
-            min_relevance=0.0  # Include all matches
+            min_relevance=0.0  # Include all matches regardless of relevance
         )
     
     async def list_all_memories(self, user_id: str, limit: int = 100, 
@@ -837,46 +844,46 @@ class UnifiedMemory:
         self.agent = UnifiedMemoryAgent(self.client, self.current_inference_model)
         print("🔄 Reset to default configuration")
     
-    async def switch_database(self, database_name: str) -> bool:
+    async def switch_index(self, index_name: str) -> bool:
         """
-        Switch to a different database
+        Switch to a different index
         
         Args:
-            database_name: Name of the database to switch to
+            index_name: Name of the index to switch to
             
         Returns:
             bool: True if successful
         """
         try:
-            self.current_index_name = database_name
-            print(f"🔄 Switched to database: {database_name}")
+            self.current_index_name = index_name
+            print(f"🔄 Switched to index: {index_name}")
             return True
         except Exception:
             return False
     
-    async def list_available_databases(self) -> List[str]:
+    async def list_available_indexes(self) -> List[str]:
         """
-        List all available memory databases/indexes
+        List all available memory indexes
         
         Returns:
-            List[str]: List of database names
+            List[str]: List of index names
         """
         try:
             index_list = await self.client.vectors.indexes.list()
-            database_names = []
+            index_names = []
             
             for idx in index_list.indexes:
                 # Filter for memory-related indexes
                 if (idx.metadata and 
                     idx.metadata.get("type") == "unified_memory_store"):
-                    database_names.append(idx.name)
+                    index_names.append(idx.name)
                 elif idx.name in ["gravixlayer_memories", "user_preferences", "conversation_history"]:
-                    database_names.append(idx.name)
-                elif idx.name not in database_names:  # Add any other indexes
-                    database_names.append(idx.name)
+                    index_names.append(idx.name)
+                elif idx.name not in index_names:  # Add any other indexes
+                    index_names.append(idx.name)
             
-            return sorted(database_names)
+            return sorted(index_names)
             
         except Exception as e:
-            print(f"Error listing databases: {e}")
+            print(f"Error listing indexes: {e}")
             return ["gravixlayer_memories"]  # Return default if error

@@ -23,7 +23,7 @@ from .types.exceptions import (
 
 class GravixLayer:
     """
-    Main GravixLayer client - Industry standard compatible.
+ 
 
     Provides the same interface as popular AI SDKs for easy migration.
     """
@@ -37,7 +37,6 @@ class GravixLayer:
         headers: Optional[Dict[str, str]] = None,
         logger: Optional[Type[logging.Logger]] = None,
         user_agent: Optional[str] = None,
-        # Industry standard compatibility parameters
         organization: Optional[str] = None,  # For compatibility
         project: Optional[str] = None,       # For compatibility
         **kwargs  # Accept any additional parameters for compatibility

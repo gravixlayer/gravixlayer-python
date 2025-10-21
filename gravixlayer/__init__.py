@@ -1,7 +1,4 @@
 
-"""
-GravixLayer Python SDK - Industry Standard Compatible
-"""
 __version__ = "0.0.34"
 
 from .client import GravixLayer

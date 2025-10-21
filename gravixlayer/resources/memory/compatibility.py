@@ -278,13 +278,13 @@ class ExternalCompatibilityLayer:
         self.switch_configuration = self.unified_memory.switch_configuration
         self.get_current_configuration = self.unified_memory.get_current_configuration
         self.reset_to_defaults = self.unified_memory.reset_to_defaults
-        self.switch_database = self.unified_memory.switch_database
-        self.list_available_databases = self.unified_memory.list_available_databases
+        self.switch_index = self.unified_memory.switch_index
+        self.list_available_indexes = self.unified_memory.list_available_indexes
     
     async def add(self, messages: Union[str, List[Dict[str, str]]], user_id: str,
                   metadata: Optional[Dict[str, Any]] = None, 
                   infer: bool = True, embedding_model: Optional[str] = None,
-                  database_name: Optional[str] = None) -> Dict[str, Any]:
+                  index_name: Optional[str] = None) -> Dict[str, Any]:
         """
         Add memories - External API compatibility with dynamic configuration
         
@@ -294,7 +294,7 @@ class ExternalCompatibilityLayer:
             metadata: Additional metadata
             infer: Whether to use AI inference
             embedding_model: Override embedding model for this operation
-            database_name: Override database for this operation
+            index_name: Override index for this operation
             
         Returns:
             Dict with results list (external format)
@@ -306,7 +306,7 @@ class ExternalCompatibilityLayer:
             metadata=metadata,
             infer=infer,
             embedding_model=embedding_model,
-            database_name=database_name
+            index_name=index_name
         )
         
         # Handle both single entry and list of entries
@@ -323,7 +323,7 @@ class ExternalCompatibilityLayer:
     
     async def search(self, query: str, user_id: str, limit: int = 100, 
                     threshold: Optional[float] = None, embedding_model: Optional[str] = None,
-                    database_name: Optional[str] = None) -> Dict[str, Any]:
+                    index_name: Optional[str] = None) -> Dict[str, Any]:
         """
         Search memories - External API compatibility with dynamic configuration
         
@@ -333,7 +333,7 @@ class ExternalCompatibilityLayer:
             limit: Maximum results
             threshold: Minimum similarity score
             embedding_model: Override embedding model for this search
-            database_name: Override database for this search
+            index_name: Override index for this search
             
         Returns:
             Dict with results list (external format)
@@ -346,7 +346,7 @@ class ExternalCompatibilityLayer:
             top_k=limit,
             min_relevance=min_relevance,
             embedding_model=embedding_model,
-            database_name=database_name
+            index_name=index_name
         )
         
         results = []
@@ -363,18 +363,19 @@ class ExternalCompatibilityLayer:
         
         return {"results": results}
     
-    async def get(self, memory_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    async def get(self, memory_id: str, user_id: str, index_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Get memory by ID - External API compatibility
         
         Args:
             memory_id: Memory identifier
             user_id: User identifier
+            index_name: Override index for this operation (None = use current)
             
         Returns:
             Memory data or None
         """
-        memory = await self.unified_memory.get(memory_id, user_id)
+        memory = await self.unified_memory.get(memory_id, user_id, index_name)
         if not memory:
             return None
         
@@ -387,35 +388,98 @@ class ExternalCompatibilityLayer:
             "updated_at": memory.updated_at.isoformat()
         }
     
-    async def get_all(self, user_id: str, limit: int = 100) -> Dict[str, Any]:
+    async def get_all(self, user_id: str, limit: int = 100, index_name: Optional[str] = None) -> Dict[str, Any]:
         """
         Get all memories - External API compatibility
         
         Args:
             user_id: User identifier
             limit: Maximum results
+            index_name: Override index for this operation (None = use current)
             
         Returns:
             Dict with results list (external format)
         """
-        memory_results = await self.unified_memory.get_all_user_memories(user_id, limit=limit)
+        # Use search with broad query for specific index
+        if index_name:
+            try:
+                # Use a very broad search to get all memories
+                memory_results = await self.unified_memory.search(
+                    query="",  # Empty query should return all
+                    user_id=user_id,
+                    top_k=limit,
+                    min_relevance=0.0,  # Accept all matches regardless of relevance
+                    index_name=index_name
+                )
+                
+                # If empty query doesn't work, try with generic terms
+                if not memory_results:
+                    generic_queries = ["memory", "user", "content", "data", "information", "text"]
+                    
+                    for query in generic_queries:
+                        try:
+                            results = await self.unified_memory.search(
+                                query=query,
+                                user_id=user_id,
+                                top_k=limit,
+                                min_relevance=0.0,
+                                index_name=index_name
+                            )
+                            
+                            # Add unique results
+                            for result in results:
+                                if not any(existing.memory.id == result.memory.id for existing in memory_results):
+                                    memory_results.append(result)
+                            
+                        except Exception as search_error:
+                            continue
+                        
+            except Exception as e:
+                print(f"Index-specific search failed: {e}")
+                memory_results = []
+        else:
+            memory_results = await self.unified_memory.get_all_user_memories(user_id, limit=limit)
         
         results = []
         for memory_result in memory_results:
-            # Handle both MemoryEntry and MemorySearchResult objects
-            memory = memory_result.memory if hasattr(memory_result, 'memory') else memory_result
+            # Handle MemoryEntry, MemorySearchResult, and MockMemory objects
+            if hasattr(memory_result, 'memory'):
+                # MemorySearchResult
+                memory = memory_result.memory
+            else:
+                # MemoryEntry or MockMemory
+                memory = memory_result
+            
+            # Handle different date formats
+            created_at = memory.created_at
+            updated_at = memory.updated_at
+            
+            if hasattr(created_at, 'isoformat'):
+                created_at = created_at.isoformat()
+            elif isinstance(created_at, str):
+                created_at = created_at
+            else:
+                created_at = str(created_at) if created_at else ""
+                
+            if hasattr(updated_at, 'isoformat'):
+                updated_at = updated_at.isoformat()
+            elif isinstance(updated_at, str):
+                updated_at = updated_at
+            else:
+                updated_at = str(updated_at) if updated_at else ""
+            
             results.append({
                 "id": memory.id,
                 "memory": memory.content,
                 "hash": memory.metadata.get("hash", ""),
                 "metadata": memory.metadata,
-                "created_at": memory.created_at.isoformat(),
-                "updated_at": memory.updated_at.isoformat()
+                "created_at": created_at,
+                "updated_at": updated_at
             })
         
         return {"results": results}
     
-    async def update(self, memory_id: str, user_id: str, data: str) -> Dict[str, str]:
+    async def update(self, memory_id: str, user_id: str, data: str, index_name: Optional[str] = None) -> Dict[str, str]:
         """
         Update memory - External API compatibility
         
@@ -423,6 +487,7 @@ class ExternalCompatibilityLayer:
             memory_id: Memory identifier
             user_id: User identifier
             data: New content
+            index_name: Override index for this operation (None = use current)
             
         Returns:
             Success message
@@ -430,7 +495,8 @@ class ExternalCompatibilityLayer:
         updated_memory = await self.unified_memory.update(
             memory_id=memory_id,
             user_id=user_id,
-            content=data
+            content=data,
+            index_name=index_name
         )
         
         if updated_memory:
@@ -438,18 +504,19 @@ class ExternalCompatibilityLayer:
         else:
             return {"message": f"Memory {memory_id} not found or update failed."}
     
-    async def delete(self, memory_id: str, user_id: str) -> Dict[str, str]:
+    async def delete(self, memory_id: str, user_id: str, index_name: Optional[str] = None) -> Dict[str, str]:
         """
         Delete memory - External API compatibility
         
         Args:
             memory_id: Memory identifier
             user_id: User identifier
+            index_name: Override index for this operation (None = use current)
             
         Returns:
             Success message
         """
-        success = await self.unified_memory.delete(memory_id, user_id)
+        success = await self.unified_memory.delete(memory_id, user_id, index_name=index_name)
         
         if success:
             return {"message": f"Memory {memory_id} deleted successfully!"}

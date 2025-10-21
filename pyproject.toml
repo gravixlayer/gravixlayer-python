@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gravixlayer"
 version = "0.0.34"
-description = "GravixLayer Python SDK - Industry Standard Compatible"
+description = "GravixLayer Python SDK "
 readme = "README.md"
 requires-python = ">=3.7"
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "Sukrith", email = "sukrithpvs@gmail.com"},
+    {name = "Team Gravix", email = " info@gravixlayer.com"},
 ]
 keywords = ["gravixlayer", "llm", "ai", "api", "sdk", "compatible"]
 classifiers = [
