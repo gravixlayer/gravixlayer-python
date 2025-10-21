@@ -1,5 +1,5 @@
 
-__version__ = "0.0.34"
+__version__ = "0.0.35"
 
 from .client import GravixLayer
 from .types.async_client import AsyncGravixLayer
