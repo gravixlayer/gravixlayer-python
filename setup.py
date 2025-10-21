@@ -18,8 +18,8 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 setup(
     name="gravixlayer",
     version="0.0.35",
-    author="Sukrith",
-    author_email="sukrithpvs@gmail.com",
+    author="Team Gravix",
+    author_email=" info@gravixlayer.com",
     description="GravixLayer Python SDK ",
     license="Apache-2.0",
     long_description=long_description,
@@ -49,8 +49,8 @@ setup(
     },
     keywords="gravixlayer, llm, ai, api, sdk, compatible",
     project_urls={
-        "Bug Reports": "https://github.com/sukrithpvs/gravixlayer-python/issues",
-        "Source": "https://github.com/sukrithpvs/gravixlayer-python",
-        "Documentation": "https://github.com/sukrithpvs/gravixlayer-python/blob/main/README.md",
+        "Bug Reports": "https://github.com/gravixlayer/gravixlayer-pythonissues",
+        "Source": "https://github.com/gravixlayer/gravixlayer-python",
+        "Documentation": "https://github.com/gravixlayer/gravixlayer-python/blob/main/README.md",
     },
 )
