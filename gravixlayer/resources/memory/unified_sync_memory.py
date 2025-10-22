@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union
 
 from .types import MemoryType, MemoryEntry, MemorySearchResult, MemoryStats
+from .sync_agent import SyncMemoryAgent
 
 
 class UnifiedSyncMemory:
@@ -16,7 +17,8 @@ class UnifiedSyncMemory:
     """
     
     def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
-                 shared_index_name: str = "gravixlayer_memories"):
+                 shared_index_name: str = "gravixlayer_memories",
+                 inference_model: str = "mistralai/mistral-nemo-instruct-2407"):
         """
         Initialize Unified Sync Memory system
         
@@ -24,6 +26,7 @@ class UnifiedSyncMemory:
             client: GravixLayer sync client instance
             embedding_model: Model for text embeddings
             shared_index_name: Name of the shared memory index
+            inference_model: Model for memory inference
         """
         self.client = client
         self.embedding_model = embedding_model
@@ -31,15 +34,18 @@ class UnifiedSyncMemory:
         self.shared_index_id = None
         self.working_memory_ttl = timedelta(hours=2)
         
+        # Initialize sync agent for inference
+        self.agent = SyncMemoryAgent(client, inference_model)
+        
         # Set correct dimension based on embedding model
         self.embedding_dimension = self._get_embedding_dimension(embedding_model)
     
     def _get_embedding_dimension(self, model: str) -> int:
         """Get the correct embedding dimension for the model"""
         model_dimensions = {
-            "microsoft/multilingual-e5-large": 1536,
-            "text-embedding-3-small": 1536,
-            "text-embedding-3-large": 3072,
+            # Server-side actual dimensions (what the server actually produces)
+            "microsoft/multilingual-e5-large": 1024,  # Server maps this to baai/bge-large-en-v1.5
+            "multilingual-e5-large": 1024,
             "baai/bge-large-en-v1.5": 1024,
             "baai/bge-base-en-v1.5": 768,
             "baai/bge-small-en-v1.5": 384,
@@ -49,9 +55,10 @@ class UnifiedSyncMemory:
             "embed-english-v3.0": 1024,
             "embed-english-light-v3.0": 384,
             "nomic-embed-text-v1": 768,
-            "nomic-embed-text-v1.5": 768
+            "nomic-embed-text-v1.5": 768,
+            "nomic-ai/nomic-embed-text-v1.5": 768
         }
-        return model_dimensions.get(model, 1536)
+        return model_dimensions.get(model, 1024)  # Default to 1024
     
     def _ensure_shared_index(self) -> str:
         """
@@ -72,10 +79,10 @@ class UnifiedSyncMemory:
                     return idx.id
             
             # Index not found, create it
-            print(f"\n🔍 Shared memory index '{self.shared_index_name}' not found")
-            print(f"🎯 Embedding model: {self.embedding_model}")
-            print(f"📏 Dimension: {self.embedding_dimension}")
-            print(f"🚀 Creating shared memory index...")
+            print(f"\nShared memory index '{self.shared_index_name}' not found")
+            print(f"Embedding model: {self.embedding_model}")
+            print(f"Dimension: {self.embedding_dimension}")
+            print(f"Creating shared memory index...")
             
             create_data = {
                 "name": self.shared_index_name,
@@ -106,13 +113,13 @@ class UnifiedSyncMemory:
             index = VectorIndex(**result)
             
             self.shared_index_id = index.id
-            print(f"✅ Successfully created shared memory index: {index.id}")
+            print(f"Successfully created shared memory index: {index.id}")
             return index.id
             
         except Exception as e:
             error_msg = str(e)
             if "Authentication failed" in error_msg:
-                print(f"\n❌ Authentication Error!")
+                print(f"\nAuthentication Error!")
                 print(f"Please check your GRAVIXLAYER_API_KEY environment variable.")
                 raise Exception(f"Authentication failed. Please set a valid GRAVIXLAYER_API_KEY.")
             else:
@@ -135,11 +142,9 @@ class UnifiedSyncMemory:
         Returns:
             MemoryEntry or List[MemoryEntry]: Created memory entry/entries
         """
-        # Handle conversation messages (sync version doesn't support inference)
+        # Handle conversation messages
         if isinstance(content, list):
-            if infer:
-                raise NotImplementedError("Message inference requires async version. Use infer=False for raw storage.")
-            return self._add_raw_messages(content, user_id, metadata)
+            return self._add_from_messages(content, user_id, metadata, infer)
         
         # Handle direct content
         if memory_type is None:
@@ -495,6 +500,47 @@ class UnifiedSyncMemory:
             importance_score=vector.metadata.get("importance_score", 1.0),
             access_count=vector.metadata.get("access_count", 0)
         )
+    
+    def _add_from_messages(self, messages: List[Dict[str, str]], user_id: str, 
+                          metadata: Optional[Dict[str, Any]] = None, infer: bool = True) -> List[MemoryEntry]:
+        """
+        Process conversation messages and extract memories
+        
+        Args:
+            messages: List of conversation messages
+            user_id: User identifier
+            metadata: Additional metadata
+            infer: Whether to use AI inference or store raw
+            
+        Returns:
+            List[MemoryEntry]: Created memory entries
+        """
+        if infer:
+            # Use AI agent to infer meaningful memories
+            inferred_memories = self.agent.infer_memories(messages, user_id)
+        else:
+            # Store raw conversation without inference
+            inferred_memories = self.agent.extract_raw_memories(messages, user_id)
+        
+        # Store each inferred memory
+        created_memories = []
+        for memory_data in inferred_memories:
+            # Merge metadata
+            combined_metadata = memory_data.get("metadata", {})
+            if metadata:
+                combined_metadata.update(metadata)
+            
+            # Create memory entry
+            memory_entry = self.add(
+                content=memory_data["content"],
+                user_id=user_id,
+                memory_type=memory_data["memory_type"],
+                metadata=combined_metadata
+            )
+            
+            created_memories.append(memory_entry)
+        
+        return created_memories
     
     def _add_raw_messages(self, messages: List[Dict[str, str]], user_id: str, 
                          metadata: Optional[Dict[str, Any]] = None) -> List[MemoryEntry]:

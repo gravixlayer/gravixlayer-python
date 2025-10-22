@@ -7,6 +7,9 @@ from .gravix_memory import GravixMemory
 # Compatibility layers for existing code
 from .compatibility import LegacyMemoryCompatibility, ExternalCompatibilityLayer
 
+# Synchronous compatibility layers
+from .sync_compatibility import SyncLegacyMemoryCompatibility, SyncExternalCompatibilityLayer
+
 # Unified memory implementations
 from .unified_memory import UnifiedMemory
 from .unified_sync_memory import UnifiedSyncMemory
@@ -29,8 +32,10 @@ from .dynamic_config import DynamicMemoryConfig, MemoryConfig, CloudConfig
 __all__ = [
     # Main API (recommended for new code)
     "GravixMemory",
-    # Compatibility layers
+    # Compatibility layers (async)
     "LegacyMemoryCompatibility", "ExternalCompatibilityLayer",
+    # Synchronous compatibility layers
+    "SyncLegacyMemoryCompatibility", "SyncExternalCompatibilityLayer",
     # Default exports (backward compatibility)
     "Memory", "SyncMemory",
     # Unified implementations

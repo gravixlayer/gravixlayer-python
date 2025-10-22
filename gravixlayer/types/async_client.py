@@ -306,6 +306,10 @@ class AsyncGravixLayer:
         self.embeddings = AsyncEmbeddings(self)
         self.completions = AsyncCompletions(self)
         self.vectors = AsyncVectorDatabase(self)
+        
+        # Initialize memory resource (async version)
+        from ..resources.memory import ExternalCompatibilityLayer
+        self.memory = ExternalCompatibilityLayer(self)
 
     async def _make_request(
         self,

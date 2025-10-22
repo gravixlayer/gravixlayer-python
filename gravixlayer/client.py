@@ -75,9 +75,9 @@ class GravixLayer:
         self.files = Files(self)
         self.vectors = VectorDatabase(self)
         
-        # Initialize memory resource
-        from .resources.memory import Memory
-        self.memory = Memory(self)
+        # Initialize memory resource (sync version)
+        from .resources.memory.sync_external_memory import SyncExternalMemory
+        self.memory = SyncExternalMemory(self)
 
     def _make_request(
         self,

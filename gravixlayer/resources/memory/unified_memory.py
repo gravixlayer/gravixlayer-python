@@ -66,8 +66,6 @@ class UnifiedMemory:
             # Server-side actual dimensions (what the server actually produces)
             "microsoft/multilingual-e5-large": 1024,  # Server maps this to baai/bge-large-en-v1.5
             "multilingual-e5-large": 1024,
-            "text-embedding-3-small": 1536,
-            "text-embedding-3-large": 3072,
             "baai/bge-large-en-v1.5": 1024,
             "baai/bge-base-en-v1.5": 768,
             "baai/bge-small-en-v1.5": 384,
