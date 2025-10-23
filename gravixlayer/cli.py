@@ -1275,6 +1275,9 @@ def handle_vectors_commands(args):
                             "name": idx.name,
                             "dimension": idx.dimension,
                             "metric": idx.metric,
+                            "cloud_provider": idx.cloud_provider,
+                            "region": idx.region,
+                            "index_type": idx.index_type,
                             "vector_type": idx.vector_type,
                             "metadata": idx.metadata,
                             "delete_protection": idx.delete_protection,
@@ -1293,6 +1296,9 @@ def handle_vectors_commands(args):
                             print(f"Name: {idx.name}")
                             print(f"Dimension: {idx.dimension}")
                             print(f"Metric: {idx.metric}")
+                            print(f"Cloud Provider: {idx.cloud_provider}")
+                            print(f"Region: {idx.region}")
+                            print(f"Index Type: {idx.index_type}")
                             print(f"Vector Type: {idx.vector_type}")
                             print(f"Delete Protection: {idx.delete_protection}")
                             print(f"Created: {idx.created_at}")

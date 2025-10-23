@@ -68,6 +68,7 @@ from .types.sandbox import (
     Template,
     TemplateList,
     SandboxKillResponse,
+    Execution,
 )
 # Memory imports will be done lazily to avoid circular imports
 
@@ -127,6 +128,7 @@ __all__ = [
     "Template",
     "TemplateList",
     "SandboxKillResponse",
+    "Execution",
     # Memory types
     "Memory",
     "MemoryType",

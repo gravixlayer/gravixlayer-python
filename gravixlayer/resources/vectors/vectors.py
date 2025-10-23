@@ -17,7 +17,9 @@ class Vectors:
     def __init__(self, client, index_id: str):
         self.client = client
         self.index_id = index_id
-        self.base_url = f"https://api.gravixlayer.com/v1/vectors/{index_id}"
+        # Use client's base URL and replace inference with vectors
+        vectors_base = client.base_url.replace("/v1/inference", "/v1/vectors")
+        self.base_url = f"{vectors_base}/{index_id}"
 
     def upsert(
         self,
@@ -399,14 +401,14 @@ class Vectors:
         Returns:
             VectorDictResponse: Dictionary of vectors
         """
-        params = {}
+        endpoint = f"{self.base_url}/fetch"
         if vector_ids:
-            params["vector_ids"] = ",".join(vector_ids)
+            query_param = ",".join(vector_ids)
+            endpoint = f"{self.base_url}/fetch?vector_ids={query_param}"
 
         response = self.client._make_request(
             "GET",
-            f"{self.base_url}/fetch",
-            data=params if params else None
+            endpoint
         )
 
         result = response.json()

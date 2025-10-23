@@ -13,7 +13,8 @@ class AsyncVectorIndexes:
     
     def __init__(self, client):
         self.client = client
-        self.base_url = "https://api.gravixlayer.com/v1/vectors"
+        # Use client's base URL and replace inference with vectors
+        self.base_url = client.base_url.replace("/v1/inference", "/v1/vectors")
     
     async def create(
         self,
@@ -105,15 +106,12 @@ class AsyncVectorIndexes:
         if page_size > 1000:
             raise ValueError("Page size cannot exceed 1000")
         
-        params = {
-            "page": page,
-            "page_size": page_size
-        }
+        # Build query parameters into URL for GET request
+        endpoint = f"{self.base_url}/indexes?page={page}&page_size={page_size}"
         
         response = await self.client._make_request(
             "GET",
-            f"{self.base_url}/indexes",
-            data=params
+            endpoint
         )
         
         result = response.json()
