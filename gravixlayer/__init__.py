@@ -48,6 +48,27 @@ from .types.vectors import (
     SUPPORTED_METRICS,
     SUPPORTED_VECTOR_TYPES,
 )
+from .types.sandbox import (
+    Sandbox,
+    SandboxList,
+    SandboxMetrics,
+    SandboxTimeoutResponse,
+    SandboxHostURL,
+    FileReadResponse,
+    FileWriteResponse,
+    FileListResponse,
+    FileInfo,
+    FileDeleteResponse,
+    DirectoryCreateResponse,
+    FileUploadResponse,
+    CommandRunResponse,
+    CodeRunResponse,
+    CodeContext,
+    CodeContextDeleteResponse,
+    Template,
+    TemplateList,
+    SandboxKillResponse,
+)
 # Memory imports will be done lazily to avoid circular imports
 
 __all__ = [
@@ -86,23 +107,53 @@ __all__ = [
     "VectorSearchHit",
     "SUPPORTED_METRICS",
     "SUPPORTED_VECTOR_TYPES",
+    # Sandbox types
+    "Sandbox",
+    "SandboxList",
+    "SandboxMetrics",
+    "SandboxTimeoutResponse",
+    "SandboxHostURL",
+    "FileReadResponse",
+    "FileWriteResponse",
+    "FileListResponse",
+    "FileInfo",
+    "FileDeleteResponse",
+    "DirectoryCreateResponse",
+    "FileUploadResponse",
+    "CommandRunResponse",
+    "CodeRunResponse",
+    "CodeContext",
+    "CodeContextDeleteResponse",
+    "Template",
+    "TemplateList",
+    "SandboxKillResponse",
+    # Memory types
+    "Memory",
+    "MemoryType",
+    "MemoryEntry",
+    "MemorySearchResult",
+    "MemoryStats",
 ]
 
-# Lazy imports to avoid circular dependencies
-def __getattr__(name):
-    if name == "Memory":
-        from .resources.memory import Memory
-        return Memory
-    elif name == "MemoryType":
-        from .resources.memory import MemoryType
-        return MemoryType
-    elif name == "MemoryEntry":
-        from .resources.memory import MemoryEntry
-        return MemoryEntry
-    elif name == "MemorySearchResult":
-        from .resources.memory import MemorySearchResult
-        return MemorySearchResult
-    elif name == "MemoryStats":
-        from .resources.memory import MemoryStats
-        return MemoryStats
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+# Import memory classes directly to make them visible in dir()
+try:
+    from .resources.memory import Memory, MemoryType, MemoryEntry, MemorySearchResult, MemoryStats
+except ImportError:
+    # Fallback to lazy imports if there are circular dependency issues
+    def __getattr__(name):
+        if name == "Memory":
+            from .resources.memory import Memory
+            return Memory
+        elif name == "MemoryType":
+            from .resources.memory import MemoryType
+            return MemoryType
+        elif name == "MemoryEntry":
+            from .resources.memory import MemoryEntry
+            return MemoryEntry
+        elif name == "MemorySearchResult":
+            from .resources.memory import MemorySearchResult
+            return MemorySearchResult
+        elif name == "MemoryStats":
+            from .resources.memory import MemoryStats
+            return MemoryStats
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

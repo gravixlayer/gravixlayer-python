@@ -86,11 +86,15 @@ class SyncExternalMemory:
         
         if cloud_provider is not None and cloud_provider != self.current_cloud_provider:
             self.current_cloud_provider = cloud_provider
+            # Update the underlying unified memory's cloud config
+            self.unified_sync_memory.cloud_provider = cloud_provider
             config_changed = True
             print(f"Switched cloud provider to: {cloud_provider}")
         
         if region is not None and region != self.current_region:
             self.current_region = region
+            # Update the underlying unified memory's region
+            self.unified_sync_memory.region = region
             config_changed = True
             print(f"Switched region to: {region}")
         

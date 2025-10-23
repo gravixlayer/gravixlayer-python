@@ -11,6 +11,7 @@ from .resources.deployments import Deployments
 from .resources.accelerators import Accelerators
 from .resources.files import Files
 from .resources.vectors.main import VectorDatabase
+from .resources.sandbox import SandboxResource
 from .types.exceptions import (
     GravixLayerError,
     GravixLayerAuthenticationError,
@@ -74,6 +75,7 @@ class GravixLayer:
         self.accelerators = Accelerators(self)
         self.files = Files(self)
         self.vectors = VectorDatabase(self)
+        self.sandbox = SandboxResource(self)
         
         # Initialize memory resource (sync version)
         from .resources.memory.sync_external_memory import SyncExternalMemory

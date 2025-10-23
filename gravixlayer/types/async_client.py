@@ -16,6 +16,7 @@ from ..types.exceptions import (
 from ..resources.async_embeddings import AsyncEmbeddings
 from ..resources.async_completions import AsyncCompletions
 from ..resources.vectors.async_main import AsyncVectorDatabase
+from ..resources.async_sandbox import AsyncSandboxResource
 
 class AsyncChatResource:
     def __init__(self, client):
@@ -306,6 +307,7 @@ class AsyncGravixLayer:
         self.embeddings = AsyncEmbeddings(self)
         self.completions = AsyncCompletions(self)
         self.vectors = AsyncVectorDatabase(self)
+        self.sandbox = AsyncSandboxResource(self)
         
         # Initialize memory resource (async version)
         from ..resources.memory import ExternalCompatibilityLayer

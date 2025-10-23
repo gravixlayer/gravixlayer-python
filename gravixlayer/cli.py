@@ -447,6 +447,225 @@ def main():
     batch_delete_parser.add_argument(
         "--vector-ids", required=True, help="Comma-separated list of vector IDs to delete")
 
+    # === SANDBOX COMMAND ===
+    sandbox_parser = subparsers.add_parser(
+        "sandbox", help="Sandbox management")
+    sandbox_subparsers = sandbox_parser.add_subparsers(
+        dest="sandbox_action", help="Sandbox actions", required=True)
+
+    # Create sandbox
+    create_sandbox_parser = sandbox_subparsers.add_parser(
+        "create", help="Create a new sandbox")
+    create_sandbox_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    create_sandbox_parser.add_argument(
+        "--provider", required=True, help="Cloud provider (gravix, aws, gcp, azure)")
+    create_sandbox_parser.add_argument(
+        "--region", required=True, help="Cloud region")
+    create_sandbox_parser.add_argument(
+        "--template", default="python-base-v1", help="Template name")
+    create_sandbox_parser.add_argument(
+        "--timeout", type=int, default=300, help="Timeout in seconds")
+    create_sandbox_parser.add_argument(
+        "--env-vars", help="Environment variables as JSON")
+    create_sandbox_parser.add_argument(
+        "--metadata", help="Metadata as JSON")
+
+    # List sandboxes
+    list_sandboxes_parser = sandbox_subparsers.add_parser(
+        "list", help="List all sandboxes")
+    list_sandboxes_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    list_sandboxes_parser.add_argument(
+        "--limit", type=int, default=100, help="Maximum number of results")
+    list_sandboxes_parser.add_argument(
+        "--offset", type=int, default=0, help="Number of results to skip")
+    list_sandboxes_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON")
+
+    # Get sandbox info
+    get_sandbox_parser = sandbox_subparsers.add_parser(
+        "get", help="Get sandbox information")
+    get_sandbox_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    get_sandbox_parser.add_argument("sandbox_id", help="Sandbox ID")
+    get_sandbox_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON")
+
+    # Kill sandbox
+    kill_sandbox_parser = sandbox_subparsers.add_parser(
+        "kill", help="Terminate a sandbox")
+    kill_sandbox_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    kill_sandbox_parser.add_argument("sandbox_id", help="Sandbox ID")
+
+    # Set timeout
+    timeout_parser = sandbox_subparsers.add_parser(
+        "timeout", help="Set sandbox timeout")
+    timeout_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    timeout_parser.add_argument("sandbox_id", help="Sandbox ID")
+    timeout_parser.add_argument("timeout", type=int, help="Timeout in seconds")
+
+    # Get metrics
+    metrics_parser = sandbox_subparsers.add_parser(
+        "metrics", help="Get sandbox metrics")
+    metrics_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    metrics_parser.add_argument("sandbox_id", help="Sandbox ID")
+    metrics_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON")
+
+    # Get host URL
+    host_url_parser = sandbox_subparsers.add_parser(
+        "host", help="Get sandbox host URL")
+    host_url_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    host_url_parser.add_argument("sandbox_id", help="Sandbox ID")
+    host_url_parser.add_argument("port", type=int, help="Port number")
+
+    # Run command
+    run_command_parser = sandbox_subparsers.add_parser(
+        "run", help="Execute a command in sandbox")
+    run_command_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    run_command_parser.add_argument("sandbox_id", help="Sandbox ID")
+    run_command_parser.add_argument("command", help="Command to execute")
+    run_command_parser.add_argument(
+        "--args", nargs="*", help="Command arguments")
+    run_command_parser.add_argument(
+        "--working-dir", help="Working directory")
+    run_command_parser.add_argument(
+        "--timeout", type=int, help="Timeout in milliseconds")
+
+    # Run code
+    run_code_parser = sandbox_subparsers.add_parser(
+        "code", help="Execute code in sandbox")
+    run_code_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    run_code_parser.add_argument("sandbox_id", help="Sandbox ID")
+    run_code_parser.add_argument("code", help="Code to execute")
+    run_code_parser.add_argument(
+        "--language", default="python", help="Programming language")
+    run_code_parser.add_argument(
+        "--context-id", help="Code execution context ID")
+
+    # Code context management
+    context_parser = sandbox_subparsers.add_parser(
+        "context", help="Code context management")
+    context_subparsers = context_parser.add_subparsers(
+        dest="context_action", help="Context actions", required=True)
+
+    # Create context
+    create_context_parser = context_subparsers.add_parser(
+        "create", help="Create code context")
+    create_context_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    create_context_parser.add_argument("sandbox_id", help="Sandbox ID")
+    create_context_parser.add_argument(
+        "--language", default="python", help="Programming language")
+    create_context_parser.add_argument(
+        "--cwd", help="Working directory")
+
+    # Get context
+    get_context_parser = context_subparsers.add_parser(
+        "get", help="Get code context info")
+    get_context_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    get_context_parser.add_argument("sandbox_id", help="Sandbox ID")
+    get_context_parser.add_argument("context_id", help="Context ID")
+
+    # Delete context
+    delete_context_parser = context_subparsers.add_parser(
+        "delete", help="Delete code context")
+    delete_context_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    delete_context_parser.add_argument("sandbox_id", help="Sandbox ID")
+    delete_context_parser.add_argument("context_id", help="Context ID")
+
+    # File operations
+    file_parser = sandbox_subparsers.add_parser(
+        "file", help="File operations")
+    file_subparsers = file_parser.add_subparsers(
+        dest="file_action", help="File actions", required=True)
+
+    # Read file
+    read_file_parser = file_subparsers.add_parser(
+        "read", help="Read file from sandbox")
+    read_file_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    read_file_parser.add_argument("sandbox_id", help="Sandbox ID")
+    read_file_parser.add_argument("path", help="File path")
+
+    # Write file
+    write_file_parser = file_subparsers.add_parser(
+        "write", help="Write file to sandbox")
+    write_file_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    write_file_parser.add_argument("sandbox_id", help="Sandbox ID")
+    write_file_parser.add_argument("path", help="File path")
+    write_file_parser.add_argument("content", help="File content")
+
+    # List files
+    list_files_parser = file_subparsers.add_parser(
+        "list", help="List files in sandbox")
+    list_files_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    list_files_parser.add_argument("sandbox_id", help="Sandbox ID")
+    list_files_parser.add_argument("path", help="Directory path")
+
+    # Delete file
+    delete_file_parser = file_subparsers.add_parser(
+        "delete", help="Delete file from sandbox")
+    delete_file_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    delete_file_parser.add_argument("sandbox_id", help="Sandbox ID")
+    delete_file_parser.add_argument("path", help="File path")
+
+    # Make directory
+    mkdir_parser = file_subparsers.add_parser(
+        "mkdir", help="Create directory in sandbox")
+    mkdir_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    mkdir_parser.add_argument("sandbox_id", help="Sandbox ID")
+    mkdir_parser.add_argument("path", help="Directory path")
+
+    # Upload file
+    upload_parser = file_subparsers.add_parser(
+        "upload", help="Upload file to sandbox")
+    upload_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    upload_parser.add_argument("sandbox_id", help="Sandbox ID")
+    upload_parser.add_argument("local_path", help="Local file path")
+    upload_parser.add_argument("remote_path", help="Remote file path")
+
+    # Download file
+    download_parser = file_subparsers.add_parser(
+        "download", help="Download file from sandbox")
+    download_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    download_parser.add_argument("sandbox_id", help="Sandbox ID")
+    download_parser.add_argument("remote_path", help="Remote file path")
+    download_parser.add_argument("local_path", help="Local file path")
+
+    # Template management
+    template_parser = sandbox_subparsers.add_parser(
+        "template", help="Template management")
+    template_subparsers = template_parser.add_subparsers(
+        dest="template_action", help="Template actions", required=True)
+
+    # List templates
+    list_templates_parser = template_subparsers.add_parser(
+        "list", help="List available templates")
+    list_templates_parser.add_argument(
+        "--api-key", type=str, default=None, help="API key")
+    list_templates_parser.add_argument(
+        "--limit", type=int, default=100, help="Maximum number of results")
+    list_templates_parser.add_argument(
+        "--offset", type=int, default=0, help="Number of results to skip")
+    list_templates_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON")
+
     # For backward compatibility, if no subcommand is provided, treat as chat
     parser.add_argument("--api-key", type=str, default=None, help="API key")
     parser.add_argument("--model", help="Model name")
@@ -471,6 +690,8 @@ def main():
         handle_files_commands(args)
     elif args.command == "vectors":
         handle_vectors_commands(args)
+    elif args.command == "sandbox":
+        handle_sandbox_commands(args)
     elif args.command == "chat" or (args.command is None and args.model):
         handle_chat_commands(args, parser)
     else:
@@ -1424,6 +1645,360 @@ def handle_vectors_commands(args):
         
     except Exception as e:
         print(f"ERROR: Error: {e}")
+
+
+def handle_sandbox_commands(args):
+    """Handle sandbox commands"""
+    try:
+        client = GravixLayer(api_key=args.api_key)
+        
+        if args.sandbox_action in ["create", "list", "get", "kill", "run", "code", "file", "timeout", "metrics", "host", "context"]:
+            handle_sandbox_operations(args, client)
+        elif args.sandbox_action == "template":
+            handle_template_commands(args, client)
+        else:
+            print("Unknown sandbox action")
+            
+    except Exception as e:
+        print(f"ERROR: {e}")
+
+
+def handle_sandbox_operations(args, client):
+    """Handle sandbox-specific commands"""
+    try:
+        if args.sandbox_action == "create":
+            # Parse optional JSON fields
+            env_vars = None
+            if args.env_vars:
+                env_vars = safe_json_parse(args.env_vars, "env-vars")
+            
+            metadata = None
+            if args.metadata:
+                metadata = safe_json_parse(args.metadata, "metadata")
+            
+            # Create sandbox
+            sandbox = client.sandbox.sandboxes.create(
+                provider=args.provider,
+                region=args.region,
+                template=args.template,
+                timeout=args.timeout,
+                env_vars=env_vars,
+                metadata=metadata
+            )
+            
+            print(f"✅ Created sandbox: {sandbox.sandbox_id}")
+            print(f"   Template: {sandbox.template}")
+            print(f"   Status: {sandbox.status}")
+            print(f"   CPU: {sandbox.cpu_count}, Memory: {sandbox.memory_mb}MB")
+            print(f"   Started: {sandbox.started_at}")
+            print(f"   Timeout: {sandbox.timeout_at}")
+            
+        elif args.sandbox_action == "list":
+            sandboxes = client.sandbox.sandboxes.list(
+                limit=args.limit,
+                offset=args.offset
+            )
+            
+            if args.json:
+                import json
+                print(json.dumps({
+                    "sandboxes": [
+                        {
+                            "sandbox_id": s.sandbox_id,
+                            "template": s.template,
+                            "status": s.status,
+                            "started_at": s.started_at,
+                            "timeout_at": s.timeout_at,
+                            "cpu_count": s.cpu_count,
+                            "memory_mb": s.memory_mb
+                        } for s in sandboxes.sandboxes
+                    ],
+                    "total": sandboxes.total
+                }, indent=2))
+            else:
+                print(f"📦 Found {len(sandboxes.sandboxes)} sandboxes (total: {sandboxes.total})")
+                print()
+                for sandbox in sandboxes.sandboxes:
+                    status_emoji = "🟢" if sandbox.status == "running" else "🔴"
+                    print(f"{status_emoji} {sandbox.sandbox_id}")
+                    print(f"   Template: {sandbox.template}")
+                    print(f"   Status: {sandbox.status}")
+                    print(f"   Resources: {sandbox.cpu_count} CPU, {sandbox.memory_mb}MB RAM")
+                    print(f"   Started: {sandbox.started_at}")
+                    print()
+                    
+        elif args.sandbox_action == "get":
+            sandbox = client.sandbox.sandboxes.get(args.sandbox_id)
+            
+            if args.json:
+                import json
+                print(json.dumps({
+                    "sandbox_id": sandbox.sandbox_id,
+                    "template_id": sandbox.template_id,
+                    "template": sandbox.template,
+                    "status": sandbox.status,
+                    "started_at": sandbox.started_at,
+                    "ended_at": sandbox.ended_at,
+                    "timeout_at": sandbox.timeout_at,
+                    "metadata": sandbox.metadata,
+                    "cpu_count": sandbox.cpu_count,
+                    "memory_mb": sandbox.memory_mb
+                }, indent=2))
+            else:
+                status_emoji = "🟢" if sandbox.status == "running" else "🔴"
+                print(f"{status_emoji} Sandbox: {sandbox.sandbox_id}")
+                print(f"   Template: {sandbox.template} ({sandbox.template_id})")
+                print(f"   Status: {sandbox.status}")
+                print(f"   Resources: {sandbox.cpu_count} CPU, {sandbox.memory_mb}MB RAM")
+                print(f"   Started: {sandbox.started_at}")
+                if sandbox.ended_at:
+                    print(f"   Ended: {sandbox.ended_at}")
+                print(f"   Timeout: {sandbox.timeout_at}")
+                if sandbox.metadata:
+                    print(f"   Metadata: {sandbox.metadata}")
+                    
+        elif args.sandbox_action == "kill":
+            result = client.sandbox.sandboxes.kill(args.sandbox_id)
+            print(f"🛑 {result.message}")
+            
+        elif args.sandbox_action == "run":
+            result = client.sandbox.sandboxes.run_command(
+                sandbox_id=args.sandbox_id,
+                command=args.command,
+                args=args.args,
+                working_dir=args.working_dir,
+                timeout=args.timeout
+            )
+            
+            print(f"💻 Command executed (exit code: {result.exit_code})")
+            print(f"   Duration: {result.duration_ms}ms")
+            print(f"   Success: {result.success}")
+            
+            if result.stdout:
+                print("\n📤 STDOUT:")
+                print(result.stdout)
+            
+            if result.stderr:
+                print("\n📥 STDERR:")
+                print(result.stderr)
+                
+            if result.error:
+                print(f"\n❌ ERROR: {result.error}")
+                
+        elif args.sandbox_action == "code":
+            result = client.sandbox.sandboxes.run_code(
+                sandbox_id=args.sandbox_id,
+                code=args.code,
+                language=args.language,
+                context_id=args.context_id
+            )
+            
+            print(f"🐍 Code executed (ID: {result.execution_id})")
+            
+            if result.logs.get("stdout"):
+                print("\n📤 OUTPUT:")
+                for line in result.logs["stdout"]:
+                    print(line)
+            
+            if result.logs.get("stderr"):
+                print("\n📥 STDERR:")
+                for line in result.logs["stderr"]:
+                    print(line)
+                    
+            if result.error:
+                print(f"\n❌ ERROR: {result.error}")
+                
+        elif args.sandbox_action == "file":
+            handle_sandbox_file_commands(args, client)
+            
+        elif args.sandbox_action == "timeout":
+            result = client.sandbox.sandboxes.set_timeout(args.sandbox_id, args.timeout)
+            print(f"✅ {result.message}")
+            print(f"   New timeout: {result.timeout}s")
+            print(f"   Timeout at: {result.timeout_at}")
+            
+        elif args.sandbox_action == "metrics":
+            metrics = client.sandbox.sandboxes.get_metrics(args.sandbox_id)
+            
+            if args.json:
+                import json
+                print(json.dumps({
+                    "timestamp": metrics.timestamp,
+                    "cpu_usage": metrics.cpu_usage,
+                    "memory_usage": metrics.memory_usage,
+                    "memory_total": metrics.memory_total,
+                    "disk_read": metrics.disk_read,
+                    "disk_write": metrics.disk_write,
+                    "network_rx": metrics.network_rx,
+                    "network_tx": metrics.network_tx
+                }, indent=2))
+            else:
+                print(f"📊 Sandbox Metrics ({metrics.timestamp})")
+                print(f"   CPU Usage: {metrics.cpu_usage}%")
+                print(f"   Memory: {metrics.memory_usage}/{metrics.memory_total} MB")
+                print(f"   Disk Read: {metrics.disk_read} bytes")
+                print(f"   Disk Write: {metrics.disk_write} bytes")
+                print(f"   Network RX: {metrics.network_rx} bytes")
+                print(f"   Network TX: {metrics.network_tx} bytes")
+                
+        elif args.sandbox_action == "host":
+            host_url = client.sandbox.sandboxes.get_host_url(args.sandbox_id, args.port)
+            print(f"🌐 Host URL for port {args.port}:")
+            print(f"   {host_url.url}")
+            
+        elif args.sandbox_action == "context":
+            handle_context_commands(args, client)
+            
+    except Exception as e:
+        print(f"ERROR: {e}")
+
+
+def handle_sandbox_file_commands(args, client):
+    """Handle sandbox file operations"""
+    try:
+        if args.file_action == "read":
+            result = client.sandbox.sandboxes.read_file(args.sandbox_id, args.path)
+            print(f"📄 File: {result.path} ({result.size} bytes)")
+            print("=" * 50)
+            print(result.content)
+            
+        elif args.file_action == "write":
+            result = client.sandbox.sandboxes.write_file(
+                args.sandbox_id, args.path, args.content
+            )
+            print(f"✅ {result.message}")
+            print(f"   Path: {result.path}")
+            print(f"   Bytes written: {result.bytes_written}")
+            
+        elif args.file_action == "list":
+            result = client.sandbox.sandboxes.list_files(args.sandbox_id, args.path)
+            print(f"📁 Files in {args.path}:")
+            print()
+            
+            for file_info in result.files:
+                if file_info.is_dir:
+                    print(f"📁 {file_info.name}/")
+                else:
+                    print(f"📄 {file_info.name} ({file_info.size} bytes)")
+                print(f"   Modified: {file_info.modified_at}")
+                print()
+                
+        elif args.file_action == "delete":
+            result = client.sandbox.sandboxes.delete_file(args.sandbox_id, args.path)
+            print(f"🗑️  {result.message}")
+            print(f"   Path: {result.path}")
+            
+        elif args.file_action == "mkdir":
+            result = client.sandbox.sandboxes.make_directory(args.sandbox_id, args.path)
+            print(f"📁 {result.message}")
+            print(f"   Path: {result.path}")
+            
+        elif args.file_action == "upload":
+            with open(args.local_path, "rb") as f:
+                result = client.sandbox.sandboxes.upload_file(
+                    args.sandbox_id, f, args.remote_path
+                )
+            print(f"⬆️  {result.message}")
+            print(f"   Remote path: {result.path}")
+            print(f"   Size: {result.size} bytes")
+            
+        elif args.file_action == "download":
+            file_data = client.sandbox.sandboxes.download_file(
+                args.sandbox_id, args.remote_path
+            )
+            with open(args.local_path, "wb") as f:
+                f.write(file_data)
+            print(f"⬇️  Downloaded file")
+            print(f"   Remote path: {args.remote_path}")
+            print(f"   Local path: {args.local_path}")
+            print(f"   Size: {len(file_data)} bytes")
+                
+    except Exception as e:
+        print(f"ERROR: {e}")
+
+
+def handle_context_commands(args, client):
+    """Handle code context commands"""
+    try:
+        if args.context_action == "create":
+            context = client.sandbox.sandboxes.create_code_context(
+                args.sandbox_id,
+                language=args.language,
+                cwd=args.cwd
+            )
+            print(f"✅ Created code context: {context.context_id}")
+            print(f"   Language: {context.language}")
+            print(f"   Working directory: {context.cwd}")
+            print(f"   Created: {context.created_at}")
+            print(f"   Expires: {context.expires_at}")
+            
+        elif args.context_action == "get":
+            context = client.sandbox.sandboxes.get_code_context(
+                args.sandbox_id, args.context_id
+            )
+            print(f"ℹ️  Code Context: {context.context_id}")
+            print(f"   Language: {context.language}")
+            print(f"   Working directory: {context.cwd}")
+            print(f"   Status: {context.status}")
+            print(f"   Created: {context.created_at}")
+            print(f"   Expires: {context.expires_at}")
+            if context.last_used:
+                print(f"   Last used: {context.last_used}")
+                
+        elif args.context_action == "delete":
+            result = client.sandbox.sandboxes.delete_code_context(
+                args.sandbox_id, args.context_id
+            )
+            print(f"🗑️  {result.message}")
+            print(f"   Context ID: {result.context_id}")
+            
+    except Exception as e:
+        print(f"ERROR: {e}")
+
+
+def handle_template_commands(args, client):
+    """Handle template-specific commands"""
+    try:
+        if args.template_action == "list":
+            templates = client.sandbox.templates.list(
+                limit=args.limit,
+                offset=args.offset
+            )
+            
+            if args.json:
+                import json
+                print(json.dumps({
+                    "templates": [
+                        {
+                            "id": t.id,
+                            "name": t.name,
+                            "description": t.description,
+                            "vcpu_count": t.vcpu_count,
+                            "memory_mb": t.memory_mb,
+                            "disk_size_mb": t.disk_size_mb,
+                            "visibility": t.visibility,
+                            "created_at": t.created_at,
+                            "updated_at": t.updated_at
+                        } for t in templates.templates
+                    ],
+                    "limit": templates.limit,
+                    "offset": templates.offset
+                }, indent=2))
+            else:
+                print(f"📋 Found {len(templates.templates)} templates:")
+                print()
+                for template in templates.templates:
+                    visibility_emoji = "🌍" if template.visibility == "public" else "🔒"
+                    print(f"{visibility_emoji} {template.name}")
+                    print(f"   ID: {template.id}")
+                    print(f"   Description: {template.description}")
+                    print(f"   Resources: {template.vcpu_count} vCPU, {template.memory_mb}MB RAM, {template.disk_size_mb}MB disk")
+                    print(f"   Visibility: {template.visibility}")
+                    print(f"   Created: {template.created_at}")
+                    print()
+                    
+    except Exception as e:
+        print(f"ERROR: {e}")
 
 
 if __name__ == "__main__":

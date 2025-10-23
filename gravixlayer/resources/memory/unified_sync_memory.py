@@ -34,6 +34,10 @@ class UnifiedSyncMemory:
         self.shared_index_id = None
         self.working_memory_ttl = timedelta(hours=2)
         
+        # Cloud configuration (can be updated dynamically)
+        self.cloud_provider = "AWS"
+        self.region = "us-east-1"
+        
         # Initialize sync agent for inference
         self.agent = SyncMemoryAgent(client, inference_model)
         
@@ -89,8 +93,8 @@ class UnifiedSyncMemory:
                 "dimension": self.embedding_dimension,
                 "metric": "cosine",
                 "vector_type": "dense",
-                "cloud_provider": "AWS",
-                "region": "us-east-1",
+                "cloud_provider": self.cloud_provider,
+                "region": self.region,
                 "index_type": "serverless",
                 "metadata": {
                     "type": "unified_memory_store",
