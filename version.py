@@ -2,7 +2,7 @@
 
 """Version information for GravixLayer SDK"""
 
-__version__ = "0.0.40"
+__version__ = "0.0.41"
 __version_info__ = tuple(int(x) for x in __version__.split('.'))
 
 # Version history
