@@ -42,7 +42,7 @@ class Sandbox:
         template: str = "python-base-v1",
         provider: str = "gravix",
         region: str = "eu-west-1",
-        timeout_minutes: int = 5,
+        timeout: int = 300,
         metadata: Optional[Dict[str, Any]] = None,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None
@@ -54,7 +54,7 @@ class Sandbox:
             template: Template to use (default: "python-base-v1")
             provider: Cloud provider (default: "gravix")
             region: Region to deploy in (default: "eu-west-1")
-            timeout_minutes: How long the instance stays alive (default: 5 minutes)
+            timeout: Timeout in seconds (default: 300 = 5 minutes, max: 3600)
             metadata: Optional metadata tags
             api_key: API key (uses GRAVIXLAYER_API_KEY env var if not provided)
             base_url: Base URL (uses GRAVIXLAYER_BASE_URL env var if not provided)
@@ -70,7 +70,7 @@ class Sandbox:
             provider=provider,
             region=region,
             template=template,
-            timeout=timeout_minutes * 60,  # Convert to seconds
+            timeout=timeout,  # Use seconds directly, consistent with API
             metadata=metadata or {}
         )
         

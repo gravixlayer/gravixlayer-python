@@ -187,13 +187,22 @@ class AsyncVectorIndexes:
         
         return VectorIndex(**result)
     
-    async def delete(self, index_id: str) -> None:
+    async def delete(self, index_id: str, force: bool = False) -> None:
         """
         Delete a vector index and all its vectors
         
         Args:
             index_id: The index ID
+            force: Force delete even if index has delete protection enabled
         """
+        if force:
+            # First, try to disable delete protection
+            try:
+                await self.update(index_id, delete_protection=False)
+            except Exception:
+                # If update fails, continue with delete attempt anyway
+                pass
+        
         await self.client._make_request(
             "DELETE",
             f"https://api.gravixlayer.com/v1/vectors/indexes/{index_id}"

@@ -318,6 +318,8 @@ def main():
     delete_index_parser.add_argument(
         "--api-key", type=str, default=None, help="API key")
     delete_index_parser.add_argument("index_id", help="Index ID to delete")
+    delete_index_parser.add_argument(
+        "--force", action="store_true", help="Force delete by first disabling delete protection, then deleting the index")
 
     # Vector operations
     vector_parser = vectors_subparsers.add_parser(
@@ -1358,8 +1360,9 @@ def handle_vectors_commands(args):
                 print(f"   Metadata: {json.dumps(updated_index.metadata, indent=2)}")
                 
             elif args.index_action == "delete":
-                print(f"Deleting index: {args.index_id}")
-                client.vectors.indexes.delete(args.index_id)
+                force_msg = " (force mode)" if getattr(args, 'force', False) else ""
+                print(f"Deleting index: {args.index_id}{force_msg}")
+                client.vectors.indexes.delete(args.index_id, force=getattr(args, 'force', False))
                 print("SUCCESS: Index deleted successfully!")
         
         elif args.vectors_action == "vector":
@@ -1692,10 +1695,14 @@ def handle_sandbox_operations(args, client):
                 metadata=metadata
             )
             
+            # Handle None values for resources
+            cpu_display = f"{sandbox.cpu_count}" if sandbox.cpu_count is not None else "Unknown"
+            memory_display = f"{sandbox.memory_mb}MB" if sandbox.memory_mb is not None else "Unknown"
+            
             print(f"✅ Created sandbox: {sandbox.sandbox_id}")
             print(f"   Template: {sandbox.template}")
             print(f"   Status: {sandbox.status}")
-            print(f"   CPU: {sandbox.cpu_count}, Memory: {sandbox.memory_mb}MB")
+            print(f"   Resources: {cpu_display} CPU, {memory_display} RAM")
             print(f"   Started: {sandbox.started_at}")
             print(f"   Timeout: {sandbox.timeout_at}")
             
@@ -1726,11 +1733,20 @@ def handle_sandbox_operations(args, client):
                 print()
                 for sandbox in sandboxes.sandboxes:
                     status_emoji = "🟢" if sandbox.status == "running" else "🔴"
-                    print(f"{status_emoji} {sandbox.sandbox_id}")
+                    
+                    # Handle None values for resources
+                    cpu_display = f"{sandbox.cpu_count}" if sandbox.cpu_count is not None else "Unknown"
+                    memory_display = f"{sandbox.memory_mb}MB" if sandbox.memory_mb is not None else "Unknown"
+                    
+                    # Format timeout display
+                    timeout_display = sandbox.timeout_at if sandbox.timeout_at else "No timeout set"
+                    
+                    print(f"{status_emoji} Sandbox ID: {sandbox.sandbox_id}")
                     print(f"   Template: {sandbox.template}")
                     print(f"   Status: {sandbox.status}")
-                    print(f"   Resources: {sandbox.cpu_count} CPU, {sandbox.memory_mb}MB RAM")
+                    print(f"   Resources: {cpu_display} CPU, {memory_display} RAM")
                     print(f"   Started: {sandbox.started_at}")
+                    print(f"   Timeout: {timeout_display}")
                     print()
                     
         elif args.sandbox_action == "get":
@@ -1752,10 +1768,15 @@ def handle_sandbox_operations(args, client):
                 }, indent=2))
             else:
                 status_emoji = "🟢" if sandbox.status == "running" else "🔴"
+                
+                # Handle None values for resources
+                cpu_display = f"{sandbox.cpu_count}" if sandbox.cpu_count is not None else "Unknown"
+                memory_display = f"{sandbox.memory_mb}MB" if sandbox.memory_mb is not None else "Unknown"
+                
                 print(f"{status_emoji} Sandbox: {sandbox.sandbox_id}")
                 print(f"   Template: {sandbox.template} ({sandbox.template_id})")
                 print(f"   Status: {sandbox.status}")
-                print(f"   Resources: {sandbox.cpu_count} CPU, {sandbox.memory_mb}MB RAM")
+                print(f"   Resources: {cpu_display} CPU, {memory_display} RAM")
                 print(f"   Started: {sandbox.started_at}")
                 if sandbox.ended_at:
                     print(f"   Ended: {sandbox.ended_at}")
