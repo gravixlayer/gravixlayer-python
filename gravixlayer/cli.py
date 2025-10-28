@@ -532,9 +532,9 @@ def main():
     run_command_parser.add_argument(
         "--api-key", type=str, default=None, help="API key")
     run_command_parser.add_argument("sandbox_id", help="Sandbox ID")
-    run_command_parser.add_argument("command", help="Command to execute")
+    run_command_parser.add_argument("exec_command", help="Command to execute")
     run_command_parser.add_argument(
-        "--args", nargs="*", help="Command arguments")
+        "--args", nargs="*", help="Command arguments (use quotes for arguments with dashes)")
     run_command_parser.add_argument(
         "--working-dir", help="Working directory")
     run_command_parser.add_argument(
@@ -668,21 +668,6 @@ def main():
     list_templates_parser.add_argument(
         "--json", action="store_true", help="Output as JSON")
 
-    # For backward compatibility, if no subcommand is provided, treat as chat
-    parser.add_argument("--api-key", type=str, default=None, help="API key")
-    parser.add_argument("--model", help="Model name")
-    parser.add_argument("--system", default=None,
-                        help="System prompt (optional)")
-    parser.add_argument("--user", help="User prompt/message")
-    parser.add_argument("--prompt", help="Direct prompt")
-    parser.add_argument("--temperature", type=float,
-                        default=None, help="Temperature")
-    parser.add_argument("--max-tokens", type=int, default=None,
-                        help="Maximum tokens to generate")
-    parser.add_argument("--stream", action="store_true", help="Stream output")
-    parser.add_argument(
-        "--mode", choices=["chat", "completions"], default="chat", help="API mode")
-
     args = parser.parse_args()
 
     # Handle different commands
@@ -725,7 +710,7 @@ def wait_for_deployment_ready(client, deployment_id, deployment_name):
                     
                     if status in ['running', 'ready', 'active']:
                         print()
-                        print("🚀 Deployment is now ready!")
+                        print("Deployment is now ready!")
                         print(f"Deployment ID: {current_deployment.deployment_id}")
                         print(f"Deployment Name: {current_deployment.deployment_name}")
                         print(f"Status: {current_deployment.status}")
@@ -750,7 +735,7 @@ def wait_for_deployment_ready(client, deployment_id, deployment_name):
                 
     except KeyboardInterrupt:
         print()
-        print("⏹️  Monitoring stopped. Deployment continues in background.")
+        print("Monitoring stopped. Deployment continues in background.")
         print(f"   Check status with: gravixlayer deployments list")
 
 
@@ -811,10 +796,10 @@ def handle_deployments_commands(args):
                     if hasattr(response, 'status') and response.status:
                         if response.status.lower() in ['creating', 'pending']:
                             print()
-                            print("💡 Tip: Use --wait flag to monitor deployment status automatically")
+                            print("Tip: Use --wait flag to monitor deployment status automatically")
                             print("   Or check status with: gravixlayer deployments list")
                         elif response.status.lower() in ['running', 'ready']:
-                            print("🚀 Deployment is ready to use!")
+                            print("Deployment is ready to use!")
                         
             except Exception as create_error:
                 # Parse the error message to provide better feedback
@@ -861,10 +846,10 @@ def handle_deployments_commands(args):
                                     else:
                                         if created_deployment.status.lower() in ['creating', 'pending']:
                                             print()
-                                            print("💡 Tip: Use --wait flag to monitor deployment status automatically")
+                                            print("Tip: Use --wait flag to monitor deployment status automatically")
                                             print("   Or check status with: gravixlayer deployments list")
                                         elif created_deployment.status.lower() in ['running', 'ready']:
-                                            print("🚀 Deployment is ready to use!")
+                                            print("Deployment is ready to use!")
                                     return  # Success, exit the function
                                 else:
                                     # Check if it's a genuine duplicate with the original name
@@ -1142,7 +1127,7 @@ def handle_files_commands(args):
         elif args.files_action == "download":
             # Download file
             file_identifier = args.file_id
-            print(f"📥 Downloading file: {file_identifier}")
+            print(f"Downloading file: {file_identifier}")
             
             # Check if the identifier is a filename or file ID
             # File IDs are UUIDs (contain hyphens), filenames typically don't
@@ -1659,7 +1644,7 @@ def handle_vectors_commands(args):
 def handle_sandbox_commands(args):
     """Handle sandbox commands"""
     try:
-        client = GravixLayer(api_key=args.api_key)
+        client = GravixLayer(api_key=args.api_key or os.environ.get("GRAVIXLAYER_API_KEY"))
         
         if args.sandbox_action in ["create", "list", "get", "kill", "run", "code", "file", "timeout", "metrics", "host", "context"]:
             handle_sandbox_operations(args, client)
@@ -1699,7 +1684,7 @@ def handle_sandbox_operations(args, client):
             cpu_display = f"{sandbox.cpu_count}" if sandbox.cpu_count is not None else "Unknown"
             memory_display = f"{sandbox.memory_mb}MB" if sandbox.memory_mb is not None else "Unknown"
             
-            print(f"✅ Created sandbox: {sandbox.sandbox_id}")
+            print(f"Created sandbox: {sandbox.sandbox_id}")
             print(f"   Template: {sandbox.template}")
             print(f"   Status: {sandbox.status}")
             print(f"   Resources: {cpu_display} CPU, {memory_display} RAM")
@@ -1786,31 +1771,34 @@ def handle_sandbox_operations(args, client):
                     
         elif args.sandbox_action == "kill":
             result = client.sandbox.sandboxes.kill(args.sandbox_id)
-            print(f"🛑 {result.message}")
+            print(f"{result.message}")
             
         elif args.sandbox_action == "run":
+            # Use --args parameter for command arguments
+            command_args = args.args if hasattr(args, 'args') and args.args else []
+            
             result = client.sandbox.sandboxes.run_command(
                 sandbox_id=args.sandbox_id,
-                command=args.command,
-                args=args.args,
+                command=args.exec_command,
+                args=command_args,
                 working_dir=args.working_dir,
                 timeout=args.timeout
             )
             
-            print(f"💻 Command executed (exit code: {result.exit_code})")
-            print(f"   Duration: {result.duration_ms}ms")
-            print(f"   Success: {result.success}")
+            print(f"Command executed (exit code: {result.exit_code})")
+            print(f"Duration: {result.duration_ms}ms")
+            print(f"Success: {result.success}")
             
             if result.stdout:
-                print("\n📤 STDOUT:")
+                print("\nSTDOUT:")
                 print(result.stdout)
             
             if result.stderr:
-                print("\n📥 STDERR:")
+                print("\nSTDERR:")
                 print(result.stderr)
                 
             if result.error:
-                print(f"\n❌ ERROR: {result.error}")
+                print(f"\nERROR: {result.error}")
                 
         elif args.sandbox_action == "code":
             result = client.sandbox.sandboxes.run_code(
@@ -1820,27 +1808,27 @@ def handle_sandbox_operations(args, client):
                 context_id=args.context_id
             )
             
-            print(f"🐍 Code executed (ID: {result.execution_id})")
+            print(f"Code executed (ID: {result.execution_id})")
             
             if result.logs.get("stdout"):
-                print("\n📤 OUTPUT:")
+                print("\nOUTPUT:")
                 for line in result.logs["stdout"]:
                     print(line)
             
             if result.logs.get("stderr"):
-                print("\n📥 STDERR:")
+                print("\nSTDERR:")
                 for line in result.logs["stderr"]:
                     print(line)
                     
             if result.error:
-                print(f"\n❌ ERROR: {result.error}")
+                print(f"\nERROR: {result.error}")
                 
         elif args.sandbox_action == "file":
             handle_sandbox_file_commands(args, client)
             
         elif args.sandbox_action == "timeout":
             result = client.sandbox.sandboxes.set_timeout(args.sandbox_id, args.timeout)
-            print(f"✅ {result.message}")
+            print(f"{result.message}")
             print(f"   New timeout: {result.timeout}s")
             print(f"   Timeout at: {result.timeout_at}")
             
@@ -1860,7 +1848,7 @@ def handle_sandbox_operations(args, client):
                     "network_tx": metrics.network_tx
                 }, indent=2))
             else:
-                print(f"📊 Sandbox Metrics ({metrics.timestamp})")
+                print(f"Sandbox Metrics ({metrics.timestamp})")
                 print(f"   CPU Usage: {metrics.cpu_usage}%")
                 print(f"   Memory: {metrics.memory_usage}/{metrics.memory_total} MB")
                 print(f"   Disk Read: {metrics.disk_read} bytes")
@@ -1870,7 +1858,7 @@ def handle_sandbox_operations(args, client):
                 
         elif args.sandbox_action == "host":
             host_url = client.sandbox.sandboxes.get_host_url(args.sandbox_id, args.port)
-            print(f"🌐 Host URL for port {args.port}:")
+            print(f"Host URL for port {args.port}:")
             print(f"   {host_url.url}")
             
         elif args.sandbox_action == "context":
@@ -1885,7 +1873,9 @@ def handle_sandbox_file_commands(args, client):
     try:
         if args.file_action == "read":
             result = client.sandbox.sandboxes.read_file(args.sandbox_id, args.path)
-            print(f"📄 File: {result.path} ({result.size} bytes)")
+            file_path = result.path or args.path
+            file_size = result.size or len(result.content) if result.content else 0
+            print(f"File: {file_path} ({file_size} bytes)")
             print("=" * 50)
             print(result.content)
             
@@ -1893,41 +1883,47 @@ def handle_sandbox_file_commands(args, client):
             result = client.sandbox.sandboxes.write_file(
                 args.sandbox_id, args.path, args.content
             )
-            print(f"✅ {result.message}")
-            print(f"   Path: {result.path}")
-            print(f"   Bytes written: {result.bytes_written}")
+            print(f"{result.message}")
+            file_path = result.path or args.path
+            bytes_written = result.bytes_written or len(args.content)
+            print(f"Path: {file_path}")
+            print(f"Bytes written: {bytes_written}")
             
         elif args.file_action == "list":
             result = client.sandbox.sandboxes.list_files(args.sandbox_id, args.path)
-            print(f"📁 Files in {args.path}:")
+            print(f"Files in {args.path}:")
             print()
             
             for file_info in result.files:
                 if file_info.is_dir:
-                    print(f"📁 {file_info.name}/")
+                    print(f"DIR  {file_info.name}/")
                 else:
-                    print(f"📄 {file_info.name} ({file_info.size} bytes)")
-                print(f"   Modified: {file_info.modified_at}")
+                    print(f"FILE {file_info.name} ({file_info.size} bytes)")
+                print(f"     Modified: {file_info.modified_at}")
                 print()
                 
         elif args.file_action == "delete":
             result = client.sandbox.sandboxes.delete_file(args.sandbox_id, args.path)
-            print(f"🗑️  {result.message}")
-            print(f"   Path: {result.path}")
+            print(f"{result.message}")
+            file_path = result.path or args.path
+            print(f"Path: {file_path}")
             
         elif args.file_action == "mkdir":
             result = client.sandbox.sandboxes.make_directory(args.sandbox_id, args.path)
-            print(f"📁 {result.message}")
-            print(f"   Path: {result.path}")
+            print(f"{result.message}")
+            dir_path = result.path or args.path
+            print(f"Path: {dir_path}")
             
         elif args.file_action == "upload":
             with open(args.local_path, "rb") as f:
                 result = client.sandbox.sandboxes.upload_file(
                     args.sandbox_id, f, args.remote_path
                 )
-            print(f"⬆️  {result.message}")
-            print(f"   Remote path: {result.path}")
-            print(f"   Size: {result.size} bytes")
+            print(f"{result.message}")
+            remote_path = result.path or args.remote_path
+            file_size = result.size or 0
+            print(f"Remote path: {remote_path}")
+            print(f"Size: {file_size} bytes")
             
         elif args.file_action == "download":
             file_data = client.sandbox.sandboxes.download_file(
@@ -1935,10 +1931,10 @@ def handle_sandbox_file_commands(args, client):
             )
             with open(args.local_path, "wb") as f:
                 f.write(file_data)
-            print(f"⬇️  Downloaded file")
-            print(f"   Remote path: {args.remote_path}")
-            print(f"   Local path: {args.local_path}")
-            print(f"   Size: {len(file_data)} bytes")
+            print(f"Downloaded file")
+            print(f"Remote path: {args.remote_path}")
+            print(f"Local path: {args.local_path}")
+            print(f"Size: {len(file_data)} bytes")
                 
     except Exception as e:
         print(f"ERROR: {e}")
@@ -1953,7 +1949,7 @@ def handle_context_commands(args, client):
                 language=args.language,
                 cwd=args.cwd
             )
-            print(f"✅ Created code context: {context.context_id}")
+            print(f"Created code context: {context.context_id}")
             print(f"   Language: {context.language}")
             print(f"   Working directory: {context.cwd}")
             print(f"   Created: {context.created_at}")
@@ -1963,7 +1959,7 @@ def handle_context_commands(args, client):
             context = client.sandbox.sandboxes.get_code_context(
                 args.sandbox_id, args.context_id
             )
-            print(f"ℹ️  Code Context: {context.context_id}")
+            print(f"Code Context: {context.context_id}")
             print(f"   Language: {context.language}")
             print(f"   Working directory: {context.cwd}")
             print(f"   Status: {context.status}")
@@ -1976,7 +1972,7 @@ def handle_context_commands(args, client):
             result = client.sandbox.sandboxes.delete_code_context(
                 args.sandbox_id, args.context_id
             )
-            print(f"🗑️  {result.message}")
+            print(f"{result.message}")
             print(f"   Context ID: {result.context_id}")
             
     except Exception as e:

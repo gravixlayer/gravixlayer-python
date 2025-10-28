@@ -35,6 +35,12 @@ class Sandbox:
         """Initialize client reference after dataclass creation"""
         self._client = None
         self._alive = True
+        self._timeout_seconds = None  # Store the original timeout value
+    
+    @property
+    def timeout(self) -> Optional[int]:
+        """Get the timeout value in seconds"""
+        return self._timeout_seconds
     
     @classmethod
     def create(
@@ -89,6 +95,7 @@ class Sandbox:
         )
         
         instance._client = client
+        instance._timeout_seconds = timeout  # Store the original timeout value
         return instance
     
     def run_code(self, code: str, language: str = "python") -> "Execution":
@@ -221,6 +228,17 @@ class Sandbox:
         except:
             self._alive = False
             return False
+    
+    def show_info(self) -> None:
+        """Display sandbox information"""
+        print(f"Created sandbox: {self.sandbox_id}")
+        print(f"Template: {self.template}")
+        print(f"Status: {self.status}")
+        cpu_display = f"{self.cpu_count} CPU" if self.cpu_count else "Unknown CPU"
+        memory_display = f"{self.memory_mb}MB RAM" if self.memory_mb else "Unknown RAM"
+        print(f"Resources: {cpu_display}, {memory_display}")
+        print(f"Started: {self.started_at}")
+        print(f"Timeout: {self.timeout_at}")
     
     def __enter__(self):
         """Context manager entry"""
@@ -521,3 +539,8 @@ class Execution:
     def success(self) -> bool:
         """Check if execution was successful"""
         return getattr(self._response, 'success', self.exit_code == 0)
+    
+    @property
+    def error(self) -> Optional[Any]:
+        """Get execution error if any"""
+        return getattr(self._response, 'error', None)

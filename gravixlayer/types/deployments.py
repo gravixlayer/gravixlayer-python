@@ -13,21 +13,30 @@ class DeploymentCreate(BaseModel):
 
 class Deployment(BaseModel):
     deployment_id: str
-    user_email: str
-    model_name: str
+    user_email: Optional[str] = None
+    model_name: Optional[str] = None
     deployment_name: str
     status: str
     created_at: str
-    gpu_model: str
-    gpu_count: int
-    min_replicas: int
+    gpu_model: Optional[str] = None
+    gpu_count: Optional[int] = None
+    min_replicas: Optional[int] = None
     max_replicas: Optional[int] = 1  # Make this optional with default value
-    hw_type: str
+    hw_type: Optional[str] = None
 
 class DeploymentList(BaseModel):
     deployments: List[Deployment]
 
 class DeploymentResponse(BaseModel):
     deployment_id: str
-    message: str
+    user_email: Optional[str] = None
+    model_name: Optional[str] = None
+    deployment_name: str
     status: str
+    created_at: str
+    gpu_model: Optional[str] = None
+    gpu_count: Optional[int] = None
+    min_replicas: Optional[int] = None
+    max_replicas: Optional[int] = 1
+    hw_type: Optional[str] = None
+    message: Optional[str] = None  # Make message optional since API doesn't always return it
