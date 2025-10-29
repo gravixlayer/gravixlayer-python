@@ -15,20 +15,27 @@ class GravixMemory:
     Provides semantic memory storage and retrieval using vector embeddings
     """
     
-    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
-                 inference_model: str = "mistralai/mistral-nemo-instruct-2407", index_name: str = "gravixlayer_memories"):
+    def __init__(self, client, embedding_model: str, 
+                 inference_model: str, index_name: str, 
+                 cloud_provider: str, region: str, delete_protection: bool = False):
         """
         Initialize GravixLayer Memory system
         
         Args:
-            client: GravixLayer client instance
-            embedding_model: Model for text embeddings
-            inference_model: Model for memory inference from conversations
-            index_name: Name of the memory index
+            client: GravixLayer client instance (required)
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference from conversations (required)
+            index_name: Name of the memory index (required)
+            cloud_provider: Cloud provider (AWS, GCP, Azure) (required)
+            region: Cloud region (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
         self.client = client
         self.embedding_model = embedding_model
         self.index_name = index_name
+        self.cloud_provider = cloud_provider
+        self.region = region
+        self.delete_protection = delete_protection
         self.index_id = None
         self.working_memory_ttl = timedelta(hours=2)
         self.agent = UnifiedMemoryAgent(client, inference_model)
@@ -84,8 +91,8 @@ class GravixMemory:
                 "dimension": self.embedding_dimension,
                 "metric": "cosine",
                 "vector_type": "dense",
-                "cloud_provider": "AWS",
-                "region": "us-east-1",
+                "cloud_provider": self.cloud_provider,
+                "region": self.region,
                 "index_type": "serverless",
                 "metadata": {
                     "type": "gravix_memory_store",
@@ -94,7 +101,7 @@ class GravixMemory:
                     "created_at": datetime.now().isoformat(),
                     "description": "GravixLayer memory store"
                 },
-                "delete_protection": True
+                "delete_protection": self.delete_protection
             }
             
             response = await self.client._make_request(

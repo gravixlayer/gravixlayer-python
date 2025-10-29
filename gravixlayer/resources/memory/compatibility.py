@@ -14,20 +14,29 @@ class LegacyMemoryCompatibility:
     This allows existing code to continue working without changes
     """
     
-    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
-                 inference_model: str = "mistralai/mistral-nemo-instruct-2407"):
+    def __init__(self, client, embedding_model: str, 
+                 inference_model: str, index_name: str,
+                 cloud_provider: str, region: str, delete_protection: bool = False):
         """
-        Initialize compatibility layer
+        Initialize compatibility layer - all parameters required
         
         Args:
-            client: GravixLayer client instance
-            embedding_model: Model for text embeddings
-            inference_model: Model for memory inference
+            client: GravixLayer client instance (required)
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference (required)
+            index_name: Name of the memory index (required)
+            cloud_provider: Cloud provider (required)
+            region: Cloud region (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
         self.gravix_memory = GravixMemory(
             client=client,
             embedding_model=embedding_model,
-            inference_model=inference_model
+            inference_model=inference_model,
+            index_name=index_name,
+            cloud_provider=cloud_provider,
+            region=region,
+            delete_protection=delete_protection
         )
         # Expose client for debugging (legacy compatibility)
         self.client = client
@@ -242,28 +251,27 @@ class ExternalCompatibilityLayer:
     Provides the exact same method signatures as before with dynamic configuration support
     """
     
-    def __init__(self, client, embedding_model: Optional[str] = None, 
-                 inference_model: Optional[str] = None, index_name: Optional[str] = None,
-                 cloud_provider: Optional[str] = None, region: Optional[str] = None):
+    def __init__(self, client, embedding_model: str, 
+                 inference_model: str, index_name: str,
+                 cloud_provider: str, region: str, delete_protection: bool = False):
         """
-        Initialize external compatibility layer with simplified configuration
+        Initialize external compatibility layer - all parameters required
         
         Args:
-            client: GravixLayer client instance
-            embedding_model: Model for text embeddings (None = use system default)
-            inference_model: Model for memory inference (None = use system default)
-            index_name: Memory database name (None = use default "gravixlayer_memories")
-            cloud_provider: Cloud provider (AWS, GCP, Azure) (None = use default AWS)
-            region: Cloud region (None = use default region for provider)
+            client: GravixLayer client instance (required)
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference (required)
+            index_name: Memory database name (required)
+            cloud_provider: Cloud provider (AWS, GCP, Azure) (required)
+            region: Cloud region (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
         # Convert simple parameters to cloud_config format
-        cloud_config = None
-        if cloud_provider or region:
-            cloud_config = {
-                "cloud_provider": cloud_provider or "AWS",
-                "region": region or "us-east-1",
-                "index_type": "serverless"
-            }
+        cloud_config = {
+            "cloud_provider": cloud_provider,
+            "region": region,
+            "index_type": "serverless"
+        }
         
         # Use UnifiedMemory for better dynamic configuration support
         self.unified_memory = UnifiedMemory(
@@ -271,13 +279,14 @@ class ExternalCompatibilityLayer:
             embedding_model=embedding_model,
             inference_model=inference_model,
             shared_index_name=index_name,
-            cloud_config=cloud_config
+            cloud_config=cloud_config,
+            delete_protection=delete_protection
         )
         
         # Expose configuration methods
         self.switch_configuration = self.unified_memory.switch_configuration
         self.get_current_configuration = self.unified_memory.get_current_configuration
-        self.reset_to_defaults = self.unified_memory.reset_to_defaults
+        # reset_to_defaults removed - no defaults exist
         self.switch_index = self.unified_memory.switch_index
         self.list_available_indexes = self.unified_memory.list_available_indexes
     

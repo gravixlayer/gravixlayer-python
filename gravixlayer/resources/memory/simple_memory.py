@@ -13,20 +13,27 @@ class Memory:
     GravixLayer memory interface using unified memory system
     """
     
-    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
-                 inference_model: str = "mistralai/mistral-nemo-instruct-2407"):
+    def __init__(self, client, embedding_model: str, 
+                 inference_model: str, index_name: str,
+                 cloud_config: dict, delete_protection: bool = False):
         """
-        Initialize Memory system with GravixLayer API
+        Initialize Memory system with GravixLayer API - all parameters required
         
         Args:
-            client: GravixLayer client instance
-            embedding_model: Model for text embeddings
-            inference_model: Model for memory inference
+            client: GravixLayer client instance (required)
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference (required)
+            index_name: Name of the memory index (required)
+            cloud_config: Cloud configuration dict (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
         self.unified_memory = UnifiedMemory(
             client=client,
             embedding_model=embedding_model,
-            inference_model=inference_model
+            inference_model=inference_model,
+            shared_index_name=index_name,
+            cloud_config=cloud_config,
+            delete_protection=delete_protection
         )
         # Expose client for debugging
         self.client = client

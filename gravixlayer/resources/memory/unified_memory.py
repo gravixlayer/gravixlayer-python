@@ -19,36 +19,28 @@ class UnifiedMemory:
     Supports dynamic configuration switching for embedding models, cloud settings, and databases
     """
     
-    def __init__(self, client, embedding_model=None, 
-                 inference_model=None, shared_index_name=None,
-                 cloud_config=None):
+    def __init__(self, client, embedding_model: str, 
+                 inference_model: str, shared_index_name: str,
+                 cloud_config: dict, delete_protection: bool = False):
         """
-        Initialize Unified Memory system with dynamic configuration support
+        Initialize Unified Memory system - all parameters required
         
         Args:
-            client: GravixLayer client instance
-            embedding_model: Model for text embeddings (None = use system default)
-            inference_model: Model for memory inference from conversations (None = use system default)
-            shared_index_name: Name of the shared memory index (None = use default "gravixlayer_memories")
-            cloud_config: Cloud configuration dict with provider, region, index_type (None = use defaults)
+            client: GravixLayer client instance (required)
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference from conversations (required)
+            shared_index_name: Name of the shared memory index (required)
+            cloud_config: Cloud configuration dict with provider, region, index_type (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
         self.client = client
         
-        # Dynamic configuration with fallbacks to system defaults
-        self._default_embedding_model = "baai/bge-large-en-v1.5"
-        self._default_inference_model = "mistralai/mistral-nemo-instruct-2407"
-        self._default_index_name = "gravixlayer_memories"
-        self._default_cloud_config = {
-            "cloud_provider": "AWS",
-            "region": "us-east-1", 
-            "index_type": "serverless"
-        }
-        
-        # Current active configuration
-        self.current_embedding_model = embedding_model or self._default_embedding_model
-        self.current_inference_model = inference_model or self._default_inference_model
-        self.current_index_name = shared_index_name or self._default_index_name
-        self.current_cloud_config = cloud_config or self._default_cloud_config.copy()
+        # Current active configuration - no defaults
+        self.current_embedding_model = embedding_model
+        self.current_inference_model = inference_model
+        self.current_index_name = shared_index_name
+        self.current_cloud_config = cloud_config.copy()
+        self.delete_protection = delete_protection
         
         # Index management - support multiple databases
         self.index_cache = {}  # Cache index IDs by name
@@ -143,15 +135,7 @@ class UnifiedMemory:
             "embedding_dimension": self.embedding_dimension
         }
     
-    def reset_to_defaults(self):
-        """Reset all configuration to system defaults"""
-        self.switch_configuration(
-            embedding_model=self._default_embedding_model,
-            inference_model=self._default_inference_model,
-            index_name=self._default_index_name,
-            cloud_config=self._default_cloud_config.copy()
-        )
-        print("🔄 Reset to default configuration")
+    # reset_to_defaults removed - no defaults, all parameters must be provided by user
     
     async def _ensure_shared_index(self, index_name=None):
         """
@@ -204,7 +188,7 @@ class UnifiedMemory:
                     "description": f"Unified memory store: {target_index_name}",
                     "cloud_config": self.current_cloud_config
                 },
-                "delete_protection": False  # Allow deletion for easier cleanup
+                "delete_protection": self.delete_protection
             }
             
             response = await self.client._make_request(
@@ -775,7 +759,10 @@ class UnifiedMemory:
         try:
             vector = await vectors.get(memory_id)
             current_count = vector.metadata.get("access_count", 0)
-            await vectors.update(memory_id, metadata={"access_count": current_count + 1})
+            # Update the entire metadata to preserve all fields
+            updated_metadata = vector.metadata.copy()
+            updated_metadata["access_count"] = current_count + 1
+            await vectors.update(memory_id, metadata=updated_metadata)
         except Exception:
             pass  # Ignore errors in access count updates    
 
@@ -830,17 +817,7 @@ class UnifiedMemory:
             "embedding_dimension": self.embedding_dimension
         }
     
-    def reset_to_defaults(self):
-        """Reset configuration to system defaults"""
-        self.current_embedding_model = self._default_embedding_model
-        self.current_inference_model = self._default_inference_model
-        self.current_index_name = self._default_index_name
-        self.current_cloud_config = self._default_cloud_config.copy()
-        self.embedding_dimension = self._get_embedding_dimension(self.current_embedding_model)
-        
-        # Reinitialize agent with default model
-        self.agent = UnifiedMemoryAgent(self.client, self.current_inference_model)
-        print("🔄 Reset to default configuration")
+    # reset_to_defaults removed - no defaults, all parameters must be provided by user
     
     async def switch_index(self, index_name: str) -> bool:
         """

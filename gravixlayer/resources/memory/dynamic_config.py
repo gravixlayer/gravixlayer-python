@@ -155,10 +155,7 @@ class DynamicMemoryConfig:
         
         return True
     
-    def reset_to_defaults(self):
-        """Reset all configuration to defaults"""
-        self.current = MemoryConfig()
-        print("🔄 Reset to default configuration")
+    # reset_to_defaults removed - no defaults, all parameters must be provided by user
     
     def get_current_config(self) -> Dict[str, Any]:
         """Get current configuration as dictionary"""

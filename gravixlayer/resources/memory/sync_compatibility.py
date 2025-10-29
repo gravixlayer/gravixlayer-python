@@ -13,20 +13,34 @@ class SyncLegacyMemoryCompatibility:
     This allows existing code to continue working without changes in sync mode
     """
     
-    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
-                 inference_model: str = "mistralai/mistral-nemo-instruct-2407"):
+    def __init__(self, client, embedding_model: str, 
+                 inference_model: str, index_name: str,
+                 cloud_provider: str, region: str, delete_protection: bool = False):
         """
-        Initialize synchronous compatibility layer
+        Initialize synchronous compatibility layer - all parameters required
         
         Args:
-            client: GravixLayer sync client instance
-            embedding_model: Model for text embeddings
-            inference_model: Model for memory inference (not used in sync mode)
+            client: GravixLayer sync client instance (required)
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference (required)
+            index_name: Name of the memory index (required)
+            cloud_provider: Cloud provider (required)
+            region: Cloud region (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
+        cloud_config = {
+            "cloud_provider": cloud_provider,
+            "region": region,
+            "index_type": "serverless"
+        }
+        
         self.unified_sync_memory = UnifiedSyncMemory(
             client=client,
             embedding_model=embedding_model,
-            shared_index_name="gravixlayer_memories"
+            inference_model=inference_model,
+            shared_index_name=index_name,
+            cloud_config=cloud_config,
+            delete_protection=delete_protection
         )
         # Expose client for debugging (legacy compatibility)
         self.client = client
@@ -237,32 +251,43 @@ class SyncExternalCompatibilityLayer:
     Provides the exact same method signatures as before with dynamic configuration support
     """
     
-    def __init__(self, client, embedding_model: Optional[str] = None, 
-                 inference_model: Optional[str] = None, index_name: Optional[str] = None,
-                 cloud_provider: Optional[str] = None, region: Optional[str] = None):
+    def __init__(self, client, embedding_model: str, 
+                 inference_model: str, index_name: str,
+                 cloud_provider: str, region: str, delete_protection: bool = False):
         """
-        Initialize synchronous external compatibility layer with simplified configuration
+        Initialize synchronous external compatibility layer - all parameters required
         
         Args:
-            client: GravixLayer sync client instance
-            embedding_model: Model for text embeddings (None = use system default)
-            inference_model: Model for memory inference (None = use system default, not used in sync)
-            index_name: Memory database name (None = use default "gravixlayer_memories")
-            cloud_provider: Cloud provider (AWS, GCP, Azure) (None = use default AWS)
-            region: Cloud region (None = use default region for provider)
+            client: GravixLayer sync client instance (required)
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference (required)
+            index_name: Memory database name (required)
+            cloud_provider: Cloud provider (AWS, GCP, Azure) (required)
+            region: Cloud region (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
+        cloud_config = {
+            "cloud_provider": cloud_provider,
+            "region": region,
+            "index_type": "serverless"
+        }
+        
         # Use UnifiedSyncMemory for better configuration support
         self.unified_sync_memory = UnifiedSyncMemory(
             client=client,
-            embedding_model=embedding_model or "baai/bge-large-en-v1.5",
-            shared_index_name=index_name or "gravixlayer_memories"
+            embedding_model=embedding_model,
+            inference_model=inference_model,
+            shared_index_name=index_name,
+            cloud_config=cloud_config,
+            delete_protection=delete_protection
         )
         
         # Store configuration for reference
-        self.current_embedding_model = embedding_model or "baai/bge-large-en-v1.5"
-        self.current_index_name = index_name or "gravixlayer_memories"
-        self.current_cloud_provider = cloud_provider or "AWS"
-        self.current_region = region or "us-east-1"
+        self.current_embedding_model = embedding_model
+        self.current_inference_model = inference_model
+        self.current_index_name = index_name
+        self.current_cloud_provider = cloud_provider
+        self.current_region = region
     
     def switch_configuration(self, embedding_model: Optional[str] = None,
                            index_name: Optional[str] = None,
@@ -321,15 +346,7 @@ class SyncExternalCompatibilityLayer:
             "embedding_dimension": self.unified_sync_memory.embedding_dimension
         }
     
-    def reset_to_defaults(self):
-        """Reset all configuration to system defaults (sync version)"""
-        self.switch_configuration(
-            embedding_model="baai/bge-large-en-v1.5",
-            index_name="gravixlayer_memories",
-            cloud_provider="AWS",
-            region="us-east-1"
-        )
-        print("🔄 Reset to default configuration")
+    # reset_to_defaults removed - no defaults, all parameters must be provided by user
     
     def list_available_indexes(self) -> List[str]:
         """

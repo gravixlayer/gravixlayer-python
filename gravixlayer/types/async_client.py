@@ -309,9 +309,35 @@ class AsyncGravixLayer:
         self.vectors = AsyncVectorDatabase(self)
         self.sandbox = AsyncSandboxResource(self)
         
-        # Initialize memory resource (async version)
+        # Memory is now a factory method - requires parameters
+        # Users must call await client.memory(...) with required parameters
+    
+    async def memory(self, embedding_model: str, inference_model: str, index_name: str,
+                     cloud_provider: str, region: str, delete_protection: bool = False):
+        """
+        Create an async memory instance with required configuration
+        
+        Args:
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference (required)
+            index_name: Name of the memory index (required)
+            cloud_provider: Cloud provider (AWS, GCP, Azure) (required)
+            region: Cloud region (required)
+            delete_protection: Enable delete protection (default: False)
+            
+        Returns:
+            ExternalCompatibilityLayer: Configured async memory instance
+        """
         from ..resources.memory import ExternalCompatibilityLayer
-        self.memory = ExternalCompatibilityLayer(self)
+        return ExternalCompatibilityLayer(
+            self,
+            embedding_model=embedding_model,
+            inference_model=inference_model,
+            index_name=index_name,
+            cloud_provider=cloud_provider,
+            region=region,
+            delete_protection=delete_protection
+        )
 
     async def _make_request(
         self,

@@ -14,34 +14,43 @@ class SyncExternalMemory:
     Provides all the same methods as the async version but in synchronous mode
     """
     
-    def __init__(self, client, embedding_model: Optional[str] = None, 
-                 inference_model: Optional[str] = None, index_name: Optional[str] = None,
-                 cloud_provider: Optional[str] = None, region: Optional[str] = None):
+    def __init__(self, client, embedding_model: str, 
+                 inference_model: str, index_name: str,
+                 cloud_provider: str, region: str, delete_protection: bool = False):
         """
-        Initialize synchronous external memory with full configuration support
+        Initialize synchronous external memory - all parameters required
         
         Args:
-            client: GravixLayer sync client instance
-            embedding_model: Model for text embeddings (None = use system default)
-            inference_model: Model for memory inference (None = use system default)
-            index_name: Memory database name (None = use default "gravixlayer_memories")
-            cloud_provider: Cloud provider (AWS, GCP, Azure) (None = use default AWS)
-            region: Cloud region (None = use default region for provider)
+            client: GravixLayer sync client instance (required)
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference (required)
+            index_name: Memory database name (required)
+            cloud_provider: Cloud provider (AWS, GCP, Azure) (required)
+            region: Cloud region (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
+        cloud_config = {
+            "cloud_provider": cloud_provider,
+            "region": region,
+            "index_type": "serverless"
+        }
+        
         # Use UnifiedSyncMemory for core functionality
         self.unified_sync_memory = UnifiedSyncMemory(
             client=client,
-            embedding_model=embedding_model or "baai/bge-large-en-v1.5",
-            shared_index_name=index_name or "gravixlayer_memories",
-            inference_model=inference_model or "mistralai/mistral-nemo-instruct-2407"
+            embedding_model=embedding_model,
+            inference_model=inference_model,
+            shared_index_name=index_name,
+            cloud_config=cloud_config,
+            delete_protection=delete_protection
         )
         
         # Store configuration for reference
-        self.current_embedding_model = embedding_model or "baai/bge-large-en-v1.5"
-        self.current_inference_model = inference_model or "mistralai/mistral-nemo-instruct-2407"
-        self.current_index_name = index_name or "gravixlayer_memories"
-        self.current_cloud_provider = cloud_provider or "AWS"
-        self.current_region = region or "us-east-1"
+        self.current_embedding_model = embedding_model
+        self.current_inference_model = inference_model
+        self.current_index_name = index_name
+        self.current_cloud_provider = cloud_provider
+        self.current_region = region
         
         # Expose client for debugging
         self.client = client
@@ -117,16 +126,7 @@ class SyncExternalMemory:
             "embedding_dimension": self.unified_sync_memory.embedding_dimension
         }
     
-    def reset_to_defaults(self):
-        """Reset all configuration to system defaults (sync version)"""
-        self.switch_configuration(
-            embedding_model="baai/bge-large-en-v1.5",
-            inference_model="mistralai/mistral-nemo-instruct-2407",
-            index_name="gravixlayer_memories",
-            cloud_provider="AWS",
-            region="us-east-1"
-        )
-        print("Reset to default configuration")
+    # reset_to_defaults removed - no defaults, all parameters must be provided by user
     
     # Index Management Methods
     def list_available_indexes(self) -> List[str]:
@@ -580,3 +580,47 @@ class SyncExternalMemory:
             MemoryStats: Memory statistics
         """
         return self.unified_sync_memory.get_stats(user_id)
+
+    def list_all_users(self, limit: int = 1000) -> List[str]:
+        """
+        List all unique user IDs in the current index
+        
+        Note: This scans through memories to find unique users.
+        For large datasets, this may be slow.
+        
+        Args:
+            limit: Maximum number of memories to scan (default: 1000)
+            
+        Returns:
+            List[str]: List of unique user IDs
+        """
+        try:
+            # Get the index
+            index_id = self.unified_sync_memory._ensure_shared_index()
+            vectors = self.unified_sync_memory.client.vectors.index(index_id)
+            
+            # Scan through vectors to find unique user IDs
+            # Note: This is a workaround since there's no direct "list users" API
+            unique_users = set()
+            
+            # Use search with a generic query to get all vectors
+            search_results = vectors.search_text(
+                query="user",  # Generic query
+                model=self.current_embedding_model,
+                top_k=limit,
+                filter=None,  # No filter to get all users
+                include_metadata=True,
+                include_values=False
+            )
+            
+            # Extract unique user IDs from metadata
+            for hit in search_results.hits:
+                user_id = hit.metadata.get("user_id")
+                if user_id:
+                    unique_users.add(user_id)
+            
+            return sorted(list(unique_users))
+            
+        except Exception as e:
+            print(f"Error listing users: {e}")
+            return []

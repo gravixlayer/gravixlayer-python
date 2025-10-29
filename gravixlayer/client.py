@@ -77,9 +77,35 @@ class GravixLayer:
         self.vectors = VectorDatabase(self)
         self.sandbox = SandboxResource(self)
         
-        # Initialize memory resource (sync version)
+        # Memory is now a factory method - requires parameters
+        # Users must call client.memory(...) with required parameters
+    
+    def memory(self, embedding_model: str, inference_model: str, index_name: str,
+               cloud_provider: str, region: str, delete_protection: bool = False):
+        """
+        Create a memory instance with required configuration
+        
+        Args:
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference (required)
+            index_name: Name of the memory index (required)
+            cloud_provider: Cloud provider (AWS, GCP, Azure) (required)
+            region: Cloud region (required)
+            delete_protection: Enable delete protection (default: False)
+            
+        Returns:
+            SyncExternalMemory: Configured memory instance
+        """
         from .resources.memory.sync_external_memory import SyncExternalMemory
-        self.memory = SyncExternalMemory(self)
+        return SyncExternalMemory(
+            self,
+            embedding_model=embedding_model,
+            inference_model=inference_model,
+            index_name=index_name,
+            cloud_provider=cloud_provider,
+            region=region,
+            delete_protection=delete_protection
+        )
 
     def _make_request(
         self,

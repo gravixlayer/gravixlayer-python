@@ -14,16 +14,25 @@ class SyncMemory:
     Synchronous semantic memory system using GravixLayer vector database
     """
     
-    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5"):
+    def __init__(self, client, embedding_model: str, index_name: str,
+                 cloud_provider: str, region: str, delete_protection: bool = False):
         """
-        Initialize Memory system
+        Initialize Memory system - all parameters required
         
         Args:
-            client: GravixLayer client instance (sync)
-            embedding_model: Model for text embeddings
+            client: GravixLayer client instance (sync) (required)
+            embedding_model: Model for text embeddings (required)
+            index_name: Name of the memory index (required)
+            cloud_provider: Cloud provider (required)
+            region: Cloud region (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
         self.client = client
         self.embedding_model = embedding_model
+        self.index_name = index_name
+        self.cloud_provider = cloud_provider
+        self.region = region
+        self.delete_protection = delete_protection
         self.user_indexes = {}  # Cache for user vector indexes
         self.working_memory_ttl = timedelta(hours=2)
         
@@ -582,6 +591,9 @@ class SyncMemory:
         try:
             vector = vectors.get(memory_id)
             current_count = vector.metadata.get("access_count", 0)
-            vectors.update(memory_id, metadata={"access_count": current_count + 1})
+            # Update the entire metadata to preserve all fields
+            updated_metadata = vector.metadata.copy()
+            updated_metadata["access_count"] = current_count + 1
+            vectors.update(memory_id, metadata=updated_metadata)
         except Exception:
             pass  # Ignore errors in access count updates

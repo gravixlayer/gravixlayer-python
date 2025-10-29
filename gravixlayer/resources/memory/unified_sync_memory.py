@@ -16,29 +16,34 @@ class UnifiedSyncMemory:
     Synchronous unified memory system using a single shared GravixLayer vector index
     """
     
-    def __init__(self, client, embedding_model: str = "baai/bge-large-en-v1.5", 
-                 shared_index_name: str = "gravixlayer_memories",
-                 inference_model: str = "mistralai/mistral-nemo-instruct-2407"):
+    def __init__(self, client, embedding_model: str, inference_model: str,
+                 shared_index_name: str, cloud_config: dict,
+                 delete_protection: bool = False):
         """
-        Initialize Unified Sync Memory system
+        Initialize Unified Sync Memory system - all parameters required
         
         Args:
-            client: GravixLayer sync client instance
-            embedding_model: Model for text embeddings
-            shared_index_name: Name of the shared memory index
-            inference_model: Model for memory inference
+            client: GravixLayer sync client instance (required)
+            embedding_model: Model for text embeddings (required)
+            inference_model: Model for memory inference (required)
+            shared_index_name: Name of the shared memory index (required)
+            cloud_config: Cloud configuration dict (required)
+            delete_protection: Enable delete protection for index (default: False)
         """
         self.client = client
         self.embedding_model = embedding_model
+        self.inference_model = inference_model
         self.shared_index_name = shared_index_name
         self.shared_index_id = None
         self.working_memory_ttl = timedelta(hours=2)
+        self.delete_protection = delete_protection
         
-        # Cloud configuration (can be updated dynamically)
-        self.cloud_provider = "AWS"
-        self.region = "us-east-1"
+        # Cloud configuration from provided config
+        self.cloud_provider = cloud_config.get("cloud_provider")
+        self.region = cloud_config.get("region")
+        self.cloud_config = cloud_config
         
-        # Initialize sync agent for inference
+        # Initialize sync agent for inference with provided model
         self.agent = SyncMemoryAgent(client, inference_model)
         
         # Set correct dimension based on embedding model
@@ -103,7 +108,7 @@ class UnifiedSyncMemory:
                     "created_at": datetime.now().isoformat(),
                     "description": "Unified memory store for all users"
                 },
-                "delete_protection": True
+                "delete_protection": self.delete_protection
             }
             
             response = self.client._make_request(
@@ -592,6 +597,9 @@ class UnifiedSyncMemory:
         try:
             vector = vectors.get(memory_id)
             current_count = vector.metadata.get("access_count", 0)
-            vectors.update(memory_id, metadata={"access_count": current_count + 1})
+            # Update the entire metadata to preserve all fields
+            updated_metadata = vector.metadata.copy()
+            updated_metadata["access_count"] = current_count + 1
+            vectors.update(memory_id, metadata=updated_metadata)
         except Exception:
             pass  # Ignore errors in access count updates
