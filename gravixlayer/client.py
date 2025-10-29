@@ -24,9 +24,18 @@ from .types.exceptions import (
 
 class GravixLayer:
     """
- 
-
-    Provides the same interface as popular AI SDKs for easy migration.
+    GravixLayer Python SDK Client
+    
+    Official Python client for the GravixLayer API. Provides a familiar interface
+    compatible with popular AI SDKs for easy migration and integration.
+    
+    Example:
+        >>> from gravixlayer import GravixLayer
+        >>> client = GravixLayer(api_key="your-api-key")
+        >>> response = client.chat.completions.create(
+        ...     model="mistralai/mistral-nemo-instruct-2407",
+        ...     messages=[{"role": "user", "content": "Hello!"}]
+        ... )
     """
 
     def __init__(
@@ -52,10 +61,6 @@ class GravixLayer:
 
         # Validate URL scheme - support both HTTP and HTTPS
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
-            raise ValueError("Base URL must use HTTP or HTTPS protocol")
-
-        # Allow both http and https; require explicit scheme for clarity
-        if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
             raise ValueError("Base URL must start with http:// or https://")
         self.timeout = timeout
         self.max_retries = max_retries
@@ -64,10 +69,11 @@ class GravixLayer:
         self.logger.setLevel(logging.INFO)
         if not self.logger.hasHandlers():
             logging.basicConfig(level=logging.INFO)
-        self.user_agent = user_agent or f"gravixlayer-python/0.0.22"
+        self.user_agent = user_agent or "gravixlayer-python/0.0.45"
         if not self.api_key:
             raise ValueError(
-                "API key must be provided via argument or GRAVIXLAYER_API_KEY environment variable")
+                "API key must be provided via 'api_key' argument or GRAVIXLAYER_API_KEY environment variable"
+            )
         self.chat = ChatResource(self)
         self.embeddings = Embeddings(self)
         self.completions = Completions(self)
@@ -80,21 +86,37 @@ class GravixLayer:
         # Memory is now a factory method - requires parameters
         # Users must call client.memory(...) with required parameters
     
-    def memory(self, embedding_model: str, inference_model: str, index_name: str,
-               cloud_provider: str, region: str, delete_protection: bool = False):
+    def memory(
+        self,
+        embedding_model: str,
+        inference_model: str,
+        index_name: str,
+        cloud_provider: str,
+        region: str,
+        delete_protection: bool = False
+    ):
         """
-        Create a memory instance with required configuration
+        Create a memory instance with required configuration.
         
         Args:
-            embedding_model: Model for text embeddings (required)
-            inference_model: Model for memory inference (required)
-            index_name: Name of the memory index (required)
-            cloud_provider: Cloud provider (AWS, GCP, Azure) (required)
-            region: Cloud region (required)
-            delete_protection: Enable delete protection (default: False)
+            embedding_model (str): Model for text embeddings
+            inference_model (str): Model for memory inference
+            index_name (str): Name of the memory index
+            cloud_provider (str): Cloud provider (AWS, GCP, Azure)
+            region (str): Cloud region
+            delete_protection (bool): Enable delete protection (default: False)
             
         Returns:
             SyncExternalMemory: Configured memory instance
+            
+        Example:
+            >>> memory = client.memory(
+            ...     embedding_model="microsoft/multilingual-e5-large",
+            ...     inference_model="mistralai/mistral-nemo-instruct-2407",
+            ...     index_name="user-memories",
+            ...     cloud_provider="AWS",
+            ...     region="us-east-1"
+            ... )
         """
         from .resources.memory.sync_external_memory import SyncExternalMemory
         return SyncExternalMemory(

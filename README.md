@@ -19,7 +19,7 @@ pip install gravixlayer
 For development or to use the latest features:
 
 ```bash
-git clone ""https://github.com/gravixlayer/gravixlayer-python"
+git clone "https://github.com/gravixlayer/gravixlayer-python"
 cd gravixlayer-python
 pip install -e .
 ```
