@@ -1,6 +1,7 @@
 """
 Memory resources for GravixLayer SDK
 """
+
 # Main GravixLayer Memory API (recommended)
 from .gravix_memory import GravixMemory
 
@@ -27,16 +28,26 @@ from .dynamic_config import DynamicMemoryConfig, MemoryConfig, CloudConfig
 
 __all__ = [
     "GravixMemory",
-    "LegacyMemoryCompatibility", "ExternalCompatibilityLayer",
-    "SyncLegacyMemoryCompatibility", "SyncExternalCompatibilityLayer",
-    "Memory", "SyncMemory",
+    "LegacyMemoryCompatibility",
+    "ExternalCompatibilityLayer",
+    "SyncLegacyMemoryCompatibility",
+    "SyncExternalCompatibilityLayer",
+    "Memory",
+    "SyncMemory",
     # Unified implementations
-    "UnifiedMemory", "UnifiedSyncMemory",
+    "UnifiedMemory",
+    "UnifiedSyncMemory",
     # Simple interfaces
     "SimpleMemory",
     # Types and utilities
-    "MemoryType", "MemoryEntry", "MemorySearchResult", "MemoryStats", 
-    "MemoryAgent", "UnifiedMemoryAgent",
+    "MemoryType",
+    "MemoryEntry",
+    "MemorySearchResult",
+    "MemoryStats",
+    "MemoryAgent",
+    "UnifiedMemoryAgent",
     # Dynamic configuration
-    "DynamicMemoryConfig", "MemoryConfig", "CloudConfig"
+    "DynamicMemoryConfig",
+    "MemoryConfig",
+    "CloudConfig",
 ]

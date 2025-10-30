@@ -1,6 +1,7 @@
 """
 Completions types for GravixLayer SDK
 """
+
 from typing import List, Optional, Union, Dict, Any
 from dataclasses import dataclass
 
@@ -8,6 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class CompletionChoice:
     """A single completion choice"""
+
     text: str
     index: int
     logprobs: Optional[Dict[str, Any]] = None
@@ -17,6 +19,7 @@ class CompletionChoice:
 @dataclass
 class CompletionUsage:
     """Usage statistics for completion"""
+
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
@@ -25,6 +28,7 @@ class CompletionUsage:
 @dataclass
 class Completion:
     """Completion response"""
+
     id: str
     object: str
     created: int

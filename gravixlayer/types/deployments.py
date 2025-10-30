@@ -2,6 +2,7 @@ from typing import List, Optional, Literal
 from pydantic import BaseModel
 from datetime import datetime
 
+
 class DeploymentCreate(BaseModel):
     deployment_name: str
     hw_type: Literal["dedicated"] = "dedicated"
@@ -10,6 +11,7 @@ class DeploymentCreate(BaseModel):
     min_replicas: int = 1
     max_replicas: int = 1
     model_name: str
+
 
 class Deployment(BaseModel):
     deployment_id: str
@@ -24,8 +26,10 @@ class Deployment(BaseModel):
     max_replicas: Optional[int] = 1  # Make this optional with default value
     hw_type: Optional[str] = None
 
+
 class DeploymentList(BaseModel):
     deployments: List[Deployment]
+
 
 class DeploymentResponse(BaseModel):
     deployment_id: str

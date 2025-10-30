@@ -1,13 +1,24 @@
 """
 Vector operations for GravixLayer SDK
 """
+
 from typing import Optional, Dict, Any, List, Union
 from ...types.vectors import (
-    Vector, TextVector, VectorSearchResponse, TextSearchResponse,
-    BatchUpsertResponse, VectorListResponse, VectorDictResponse,
-    VectorSearchHit, UpsertVectorRequest, UpsertTextVectorRequest,
-    BatchUpsertRequest, BatchUpsertTextRequest, VectorSearchRequest,
-    TextSearchRequest, UpdateVectorRequest
+    Vector,
+    TextVector,
+    VectorSearchResponse,
+    TextSearchResponse,
+    BatchUpsertResponse,
+    VectorListResponse,
+    VectorDictResponse,
+    VectorSearchHit,
+    UpsertVectorRequest,
+    UpsertTextVectorRequest,
+    BatchUpsertRequest,
+    BatchUpsertTextRequest,
+    VectorSearchRequest,
+    TextSearchRequest,
+    UpdateVectorRequest,
 )
 
 
@@ -26,7 +37,7 @@ class Vectors:
         embedding: List[float],
         id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        delete_protection: bool = False
+        delete_protection: bool = False,
     ) -> Vector:
         """
         Insert or update a vector
@@ -40,25 +51,15 @@ class Vectors:
         Returns:
             Vector: Upserted vector information
         """
-        vector_data = {
-            "embedding": embedding,
-            "metadata": metadata or {},
-            "delete_protection": delete_protection
-        }
+        vector_data = {"embedding": embedding, "metadata": metadata or {}, "delete_protection": delete_protection}
 
         if id is not None:
             vector_data["id"] = id
 
         # API expects batch format even for single operations
-        data = {
-            "vectors": [vector_data]
-        }
+        data = {"vectors": [vector_data]}
 
-        response = self.client._make_request(
-            "POST",
-            f"{self.base_url}/upsert",
-            data=data
-        )
+        response = self.client._make_request("POST", f"{self.base_url}/upsert", data=data)
 
         result = response.json()
         # The API returns a batch response with upserted_count
@@ -85,10 +86,9 @@ class Vectors:
                     id="auto-generated",
                     embedding=vector_data["embedding"],
                     metadata=vector_data.get("metadata", {}),
-                    delete_protection=vector_data.get(
-                        "delete_protection", False),
+                    delete_protection=vector_data.get("delete_protection", False),
                     created_at="",
-                    updated_at=""
+                    updated_at="",
                 )
         else:
             # If it returns the vector directly (fallback case)
@@ -99,7 +99,7 @@ class Vectors:
                 "metadata": result.get("metadata", metadata or {}),
                 "delete_protection": result.get("delete_protection", delete_protection),
                 "created_at": result.get("created_at", ""),
-                "updated_at": result.get("updated_at", "")
+                "updated_at": result.get("updated_at", ""),
             }
             return Vector(**vector_fields)
 
@@ -109,7 +109,7 @@ class Vectors:
         model: str,
         id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        delete_protection: bool = False
+        delete_protection: bool = False,
     ) -> TextVector:
         """
         Convert text to vector and store it
@@ -124,26 +124,15 @@ class Vectors:
         Returns:
             TextVector: Upserted text vector information
         """
-        vector_data = {
-            "text": text,
-            "model": model,
-            "metadata": metadata or {},
-            "delete_protection": delete_protection
-        }
+        vector_data = {"text": text, "model": model, "metadata": metadata or {}, "delete_protection": delete_protection}
 
         if id is not None:
             vector_data["id"] = id
 
         # API expects batch format even for single operations
-        data = {
-            "vectors": [vector_data]
-        }
+        data = {"vectors": [vector_data]}
 
-        response = self.client._make_request(
-            "POST",
-            f"{self.base_url}/text/upsert",
-            data=data
-        )
+        response = self.client._make_request("POST", f"{self.base_url}/text/upsert", data=data)
 
         result = response.json()
         # For single text upsert, we need to handle the batch response
@@ -163,8 +152,7 @@ class Vectors:
                     delete_protection=vector.delete_protection,
                     created_at=vector.created_at,
                     updated_at=vector.updated_at,
-                    usage=result.get(
-                        "usage", {"prompt_tokens": 0, "total_tokens": 0})
+                    usage=result.get("usage", {"prompt_tokens": 0, "total_tokens": 0}),
                 )
             else:
                 # Check if the response includes generated IDs
@@ -180,8 +168,7 @@ class Vectors:
                         delete_protection=vector.delete_protection,
                         created_at=vector.created_at,
                         updated_at=vector.updated_at,
-                        usage=result.get(
-                            "usage", {"prompt_tokens": 0, "total_tokens": 0})
+                        usage=result.get("usage", {"prompt_tokens": 0, "total_tokens": 0}),
                     )
                 elif "vectors" in result and result["vectors"]:
                     # If the response includes vector data directly
@@ -197,13 +184,11 @@ class Vectors:
                             delete_protection=vector.delete_protection,
                             created_at=vector.created_at,
                             updated_at=vector.updated_at,
-                            usage=result.get(
-                                "usage", {"prompt_tokens": 0, "total_tokens": 0})
+                            usage=result.get("usage", {"prompt_tokens": 0, "total_tokens": 0}),
                         )
 
                 # If no ID was provided and we can't find it in response
-                raise ValueError(
-                    "Text vector upserted successfully but cannot retrieve without ID")
+                raise ValueError("Text vector upserted successfully but cannot retrieve without ID")
         elif "failed_count" in result and result["failed_count"] > 0:
             # If failed, raise error with details
             errors = result.get("errors", ["Unknown error"])
@@ -223,7 +208,7 @@ class Vectors:
                     delete_protection=vector.delete_protection,
                     created_at=vector.created_at,
                     updated_at=vector.updated_at,
-                    usage=result.get("usage", {})
+                    usage=result.get("usage", {}),
                 )
             else:
                 # Remove 'ids' field if present and create TextVector
@@ -231,10 +216,7 @@ class Vectors:
                 result_copy.pop("ids", None)
                 return TextVector(**result_copy)
 
-    def batch_upsert(
-        self,
-        vectors: List[Dict[str, Any]]
-    ) -> BatchUpsertResponse:
+    def batch_upsert(self, vectors: List[Dict[str, Any]]) -> BatchUpsertResponse:
         """
         Insert or update multiple vectors in a single operation
 
@@ -246,19 +228,12 @@ class Vectors:
         """
         data = {"vectors": vectors}
 
-        response = self.client._make_request(
-            "POST",
-            f"{self.base_url}/batch",
-            data=data
-        )
+        response = self.client._make_request("POST", f"{self.base_url}/batch", data=data)
 
         result = response.json()
         return BatchUpsertResponse(**result)
 
-    def batch_upsert_text(
-        self,
-        vectors: List[Dict[str, Any]]
-    ) -> BatchUpsertResponse:
+    def batch_upsert_text(self, vectors: List[Dict[str, Any]]) -> BatchUpsertResponse:
         """
         Convert multiple texts to vectors and store them
 
@@ -270,11 +245,7 @@ class Vectors:
         """
         data = {"vectors": vectors}
 
-        response = self.client._make_request(
-            "POST",
-            f"{self.base_url}/text/batch",
-            data=data
-        )
+        response = self.client._make_request("POST", f"{self.base_url}/text/batch", data=data)
 
         result = response.json()
         return BatchUpsertResponse(**result)
@@ -289,19 +260,13 @@ class Vectors:
         Returns:
             Vector: Vector information
         """
-        response = self.client._make_request(
-            "GET",
-            f"{self.base_url}/{vector_id}"
-        )
+        response = self.client._make_request("GET", f"{self.base_url}/{vector_id}")
 
         result = response.json()
         return Vector(**result)
 
     def update(
-        self,
-        vector_id: str,
-        metadata: Optional[Dict[str, Any]] = None,
-        delete_protection: Optional[bool] = None
+        self, vector_id: str, metadata: Optional[Dict[str, Any]] = None, delete_protection: Optional[bool] = None
     ) -> Vector:
         """
         Update vector metadata and delete protection settings
@@ -323,11 +288,7 @@ class Vectors:
         if not data:
             raise ValueError("At least one field must be provided for update")
 
-        response = self.client._make_request(
-            "PUT",
-            f"{self.base_url}/{vector_id}",
-            data=data
-        )
+        response = self.client._make_request("PUT", f"{self.base_url}/{vector_id}", data=data)
 
         result = response.json()
 
@@ -344,11 +305,7 @@ class Vectors:
         Args:
             vector_id: The vector ID
         """
-        self.client._make_request(
-            "POST",
-            f"{self.base_url}/delete",
-            data={"vector_ids": [vector_id]}
-        )
+        self.client._make_request("POST", f"{self.base_url}/delete", data={"vector_ids": [vector_id]})
 
     def batch_delete(self, vector_ids: List[str]) -> Dict[str, Any]:
         """
@@ -365,11 +322,7 @@ class Vectors:
 
         data = {"vector_ids": vector_ids}
 
-        response = self.client._make_request(
-            "POST",
-            f"{self.base_url}/delete",
-            data=data
-        )
+        response = self.client._make_request("POST", f"{self.base_url}/delete", data=data)
 
         return response.json()
 
@@ -380,18 +333,12 @@ class Vectors:
         Returns:
             VectorListResponse: List of vector IDs
         """
-        response = self.client._make_request(
-            "GET",
-            f"{self.base_url}/list"
-        )
+        response = self.client._make_request("GET", f"{self.base_url}/list")
 
         result = response.json()
         return VectorListResponse(**result)
 
-    def list(
-        self,
-        vector_ids: Optional[List[str]] = None
-    ) -> VectorDictResponse:
+    def list(self, vector_ids: Optional[List[str]] = None) -> VectorDictResponse:
         """
         Retrieve vectors in the index with optional filtering
 
@@ -406,10 +353,7 @@ class Vectors:
             query_param = ",".join(vector_ids)
             endpoint = f"{self.base_url}/fetch?vector_ids={query_param}"
 
-        response = self.client._make_request(
-            "GET",
-            endpoint
-        )
+        response = self.client._make_request("GET", endpoint)
 
         result = response.json()
 
@@ -441,7 +385,7 @@ class Vectors:
         top_k: int,
         filter: Optional[Dict[str, Any]] = None,
         include_metadata: bool = True,
-        include_values: bool = True
+        include_values: bool = True,
     ) -> VectorSearchResponse:
         """
         Perform similarity search using a vector query
@@ -463,25 +407,18 @@ class Vectors:
             "vector": vector,
             "top_k": top_k,
             "include_metadata": include_metadata,
-            "include_values": include_values
+            "include_values": include_values,
         }
 
         if filter is not None:
             data["filter"] = filter
 
-        response = self.client._make_request(
-            "POST",
-            f"{self.base_url}/search",
-            data=data
-        )
+        response = self.client._make_request("POST", f"{self.base_url}/search", data=data)
 
         result = response.json()
         hits = [VectorSearchHit(**hit) for hit in result["hits"]]
 
-        return VectorSearchResponse(
-            hits=hits,
-            query_time_ms=result["query_time_ms"]
-        )
+        return VectorSearchResponse(hits=hits, query_time_ms=result["query_time_ms"])
 
     def search_text(
         self,
@@ -490,7 +427,7 @@ class Vectors:
         top_k: int,
         filter: Optional[Dict[str, Any]] = None,
         include_metadata: bool = True,
-        include_values: bool = True
+        include_values: bool = True,
     ) -> TextSearchResponse:
         """
         Perform similarity search using text that gets converted to a vector
@@ -514,23 +451,15 @@ class Vectors:
             "model": model,
             "top_k": top_k,
             "include_metadata": include_metadata,
-            "include_values": include_values
+            "include_values": include_values,
         }
 
         if filter is not None:
             data["filter"] = filter
 
-        response = self.client._make_request(
-            "POST",
-            f"{self.base_url}/search/text",
-            data=data
-        )
+        response = self.client._make_request("POST", f"{self.base_url}/search/text", data=data)
 
         result = response.json()
         hits = [VectorSearchHit(**hit) for hit in result["hits"]]
 
-        return TextSearchResponse(
-            hits=hits,
-            query_time_ms=result["query_time_ms"],
-            usage=result["usage"]
-        )
+        return TextSearchResponse(hits=hits, query_time_ms=result["query_time_ms"], usage=result["usage"])

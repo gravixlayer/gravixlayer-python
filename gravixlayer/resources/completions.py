@@ -1,6 +1,7 @@
 """
 Completions resource for GravixLayer SDK
 """
+
 from typing import Dict, Any, List, Optional, Union, Iterator
 import json
 from ..types.completions import Completion, CompletionChoice, CompletionUsage
@@ -9,7 +10,7 @@ from ..types.completions import Completion, CompletionChoice, CompletionUsage
 class Completions:
     """
     Completions resource for prompt-based text generation.
-    
+
     Generates text continuations from prompts with fine-grained control
     over output parameters.
     """
@@ -35,11 +36,11 @@ class Completions:
         best_of: Optional[int] = None,
         logit_bias: Optional[Dict[str, float]] = None,
         user: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Union[Completion, Iterator[Completion]]:
         """
         Create a completion for the provided prompt and parameters.
-        
+
         Args:
             model: ID of the model to use
             prompt: The prompt(s) to generate completions for
@@ -57,16 +58,12 @@ class Completions:
             logit_bias: Modify the likelihood of specified tokens appearing in the completion
             user: A unique identifier representing your end-user
             **kwargs: Additional parameters
-            
+
         Returns:
             Completion or Iterator[Completion]: The completion response
         """
-        data = {
-            "model": model,
-            "prompt": prompt,
-            "stream": stream
-        }
-        
+        data = {"model": model, "prompt": prompt, "stream": stream}
+
         if max_tokens is not None:
             data["max_tokens"] = max_tokens
         if temperature is not None:
@@ -91,9 +88,9 @@ class Completions:
             data["logit_bias"] = logit_bias
         if user is not None:
             data["user"] = user
-        
+
         data.update(kwargs)
-        
+
         return self._create_stream(data) if stream else self._create_non_stream(data)
 
     def _create_non_stream(self, data: Dict[str, Any]) -> Completion:
@@ -104,35 +101,33 @@ class Completions:
     def _create_stream(self, data: Dict[str, Any]) -> Iterator[Completion]:
         """Create streaming completion"""
         resp = self.client._make_request("POST", "completions", data, stream=True)
-        
+
         for line in resp.iter_lines():
             if not line:
                 continue
             line = line.decode("utf-8").strip()
-            
+
             # Handle SSE format
             if line.startswith("data: "):
                 line = line[6:]  # Remove "data: " prefix
-            
+
             # Skip empty lines and [DONE] marker
             if not line or line == "[DONE]":
                 continue
-            
+
             try:
                 chunk_data = json.loads(line)
-                
+
                 # Skip if chunk_data is None or empty
                 if not chunk_data:
                     continue
-                
 
-                    
                 parsed_chunk = self._parse_response(chunk_data, is_stream=True)
-                
+
                 # Only yield if we have valid choices
                 if parsed_chunk and parsed_chunk.choices:
                     yield parsed_chunk
-                    
+
             except json.JSONDecodeError:
                 # Skip malformed JSON chunks
                 continue
@@ -145,18 +140,18 @@ class Completions:
         # Handle None or empty response data
         if not resp_data:
             return None
-            
+
         choices = []
-        
+
         # Handle different response formats
         if "choices" in resp_data and resp_data["choices"]:
             for choice_data in resp_data["choices"]:
                 # Skip if choice_data is None
                 if not choice_data:
                     continue
-                    
+
                 text = ""
-                
+
                 if is_stream:
                     # For streaming, get text from delta or text field
                     # Deployed models often return text directly in choice_data
@@ -171,15 +166,15 @@ class Completions:
                 else:
                     # For non-streaming, get text directly
                     text = choice_data.get("text", "") or choice_data.get("content", "")
-                
+
                 choice = CompletionChoice(
                     text=text,
                     index=choice_data.get("index", 0),
                     logprobs=choice_data.get("logprobs"),
-                    finish_reason=choice_data.get("finish_reason")
+                    finish_reason=choice_data.get("finish_reason"),
                 )
                 choices.append(choice)
-        
+
         # Fallback: create a single choice if no choices found
         if not choices:
             text = ""
@@ -189,12 +184,8 @@ class Completions:
                 text = resp_data["text"]
             elif "content" in resp_data:
                 text = resp_data["content"]
-            
-            choices = [CompletionChoice(
-                text=text,
-                index=0,
-                finish_reason="stop" if not is_stream else None
-            )]
+
+            choices = [CompletionChoice(text=text, index=0, finish_reason="stop" if not is_stream else None)]
 
         # Parse usage if available
         usage = None
@@ -205,14 +196,14 @@ class Completions:
                 completion_tokens=usage_data.get("completion_tokens", 0) if usage_data else 0,
                 total_tokens=usage_data.get("total_tokens", 0) if usage_data else 0,
             )
-        
+
         import time
-        
+
         # Safely get values with null checking
         completion_id = resp_data.get("id", f"cmpl-{hash(str(resp_data))}") if resp_data else f"cmpl-{hash('empty')}"
         created_time = resp_data.get("created", int(time.time())) if resp_data else int(time.time())
         model_name = resp_data.get("model", "unknown") if resp_data else "unknown"
-        
+
         return Completion(
             id=completion_id,
             object="text_completion" if not is_stream else "text_completion.chunk",

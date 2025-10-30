@@ -1,4 +1,3 @@
-
 """
 Entry point for running gravixlayer as a module with python -m gravixlayer
 """

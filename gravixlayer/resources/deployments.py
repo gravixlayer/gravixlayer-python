@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
 from ..types.deployments import DeploymentCreate, Deployment, DeploymentList, DeploymentResponse
 
+
 class Deployments:
     def __init__(self, client):
         self.client = client
@@ -13,7 +14,7 @@ class Deployments:
         gpu_count: int = 1,
         min_replicas: int = 1,
         max_replicas: int = 1,
-        hw_type: str = "dedicated"
+        hw_type: str = "dedicated",
     ) -> DeploymentResponse:
         """Create a new deployment"""
         data = {
@@ -23,13 +24,13 @@ class Deployments:
             "gpu_count": gpu_count,
             "min_replicas": min_replicas,
             "max_replicas": max_replicas,
-            "model_name": model_name
+            "model_name": model_name,
         }
-        
+
         # Use a different base URL for deployments API
         original_base_url = self.client.base_url
         self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/deployments")
-        
+
         try:
             response = self.client._make_request("POST", "create", data=data)
             result = response.json()
@@ -42,18 +43,16 @@ class Deployments:
         # Use a different base URL for deployments API
         original_base_url = self.client.base_url
         self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/deployments")
-        
+
         try:
             response = self.client._make_request("GET", "list")
             deployments_data = response.json()
-            
 
-            
             # Handle different response formats
             if isinstance(deployments_data, list):
                 return [Deployment(**deployment) for deployment in deployments_data]
-            elif isinstance(deployments_data, dict) and 'deployments' in deployments_data:
-                return [Deployment(**deployment) for deployment in deployments_data['deployments']]
+            elif isinstance(deployments_data, dict) and "deployments" in deployments_data:
+                return [Deployment(**deployment) for deployment in deployments_data["deployments"]]
             elif isinstance(deployments_data, dict) and not deployments_data:
                 # Empty dict response means no deployments
                 return []
@@ -69,7 +68,7 @@ class Deployments:
         # Use a different base URL for deployments API
         original_base_url = self.client.base_url
         self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/deployments")
-        
+
         try:
             response = self.client._make_request("DELETE", f"delete/{deployment_id}")
             return response.json()

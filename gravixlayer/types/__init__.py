@@ -30,7 +30,7 @@ from .accelerators import (
 
 __all__ = [
     "ChatCompletion",
-    "ChatCompletionMessage", 
+    "ChatCompletionMessage",
     "ChatCompletionChoice",
     "ChatCompletionDelta",
     "ChatCompletionUsage",

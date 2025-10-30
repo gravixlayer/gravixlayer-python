@@ -1,4 +1,3 @@
-
 """
 GravixLayer Python SDK
 
@@ -77,6 +76,7 @@ from .types.sandbox import (
     SandboxKillResponse,
     Execution,
 )
+
 # Memory imports will be done lazily to avoid circular imports
 
 __all__ = [
@@ -144,22 +144,28 @@ __all__ = [
     "MemoryStats",
 ]
 
+
 # Lazy import memory classes to avoid circular dependencies
 def __getattr__(name):
     """Lazy import for memory-related classes."""
     if name == "Memory":
         from .resources.memory import Memory
+
         return Memory
     elif name == "MemoryType":
         from .resources.memory import MemoryType
+
         return MemoryType
     elif name == "MemoryEntry":
         from .resources.memory import MemoryEntry
+
         return MemoryEntry
     elif name == "MemorySearchResult":
         from .resources.memory import MemorySearchResult
+
         return MemorySearchResult
     elif name == "MemoryStats":
         from .resources.memory import MemoryStats
+
         return MemoryStats
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

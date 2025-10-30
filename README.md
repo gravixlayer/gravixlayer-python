@@ -427,7 +427,7 @@ deployment = client.deployments.create(
     min_replicas=1,
     max_replicas=3
 )
-print(f"Deployment ID: {deployment.id}")
+print(f"Deployment ID: {deployment.deployment_id}")
 
 # List all deployments
 deployments = client.deployments.list()
