@@ -1,9 +1,7 @@
-name: Publish and Release to PyPI
+name: Publish to PyPI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*.*.*"
   workflow_dispatch:
@@ -13,116 +11,11 @@ permissions:
   id-token: write
 
 jobs:
-  check-release:
-    runs-on: ubuntu-latest
-    outputs:
-      should_release: ${{ steps.check.outputs.should_release }}
-      release_type: ${{ steps.check.outputs.release_type }}
-      release_notes: ${{ steps.check.outputs.release_notes }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Check commit message
-        id: check
-        run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          echo "Commit message: $COMMIT_MSG"
-          
-          if [[ $COMMIT_MSG =~ ^(patch|minor|major):[[:space:]]*(.+)$ ]]; then
-            TYPE="${BASH_REMATCH[1]}"
-            NOTES="${BASH_REMATCH[2]}"
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "release_type=$TYPE" >> $GITHUB_OUTPUT
-            echo "release_notes=$NOTES" >> $GITHUB_OUTPUT
-            echo "✅ Release detected: $TYPE - $NOTES"
-          else
-            echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ Not a release commit"
-          fi
-
-  bump-version:
-    needs: check-release
-    if: needs.check-release.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      new_version: ${{ steps.bump.outputs.new_version }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Bump version
-        id: bump
-        run: |
-          TYPE="${{ needs.check-release.outputs.release_type }}"
-          
-          # Get current version
-          CURRENT_VERSION=$(python -c "exec(open('version.py').read()); print(__version__)")
-          echo "Current version: $CURRENT_VERSION"
-          
-          # Parse version
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-          
-          # Bump version based on type
-          case $TYPE in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            patch)
-              PATCH=$((PATCH + 1))
-              ;;
-          esac
-          
-          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-          echo "New version: $NEW_VERSION"
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          
-          # Update version files
-          sed -i "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" version.py
-          sed -i "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" gravixlayer/__init__.py
-          sed -i "s/version=\".*\"/version=\"$NEW_VERSION\"/" setup.py
-          sed -i "s/version = \".*\"/version = \"$NEW_VERSION\"/" pyproject.toml
-          
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Commit and tag
-          git add version.py gravixlayer/__init__.py setup.py pyproject.toml
-          git commit -m "Bump version: $CURRENT_VERSION -> $NEW_VERSION"
-          git tag "v$NEW_VERSION"
-          git push origin main
-          git push origin "v$NEW_VERSION"
-
   build-and-publish:
-    needs: [check-release, bump-version]
-    if: needs.check-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Pull latest changes
-        run: |
-          git pull origin main
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -143,21 +36,35 @@ jobs:
           password: ${{ secrets.PYPI_TOKEN }}
 
   create-release:
-    needs: [check-release, bump-version, build-and-publish]
-    if: needs.check-release.outputs.should_release == 'true'
+    needs: build-and-publish
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: main
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get commit message
+        id: get_message
+        run: |
+          # Get the commit message from the tag
+          COMMIT_MSG=$(git tag -l --format='%(contents)' ${GITHUB_REF_NAME})
+          if [ -z "$COMMIT_MSG" ]; then
+            # If tag has no message, get the commit message
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+          fi
+          echo "message=$COMMIT_MSG" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.bump-version.outputs.new_version }}
-          name: "Release v${{ needs.bump-version.outputs.new_version }}"
-          body: ${{ needs.check-release.outputs.release_notes }}
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          body: ${{ steps.get_message.outputs.message }}
           draft: false
           prerelease: false
         env:
