@@ -16,7 +16,7 @@ Do everything in one step - commit and release:
 ./scripts/release-commit.ps1 -Type patch -Message "fixed sandbox logic"
 ```
 
-### Two Step Process
+### Two Step Proces
 
 If you prefer separate steps:
 
