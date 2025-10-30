@@ -1,10 +1,9 @@
-
+"""
+GravixLayer Python SDK Setup Configuration
+"""
 
 import os
 from setuptools import setup, find_packages
-
-# Read version
-exec(open('version.py').read())
 
 # Read README
 with open("README.md", "r", encoding="utf-8") as fh:

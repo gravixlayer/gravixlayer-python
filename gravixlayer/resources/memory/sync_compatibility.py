@@ -1,23 +1,17 @@
-"""
-Synchronous Compatibility Layer for Memory APIs
-Provides synchronous versions of all async memory functionality
-"""
+
 from typing import Dict, Any, List, Optional, Union
 from .unified_sync_memory import UnifiedSyncMemory
 from .types import MemoryType, MemoryEntry, MemorySearchResult, MemoryStats
 
 
 class SyncLegacyMemoryCompatibility:
-    """
-    Synchronous compatibility layer that wraps UnifiedSyncMemory to provide legacy API compatibility
-    This allows existing code to continue working without changes in sync mode
-    """
+    
     
     def __init__(self, client, embedding_model: str, 
                  inference_model: str, index_name: str,
                  cloud_provider: str, region: str, delete_protection: bool = False):
         """
-        Initialize synchronous compatibility layer - all parameters required
+        Initialize synchronous memory layer - all parameters required
         
         Args:
             client: GravixLayer sync client instance (required)
@@ -42,7 +36,6 @@ class SyncLegacyMemoryCompatibility:
             cloud_config=cloud_config,
             delete_protection=delete_protection
         )
-        # Expose client for debugging (legacy compatibility)
         self.client = client
     
     def add(self, content: Union[str, List[Dict[str, str]]], user_id: str, 
@@ -51,7 +44,7 @@ class SyncLegacyMemoryCompatibility:
             memory_id: Optional[str] = None, 
             infer: bool = True) -> Union[MemoryEntry, List[MemoryEntry]]:
         """
-        Add memory for a user - Legacy API compatibility (sync)
+        Add memory for a user (sync)
         
         Args:
             content: Memory content (string) or conversation messages (list of dicts)
@@ -78,7 +71,7 @@ class SyncLegacyMemoryCompatibility:
                top_k: int = 10, 
                min_relevance: float = 0.7) -> List[Dict[str, Any]]:
         """
-        Search memories for a user - Legacy API compatibility (sync)
+        Search memories for a user (sync)
         
         Args:
             query: Search query
@@ -103,7 +96,7 @@ class SyncLegacyMemoryCompatibility:
     
     def get(self, memory_id: str, user_id: str) -> Optional[MemoryEntry]:
         """
-        Retrieve a specific memory by ID - Legacy API compatibility (sync)
+        Retrieve a specific memory by ID (sync)
         
         Args:
             memory_id: Memory identifier
@@ -119,7 +112,7 @@ class SyncLegacyMemoryCompatibility:
                metadata: Optional[Dict[str, Any]] = None, 
                importance_score: Optional[float] = None) -> Optional[MemoryEntry]:
         """
-        Update an existing memory - Legacy API compatibility (sync)
+        Update an existing memory (sync)
         
         Args:
             memory_id: Memory identifier
@@ -141,7 +134,7 @@ class SyncLegacyMemoryCompatibility:
     
     def delete(self, memory_id: str, user_id: str) -> bool:
         """
-        Delete a memory - Legacy API compatibility (sync)
+        Delete a memory (sync)
         
         Args:
             memory_id: Memory identifier
@@ -155,7 +148,7 @@ class SyncLegacyMemoryCompatibility:
     def get_memories_by_type(self, user_id: str, memory_type: MemoryType, 
                             limit: int = 50) -> List[MemoryEntry]:
         """
-        Get all memories of a specific type for a user - Legacy API compatibility (sync)
+        Get all memories of a specific type for a user (sync)
         
         Args:
             user_id: User identifier
@@ -169,7 +162,7 @@ class SyncLegacyMemoryCompatibility:
     
     def get_all_user_memories(self, user_id: str, limit: int = 100) -> List[MemoryEntry]:
         """
-        Get all memories for a user - Legacy API compatibility (sync)
+        Get all memories for a user (sync)
         
         Args:
             user_id: User identifier
@@ -191,7 +184,7 @@ class SyncLegacyMemoryCompatibility:
                          sort_by: str = "created_at", 
                          ascending: bool = False) -> List[MemoryEntry]:
         """
-        List all memories for a user with sorting options - Legacy API compatibility (sync)
+        List all memories for a user with sorting options (sync)
         
         Args:
             user_id: User identifier
@@ -211,7 +204,7 @@ class SyncLegacyMemoryCompatibility:
     
     def cleanup_working_memory(self, user_id: str) -> int:
         """
-        Clean up expired working memory entries - Legacy API compatibility (sync)
+        Clean up expired working memory entries (sync)
         
         Args:
             user_id: User identifier
@@ -234,7 +227,7 @@ class SyncLegacyMemoryCompatibility:
     
     def get_stats(self, user_id: str) -> MemoryStats:
         """
-        Get memory statistics for a user - Legacy API compatibility (sync)
+        Get memory statistics for a user (sync)
         
         Args:
             user_id: User identifier
@@ -247,15 +240,15 @@ class SyncLegacyMemoryCompatibility:
 
 class SyncExternalCompatibilityLayer:
     """
-    Synchronous compatibility layer for external APIs (like the old interface)
-    Provides the exact same method signatures as before with dynamic configuration support
+    Synchronous external memory layer for external APIs.
+    Provides the exact same method signatures as before with dynamic configuration support.
     """
     
     def __init__(self, client, embedding_model: str, 
                  inference_model: str, index_name: str,
                  cloud_provider: str, region: str, delete_protection: bool = False):
         """
-        Initialize synchronous external compatibility layer - all parameters required
+        Initialize synchronous external memory layer - all parameters required
         
         Args:
             client: GravixLayer sync client instance (required)
@@ -401,7 +394,7 @@ class SyncExternalCompatibilityLayer:
             infer: bool = True, embedding_model: Optional[str] = None,
             index_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Add memories - External API compatibility with dynamic configuration (sync)
+        Add memories with dynamic configuration (sync)
         
         Args:
             messages: Content to store
@@ -447,7 +440,7 @@ class SyncExternalCompatibilityLayer:
               threshold: Optional[float] = None, embedding_model: Optional[str] = None,
               index_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Search memories - External API compatibility with dynamic configuration (sync)
+        Search memories with dynamic configuration (sync)
         
         Args:
             query: Search query
@@ -492,7 +485,7 @@ class SyncExternalCompatibilityLayer:
     
     def get(self, memory_id: str, user_id: str, index_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
-        Get memory by ID - External API compatibility (sync)
+        Get memory by ID (sync)
         
         Args:
             memory_id: Memory identifier
@@ -520,7 +513,7 @@ class SyncExternalCompatibilityLayer:
     
     def get_all(self, user_id: str, limit: int = 100, index_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Get all memories - External API compatibility (sync)
+        Get all memories (sync)
         
         Args:
             user_id: User identifier
@@ -557,7 +550,7 @@ class SyncExternalCompatibilityLayer:
     
     def update(self, memory_id: str, user_id: str, data: str, index_name: Optional[str] = None) -> Dict[str, str]:
         """
-        Update memory - External API compatibility (sync)
+        Update memory (sync)
         
         Args:
             memory_id: Memory identifier
@@ -584,7 +577,7 @@ class SyncExternalCompatibilityLayer:
     
     def delete(self, memory_id: str, user_id: str, index_name: Optional[str] = None) -> Dict[str, str]:
         """
-        Delete memory - External API compatibility (sync)
+        Delete memory (sync)
         
         Args:
             memory_id: Memory identifier
@@ -606,7 +599,7 @@ class SyncExternalCompatibilityLayer:
     
     def delete_all(self, user_id: str) -> Dict[str, str]:
         """
-        Delete all memories - External API compatibility (sync)
+        Delete all memories (sync)
         
         Args:
             user_id: User identifier

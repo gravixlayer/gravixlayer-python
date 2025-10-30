@@ -13,8 +13,6 @@ class Accelerator(BaseModel):
     gpu_memory: Optional[int] = None
     status: Optional[str] = None
     updated_at: Optional[str] = None
-    
-    # Legacy fields for backward compatibility
     id: Optional[str] = None
     provider: Optional[str] = None
     accelerator_id: Optional[str] = None

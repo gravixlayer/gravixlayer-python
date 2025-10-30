@@ -47,15 +47,14 @@ class GravixLayer:
         headers: Optional[Dict[str, str]] = None,
         logger: Optional[Type[logging.Logger]] = None,
         user_agent: Optional[str] = None,
-        organization: Optional[str] = None,  # For compatibility
-        project: Optional[str] = None,       # For compatibility
-        **kwargs  # Accept any additional parameters for compatibility
+        organization: Optional[str] = None,  
+        project: Optional[str] = None,       
+        **kwargs 
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
         self.base_url = base_url or os.environ.get(
             "GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com/v1/inference")
 
-        # Store compatibility parameters (can be used for future features)
         self.organization = organization
         self.project = project
 

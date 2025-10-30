@@ -180,7 +180,6 @@ class GravixMemory:
      
         memory_metadata = self._create_memory_metadata(memory_type, user_id, metadata)
         
-        # Store content in both 'content' and 'data' fields for compatibility
         memory_metadata["content"] = content
         memory_metadata["data"] = content  
         

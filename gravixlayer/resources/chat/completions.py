@@ -175,7 +175,6 @@ class ChatCompletions:
                         tool_calls=delta_tool_calls
                     )
                     
-                    # Create message object (for compatibility)
                     msg = ChatCompletionMessage(
                         role=delta_role or "assistant",
                         content=delta_content or "",

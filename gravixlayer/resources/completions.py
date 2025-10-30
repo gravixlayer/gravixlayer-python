@@ -7,9 +7,15 @@ from ..types.completions import Completion, CompletionChoice, CompletionUsage
 
 
 class Completions:
-    """Completions resource for prompt-based completions"""
+    """
+    Completions resource for prompt-based text generation.
+    
+    Generates text continuations from prompts with fine-grained control
+    over output parameters.
+    """
 
     def __init__(self, client):
+        """Initialize the Completions resource with a client instance."""
         self.client = client
 
     def create(
@@ -119,8 +125,7 @@ class Completions:
                 if not chunk_data:
                     continue
                 
-                # Debug: Print the chunk structure for deployed models
-                # print(f"DEBUG: chunk_data = {chunk_data}")
+
                     
                 parsed_chunk = self._parse_response(chunk_data, is_stream=True)
                 
@@ -128,12 +133,11 @@ class Completions:
                 if parsed_chunk and parsed_chunk.choices:
                     yield parsed_chunk
                     
-            except json.JSONDecodeError as e:
-                # Log the problematic line for debugging
-                print(f"Failed to parse JSON: {line[:100]}...")
+            except json.JSONDecodeError:
+                # Skip malformed JSON chunks
                 continue
-            except Exception as e:
-                # Skip malformed chunks silently
+            except Exception:
+                # Skip malformed chunks
                 continue
 
     def _parse_response(self, resp_data: Dict[str, Any], is_stream: bool = False) -> Completion:

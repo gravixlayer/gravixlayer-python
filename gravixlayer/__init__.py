@@ -1,4 +1,11 @@
 
+"""
+GravixLayer Python SDK
+
+Official Python client for the GravixLayer API. Provides a familiar interface
+compatible with popular AI SDKs for easy migration and integration.
+"""
+
 __version__ = "0.0.45"
 
 from .client import GravixLayer
@@ -137,25 +144,22 @@ __all__ = [
     "MemoryStats",
 ]
 
-# Import memory classes directly to make them visible in dir()
-try:
-    from .resources.memory import Memory, MemoryType, MemoryEntry, MemorySearchResult, MemoryStats
-except ImportError:
-    # Fallback to lazy imports if there are circular dependency issues
-    def __getattr__(name):
-        if name == "Memory":
-            from .resources.memory import Memory
-            return Memory
-        elif name == "MemoryType":
-            from .resources.memory import MemoryType
-            return MemoryType
-        elif name == "MemoryEntry":
-            from .resources.memory import MemoryEntry
-            return MemoryEntry
-        elif name == "MemorySearchResult":
-            from .resources.memory import MemorySearchResult
-            return MemorySearchResult
-        elif name == "MemoryStats":
-            from .resources.memory import MemoryStats
-            return MemoryStats
-        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+# Lazy import memory classes to avoid circular dependencies
+def __getattr__(name):
+    """Lazy import for memory-related classes."""
+    if name == "Memory":
+        from .resources.memory import Memory
+        return Memory
+    elif name == "MemoryType":
+        from .resources.memory import MemoryType
+        return MemoryType
+    elif name == "MemoryEntry":
+        from .resources.memory import MemoryEntry
+        return MemoryEntry
+    elif name == "MemorySearchResult":
+        from .resources.memory import MemorySearchResult
+        return MemorySearchResult
+    elif name == "MemoryStats":
+        from .resources.memory import MemoryStats
+        return MemoryStats
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

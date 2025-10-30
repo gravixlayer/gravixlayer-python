@@ -2,9 +2,15 @@ from typing import Union, List
 from ..types.embeddings import EmbeddingResponse, EmbeddingObject, EmbeddingUsage
 
 class Embeddings:
-    """Embeddings resource"""
+    """
+    Embeddings resource for creating text embeddings.
+    
+    Converts text into high-dimensional vectors for semantic search
+    and similarity comparisons.
+    """
 
     def __init__(self, client):
+        """Initialize the Embeddings resource with a client instance."""
         self.client = client
 
     def create(

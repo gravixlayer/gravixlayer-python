@@ -9,10 +9,7 @@ from .types import MemoryType, MemoryEntry, MemorySearchResult, MemoryStats
 
 
 class SyncExternalMemory:
-    """
-    Synchronous memory system with full external API compatibility
-    Provides all the same methods as the async version but in synchronous mode
-    """
+  
     
     def __init__(self, client, embedding_model: str, 
                  inference_model: str, index_name: str,
@@ -183,7 +180,7 @@ class SyncExternalMemory:
             infer: bool = True, embedding_model: Optional[str] = None,
             index_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Add memories - External API compatibility with dynamic configuration (sync)
+        Add memories with dynamic configuration (sync)
         
         Args:
             messages: Content to store
@@ -229,7 +226,7 @@ class SyncExternalMemory:
               threshold: Optional[float] = None, embedding_model: Optional[str] = None,
               index_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Search memories - External API compatibility with dynamic configuration (sync)
+        Search memories with dynamic configuration (sync)
         
         Args:
             query: Search query
@@ -274,7 +271,7 @@ class SyncExternalMemory:
     
     def get(self, memory_id: str, user_id: str, index_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
-        Get memory by ID - External API compatibility (sync)
+        Get memory by ID (sync)
         
         Args:
             memory_id: Memory identifier
@@ -302,7 +299,7 @@ class SyncExternalMemory:
     
     def get_all(self, user_id: str, limit: int = 100, index_name: Optional[str] = None) -> Dict[str, Any]:
         """
-        Get all memories - External API compatibility (sync)
+        Get all memories (sync)
         
         Args:
             user_id: User identifier
@@ -339,7 +336,7 @@ class SyncExternalMemory:
     
     def update(self, memory_id: str, user_id: str, data: str, index_name: Optional[str] = None) -> Dict[str, str]:
         """
-        Update memory - External API compatibility (sync)
+        Update memory (sync)
         
         Args:
             memory_id: Memory identifier
@@ -366,7 +363,7 @@ class SyncExternalMemory:
     
     def delete(self, memory_id: str, user_id: str, index_name: Optional[str] = None) -> Dict[str, str]:
         """
-        Delete memory - External API compatibility (sync)
+        Delete memory (sync)
         
         Args:
             memory_id: Memory identifier
@@ -388,7 +385,7 @@ class SyncExternalMemory:
     
     def delete_all(self, user_id: str) -> Dict[str, str]:
         """
-        Delete all memories - External API compatibility (sync)
+        Delete all memories - External API
         
         Args:
             user_id: User identifier

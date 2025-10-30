@@ -1,23 +1,28 @@
-# release.ps1 - Enhanced PowerShell release script for GravixLayer
+# release.ps1 - Automated Release Script for GravixLayer
+# Usage: 
+#   Auto-detect from last commit: ./scripts/release.ps1
+#   Manual: ./scripts/release.ps1 -Part patch|minor|major
+#   Dry run: ./scripts/release.ps1 -DryRun
+
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [ValidateSet("patch", "minor", "major")]
-    [string]$Part
+    [string]$Part,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$DryRun
 )
 
-# Colors and formatting
+# Colors
 $Blue = "Blue"
 $Green = "Green" 
 $Yellow = "Yellow"
 $Red = "Red"
 $Cyan = "Cyan"
+$Gray = "Gray"
 
 function Write-ColorHost($Message, $Color) {
-    if ([string]::IsNullOrEmpty($Color)) {
-        Write-Host $Message
-    } else {
-        Write-Host $Message -ForegroundColor $Color
-    }
+    Write-Host $Message -ForegroundColor $Color
 }
 
 function Write-Header() {
@@ -26,18 +31,84 @@ function Write-Header() {
     Write-ColorHost "========================================" $Blue
 }
 
-function Write-Summary($CurrentVersion, $NewVersion) {
-    Write-ColorHost "========================================" $Blue
-    Write-ColorHost " Release Summary" $Blue
-    Write-ColorHost "========================================" $Blue
-    Write-ColorHost "Previous Version: $CurrentVersion" $Green
-    Write-ColorHost "New Version: $NewVersion" $Green
-    Write-ColorHost "Tag: v$NewVersion" $Green
-    Write-ColorHost "========================================" $Blue
+function Write-Summary($CurrentVersion, $NewVersion, $ReleaseNotes) {
+    Write-Host ""
+    Write-ColorHost "========================================" $Green
+    Write-ColorHost " Release Summary" $Green
+    Write-ColorHost "========================================" $Green
+    Write-ColorHost "Previous Version: $CurrentVersion" $Cyan
+    Write-ColorHost "New Version: $NewVersion" $Cyan
+    Write-ColorHost "Release Notes: $ReleaseNotes" $Cyan
+    Write-ColorHost "========================================" $Green
 }
 
-# Main script execution
+function Get-VersionPart($CommitMessage) {
+    if ($CommitMessage -match "^(patch|minor|major):\s*(.+)") {
+        return @{
+            Part = $matches[1]
+            Notes = $matches[2].Trim()
+        }
+    }
+    return $null
+}
+
+function Bump-Version($CurrentVersion, $Part) {
+    $parts = $CurrentVersion.Split('.')
+    $major = [int]$parts[0]
+    $minor = [int]$parts[1]
+    $patch = [int]$parts[2]
+    
+    switch ($Part) {
+        "major" { 
+            $major++
+            $minor = 0
+            $patch = 0
+        }
+        "minor" { 
+            $minor++
+            $patch = 0
+        }
+        "patch" { 
+            $patch++
+        }
+    }
+    
+    return "$major.$minor.$patch"
+}
+
+function Update-VersionInFile($FilePath, $NewVersion) {
+    if (-not (Test-Path $FilePath)) {
+        Write-ColorHost "File not found: $FilePath" $Yellow
+        return $false
+    }
+    
+    $content = Get-Content $FilePath -Raw
+    
+    if ($FilePath -like "*version.py") {
+        $content = $content -replace '__version__ = ".*"', "__version__ = ""$NewVersion"""
+    }
+    elseif ($FilePath -like "*__init__.py") {
+        $content = $content -replace '__version__ = ".*"', "__version__ = ""$NewVersion"""
+    }
+    elseif ($FilePath -like "*setup.py") {
+        $content = $content -replace 'version=".*"', "version=""$NewVersion"""
+    }
+    elseif ($FilePath -like "*pyproject.toml") {
+        $content = $content -replace 'version = ".*"', "version = ""$NewVersion"""
+    }
+    
+    Set-Content -Path $FilePath -Value $content -NoNewline
+    return $true
+}
+
+# Main execution
 Write-Header
+
+if ($DryRun) {
+    Write-Host ""
+    Write-ColorHost "DRY RUN MODE - No changes will be made" $Yellow
+    Write-Host ""
+}
 
 try {
     # Get current version
@@ -51,157 +122,163 @@ try {
     
     Write-ColorHost "Current version: $CurrentVersion" $Green
     
-    # Check if working directory has uncommitted changes
-    Write-ColorHost "Checking for uncommitted changes..." $Yellow
-    $gitStatus = git status --porcelain
-    if ($gitStatus) {
-        Write-ColorHost "Found uncommitted changes. Committing them..." $Yellow
-        git add .
-        git commit -m "Pre-release: commit changes before version bump"
-        if ($LASTEXITCODE -ne 0) {
-            Write-ColorHost "ERROR: Failed to commit changes" $Red
+    # Auto-detect version part from last commit if not provided
+    if (-not $Part) {
+        Write-Host ""
+        Write-ColorHost "Auto-detecting version bump from last commit..." $Cyan
+        $lastCommit = git log -1 --pretty=%B
+        $detected = Get-VersionPart $lastCommit
+        
+        if ($detected) {
+            $Part = $detected.Part
+            $ReleaseNotes = $detected.Notes
+            Write-ColorHost "Detected: $Part release" $Green
+            Write-ColorHost "Release notes: $ReleaseNotes" $Green
+        }
+        else {
+            Write-ColorHost "ERROR: Could not detect version part from commit message" $Red
+            Write-ColorHost "Commit message format: patch|minor|major: your message" $Yellow
+            Write-ColorHost "Example: patch: fixed sandbox logic" $Yellow
             exit 1
         }
     }
-    
-    # Install bump2version if needed
-    Write-ColorHost "Checking for bump2version..." $Green
-    try {
-        $null = bump2version --version 2>$null
-        Write-ColorHost "bump2version found" $Green
-    } catch {
-        Write-ColorHost "Installing bump2version..." $Yellow
-        pip install bump2version
-        if ($LASTEXITCODE -ne 0) {
-            Write-ColorHost "ERROR: Failed to install bump2version" $Red
-            exit 1
+    else {
+        # Manual mode - get release notes from user
+        Write-Host ""
+        Write-ColorHost "Enter release notes for $Part release:" $Cyan
+        $ReleaseNotes = Read-Host
+        if (-not $ReleaseNotes) {
+            $ReleaseNotes = "Version bump"
         }
     }
     
-    # Bump version using our custom script
-    Write-ColorHost "Bumping $Part version..." $Green
-    python scripts/bump_version.py $Part
+    # Calculate new version
+    $NewVersion = Bump-Version $CurrentVersion $Part
+    Write-Host ""
+    Write-ColorHost "Version bump: $CurrentVersion -> $NewVersion" $Green
+    
+    if ($DryRun) {
+        Write-Host ""
+        Write-ColorHost "[DRY RUN] Would update version files..." $Yellow
+        Write-ColorHost "[DRY RUN] Would create commit and tag v$NewVersion" $Yellow
+        Write-ColorHost "[DRY RUN] Would push to remote" $Yellow
+        Write-ColorHost "[DRY RUN] Would create GitHub release" $Yellow
+        Write-Summary $CurrentVersion $NewVersion $ReleaseNotes
+        Write-Host ""
+        Write-ColorHost "Dry run completed successfully!" $Green
+        exit 0
+    }
+    
+    # Update version in all files
+    Write-Host ""
+    Write-ColorHost "Updating version files..." $Green
+    $filesToUpdate = @(
+        "version.py",
+        "gravixlayer\__init__.py",
+        "setup.py",
+        "pyproject.toml"
+    )
+    
+    foreach ($file in $filesToUpdate) {
+        if (Update-VersionInFile $file $NewVersion) {
+            Write-ColorHost "  Updated $file" $Gray
+        }
+    }
+    
+    # Git operations
+    Write-Host ""
+    Write-ColorHost "Creating git commit and tag..." $Green
+    git add .
+    $commitMsg = "Bump version: $CurrentVersion -> $NewVersion"
+    git commit -m $commitMsg
     
     if ($LASTEXITCODE -ne 0) {
-        Write-ColorHost "ERROR: Version bump failed!" $Red
+        Write-ColorHost "ERROR: Failed to create commit" $Red
         exit 1
     }
     
-    # Get new version for release notes
-    $NewVersion = python -c "import sys; sys.path.insert(0, '.'); from version import __version__; print(__version__)"
+    git tag "v$NewVersion"
     
-    # Prompt user for custom release notes
-    Write-ColorHost "✏️  Please enter release notes for version $NewVersion" $Cyan
-    Write-ColorHost "Enter your release notes (press Enter twice when done):" $Yellow
-    Write-ColorHost "Example: 'Added new completions endpoint, Fixed streaming issues, Improved error handling'" $Gray
-    Write-ColorHost ""
-    
-    $releaseNotes = @()
-    do {
-        $line = Read-Host
-        if ($line -ne "") {
-            $releaseNotes += $line
-        }
-    } while ($line -ne "")
-    
-    if ($releaseNotes.Count -eq 0) {
-        Write-ColorHost "No release notes provided. Using default message." $Yellow
-        $releaseNotesText = "Version $NewVersion release with updates and improvements."
-    } else {
-        $releaseNotesText = $releaseNotes -join "`n"
-    }
-    
-    Write-ColorHost "✅ Release notes saved" $Green
-    Write-ColorHost "Release notes preview:" $Cyan
-    Write-ColorHost "------------------------" $Gray
-    Write-ColorHost $releaseNotesText $White
-    Write-ColorHost "------------------------" $Gray
-    
-    Write-ColorHost "Version successfully bumped: $CurrentVersion -> $NewVersion" $Green
-    
-    # Create a temporary environment variable for GitHub Actions
-    $env:RELEASE_NOTES = $releaseNotesText
-    
-    # Push changes to remote
-    Write-ColorHost "Pushing changes to remote repository..." $Green
-    git push origin main
     if ($LASTEXITCODE -ne 0) {
-        Write-ColorHost "WARNING: Failed to push changes to main branch" $Yellow
+        Write-ColorHost "ERROR: Failed to create tag" $Red
+        exit 1
     }
     
-    # Push tags to remote
-    Write-ColorHost "Pushing tags to remote repository..." $Green
-    git push origin --tags
+    Write-ColorHost "  Created commit and tag v$NewVersion" $Gray
+    
+    # Push to remote
+    Write-Host ""
+    Write-ColorHost "Pushing to remote..." $Green
+    git push origin main 2>&1 | Out-Null
+    
     if ($LASTEXITCODE -ne 0) {
-        Write-ColorHost "WARNING: Failed to push tags" $Yellow
+        Write-ColorHost "  WARNING: Failed to push to main" $Yellow
+    }
+    else {
+        Write-ColorHost "  Pushed to main" $Gray
     }
     
-    # Wait for GitHub to process the tag
-    Write-ColorHost "Waiting for GitHub to process the new tag..." $Yellow
-    Start-Sleep -Seconds 5
+    # Push tags
+    git push origin "v$NewVersion" 2>&1 | Out-Null
     
-    # Try to use GitHub CLI for additional operations
-    Write-ColorHost "Attempting to trigger GitHub Actions and create release..." $Green
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorHost "  WARNING: Failed to push tag" $Yellow
+    }
+    else {
+        Write-ColorHost "  Pushed tag v$NewVersion" $Gray
+    }
     
-    try {
-        # Check if GitHub CLI is available
-        $ghCheck = gh --version 2>$null
-        if ($ghCheck) {
-            Write-ColorHost "GitHub CLI found. Creating release with custom notes..." $Green
+    # Wait for GitHub
+    Write-Host ""
+    Write-ColorHost "Waiting for GitHub to process..." $Yellow
+    Start-Sleep -Seconds 3
+    
+    # Create GitHub release
+    Write-ColorHost "Creating GitHub release..." $Green
+    
+    $ghCheck = gh --version 2>$null
+    if ($ghCheck) {
+        try {
+            gh release create "v$NewVersion" --title "Release v$NewVersion" --notes "$ReleaseNotes" --latest 2>&1 | Out-Null
+            Write-ColorHost "  GitHub release created" $Gray
             
-            # Create GitHub release with custom notes
-            try {
-                $escapedNotes = $releaseNotesText -replace '"', '\"'
-                gh release create "v$NewVersion" --title "Release v$NewVersion" --notes "$escapedNotes" --latest
-                Write-ColorHost "SUCCESS: GitHub release created!" $Green
-            } catch {
-                Write-ColorHost "WARNING: Could not create GitHub release automatically" $Yellow
-            }
-            
-            # Trigger workflow manually
-            try {
-                gh workflow run "pypi-release.yml" --ref "v$NewVersion"
-                Write-ColorHost "SUCCESS: GitHub Actions workflow triggered!" $Green
-            } catch {
-                Write-ColorHost "WARNING: Could not trigger workflow automatically" $Yellow
-            }
-            
-        } else {
-            Write-ColorHost "GitHub CLI not found." $Yellow
-            Write-ColorHost "Install with: winget install GitHub.cli" $Cyan
-            Write-ColorHost "Then run: gh auth login" $Cyan
+            gh workflow run "pypi-release.yml" --ref "v$NewVersion" 2>&1 | Out-Null
+            Write-ColorHost "  GitHub Actions triggered" $Gray
         }
-    } catch {
-        Write-ColorHost "GitHub CLI operations failed: $($_.Exception.Message)" $Yellow
+        catch {
+            Write-ColorHost "  WARNING: GitHub CLI operations failed" $Yellow
+        }
+    }
+    else {
+        Write-ColorHost "  GitHub CLI not found (install: winget install GitHub.cli)" $Gray
     }
     
-    # Final success message and instructions
-    Write-ColorHost "" 
-    Write-ColorHost "SUCCESS: Release process completed!" $Green
-    Write-ColorHost "GitHub Actions should build and publish to PyPI automatically." $Green
-    Write-ColorHost "" 
+    # Success
+    Write-Host ""
+    Write-ColorHost "Release process completed!" $Green
+    Write-ColorHost "GitHub Actions will build and publish to PyPI" $Green
     
-    # Provide helpful links
+    Write-Host ""
     Write-ColorHost "Verification Links:" $Cyan
-    Write-ColorHost "- GitHub Actions: https://github.com/gravixlayer/gravixlayer-python/actions" $Cyan
-    Write-ColorHost "- GitHub Releases: https://github.com/gravixlayer/gravixlayer-python/releases" $Cyan
-    Write-ColorHost "- PyPI Package: https://pypi.org/project/gravixlayer/" $Cyan
-    Write-ColorHost "" 
+    Write-ColorHost "  Actions: https://github.com/gravixlayer/gravixlayer-python/actions" $Gray
+    Write-ColorHost "  Releases: https://github.com/gravixlayer/gravixlayer-python/releases" $Gray
+    Write-ColorHost "  PyPI: https://pypi.org/project/gravixlayer/" $Gray
     
-    Write-Summary $CurrentVersion $NewVersion
+    Write-Summary $CurrentVersion $NewVersion $ReleaseNotes
     
-    # Final check instructions
-    Write-ColorHost "Next Steps:" $Yellow
-    Write-ColorHost "1. Check GitHub Actions for build status" $Yellow
-    Write-ColorHost "2. Verify release appears on GitHub Releases page" $Yellow
-    Write-ColorHost "3. Confirm package is published to PyPI (may take a few minutes)" $Yellow
-    Write-ColorHost "4. Test installation: pip install gravixlayer==$NewVersion" $Yellow
+    Write-Host ""
+    Write-ColorHost "Next Steps:" $Cyan
+    Write-ColorHost "  1. Check GitHub Actions for build status" $Gray
+    Write-ColorHost "  2. Verify release on GitHub" $Gray
+    Write-ColorHost "  3. Test: pip install gravixlayer==$NewVersion" $Gray
+    Write-Host ""
 
-} catch {
-    Write-ColorHost "FATAL ERROR: $($_.Exception.Message)" $Red
-    Write-ColorHost "Stack Trace: $($_.ScriptStackTrace)" $Red
+}
+catch {
+    Write-Host ""
+    $errorMsg = $_.Exception.Message
+    Write-ColorHost "ERROR: $errorMsg" $Red
     exit 1
 }
 
-# Script completed successfully
 exit 0
