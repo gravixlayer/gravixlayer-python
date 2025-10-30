@@ -4,24 +4,29 @@ Simple, automated release workflow for GravixLayer Python SDK.
 
 ## Quick Start
 
-### 1. Make your changes and commit
+### One Command (Recommended)
+
+Do everything in one step - commit and release:
 
 ```powershell
-# Option A: Use helper script
-./scripts/commit.ps1 -Type patch -Message "fixed sandbox logic"
+# Dry run first (test without changes)
+./scripts/release-commit.ps1 -Type patch -Message "fixed sandbox logic" -DryRun
 
-# Option B: Manual commit
-git add .
-git commit -m "patch: fixed sandbox logic"
+# Real commit and release
+./scripts/release-commit.ps1 -Type patch -Message "fixed sandbox logic"
 ```
 
-### 2. Release (auto-detects from commit)
+### Two Step Process
+
+If you prefer separate steps:
 
 ```powershell
-# Dry run first (recommended)
-./scripts/release.ps1 -DryRun
+# Step 1: Commit
+git add .
+git commit -m "patch: fixed sandbox logic"
+git push
 
-# Real release
+# Step 2: Release
 ./scripts/release.ps1
 ```
 
@@ -44,6 +49,25 @@ major: redesigned API structure
 ```
 
 ## Scripts
+
+### release-commit.ps1 (Recommended)
+
+**One command to do everything** - commit and release in one step.
+
+```powershell
+# Dry run (test without changes)
+./scripts/release-commit.ps1 -Type patch -Message "your message" -DryRun
+
+# Real commit and release
+./scripts/release-commit.ps1 -Type patch -Message "your message"
+./scripts/release-commit.ps1 -Type minor -Message "your message"
+./scripts/release-commit.ps1 -Type major -Message "your message"
+```
+
+**What it does:**
+1. Creates git commit with proper format
+2. Runs full release process automatically
+3. Updates versions, creates tags, pushes, publishes
 
 ### release.ps1
 
@@ -83,17 +107,28 @@ Helper for creating properly formatted commits.
 
 ## Workflow Example
 
+### Recommended (One Command)
+
 ```powershell
 # 1. Make changes
 # ... edit files ...
 
-# 2. Commit with proper format
-./scripts/commit.ps1 -Type patch -Message "fixed sandbox timeout"
+# 2. Test with dry run
+./scripts/release-commit.ps1 -Type patch -Message "fixed sandbox timeout" -DryRun
 
-# 3. Test release (dry run)
-./scripts/release.ps1 -DryRun
+# 3. Do actual commit and release
+./scripts/release-commit.ps1 -Type patch -Message "fixed sandbox timeout"
+```
 
-# 4. Do actual release
+### Alternative (Two Steps)
+
+```powershell
+# 1. Make changes and commit
+git add .
+git commit -m "patch: fixed sandbox timeout"
+git push
+
+# 2. Release
 ./scripts/release.ps1
 ```
 

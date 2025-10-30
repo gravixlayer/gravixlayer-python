@@ -130,18 +130,25 @@ try {
         Write-ColorHost "Auto-detecting version bump from last commit..." $Cyan
         $lastCommit = (git log -1 --pretty=%B).Trim()
         Write-ColorHost "Last commit: $lastCommit" $Gray
-        $detected = Get-VersionPart $lastCommit
         
-        if ($detected) {
-            $Part = $detected.Part
-            $ReleaseNotes = $detected.Notes
-            Write-ColorHost "Detected: $Part release" $Green
-            Write-ColorHost "Release notes: $ReleaseNotes" $Green
+        try {
+            $detected = Get-VersionPart $lastCommit
+            
+            if ($detected -and $detected.Part) {
+                $Part = $detected.Part
+                $ReleaseNotes = $detected.Notes
+                Write-ColorHost "Detected: $Part release" $Green
+                Write-ColorHost "Release notes: $ReleaseNotes" $Green
+            }
+            else {
+                Write-ColorHost "ERROR: Could not detect version part from commit message" $Red
+                Write-ColorHost "Commit message format: patch|minor|major: your message" $Yellow
+                Write-ColorHost "Example: patch: fixed sandbox logic" $Yellow
+                exit 1
+            }
         }
-        else {
-            Write-ColorHost "ERROR: Could not detect version part from commit message" $Red
-            Write-ColorHost "Commit message format: patch|minor|major: your message" $Yellow
-            Write-ColorHost "Example: patch: fixed sandbox logic" $Yellow
+        catch {
+            Write-ColorHost "ERROR: Failed to parse commit message: $($_.Exception.Message)" $Red
             exit 1
         }
     }
