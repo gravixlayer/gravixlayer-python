@@ -6,7 +6,7 @@ Official Python client for the GravixLayer API. Provides a familiar interface
 compatible with popular AI SDKs for easy migration and integration.
 """
 
-__version__ = "0.0.45"
+__version__ = "0.0.46"
 
 from .client import GravixLayer
 from .types.async_client import AsyncGravixLayer
