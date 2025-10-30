@@ -43,11 +43,13 @@ function Write-Summary($CurrentVersion, $NewVersion, $ReleaseNotes) {
 }
 
 function Get-VersionPart($CommitMessage) {
+    $CommitMessage = $CommitMessage.Trim()
     if ($CommitMessage -match "^(patch|minor|major):\s*(.+)") {
-        return @{
+        $result = @{
             Part = $matches[1]
             Notes = $matches[2].Trim()
         }
+        return $result
     }
     return $null
 }
@@ -126,7 +128,8 @@ try {
     if (-not $Part) {
         Write-Host ""
         Write-ColorHost "Auto-detecting version bump from last commit..." $Cyan
-        $lastCommit = git log -1 --pretty=%B
+        $lastCommit = (git log -1 --pretty=%B).Trim()
+        Write-ColorHost "Last commit: $lastCommit" $Gray
         $detected = Get-VersionPart $lastCommit
         
         if ($detected) {
