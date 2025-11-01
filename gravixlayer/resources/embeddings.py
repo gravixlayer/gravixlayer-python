@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Optional
 from ..types.embeddings import EmbeddingResponse, EmbeddingObject, EmbeddingUsage
 
 
@@ -19,8 +19,8 @@ class Embeddings:
         model: str,
         input: Union[str, List[str]],
         encoding_format: str = "float",
-        dimensions: int = None,
-        user: str = None,
+        dimensions: Optional[int] = None,
+        user: Optional[str] = None,
         **kwargs,
     ) -> EmbeddingResponse:
         """

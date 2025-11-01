@@ -59,13 +59,13 @@ class AsyncCompletions:
         data = {"model": model, "prompt": prompt, "stream": stream}
 
         if max_tokens is not None:
-            data["max_tokens"] = max_tokens
+            data["max_tokens"] = max_tokens  # type: ignore[assignment]  # type: ignore[assignment]
         if temperature is not None:
-            data["temperature"] = temperature
+            data["temperature"] = temperature  # type: ignore[assignment]  # type: ignore[assignment]
         if top_p is not None:
-            data["top_p"] = top_p
+            data["top_p"] = top_p  # type: ignore[assignment]  # type: ignore[assignment]
         if n is not None:
-            data["n"] = n
+            data["n"] = n  # type: ignore[assignment]  # type: ignore[assignment]
         if logprobs is not None:
             data["logprobs"] = logprobs
         if echo is not None:
@@ -73,13 +73,13 @@ class AsyncCompletions:
         if stop is not None:
             data["stop"] = stop
         if presence_penalty is not None:
-            data["presence_penalty"] = presence_penalty
+            data["presence_penalty"] = presence_penalty  # type: ignore[assignment]  # type: ignore[assignment]
         if frequency_penalty is not None:
-            data["frequency_penalty"] = frequency_penalty
+            data["frequency_penalty"] = frequency_penalty  # type: ignore[assignment]  # type: ignore[assignment]
         if best_of is not None:
-            data["best_of"] = best_of
+            data["best_of"] = best_of  # type: ignore[assignment]  # type: ignore[assignment]
         if logit_bias is not None:
-            data["logit_bias"] = logit_bias
+            data["logit_bias"] = logit_bias  # type: ignore[assignment]  # type: ignore[assignment]
         if user is not None:
             data["user"] = user
 

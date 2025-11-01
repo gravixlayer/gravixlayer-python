@@ -57,7 +57,7 @@ class AsyncVectors:
         result = response.json()
         # For single upsert, handle batch response
         if "upserted_count" in result and result["upserted_count"] > 0:
-            vector_id = vector_data.get("id")
+            vector_id = str(vector_data.get("id"))  # type: ignore[arg-type]
             if vector_id:
                 return await self.get(vector_id)
             else:
@@ -99,7 +99,7 @@ class AsyncVectors:
         result = response.json()
         # Handle batch response for single text upsert
         if "upserted_count" in result and result["upserted_count"] > 0:
-            vector_id = vector_data.get("id")
+            vector_id = str(vector_data.get("id"))  # type: ignore[arg-type]
             if vector_id:
                 vector = await self.get(vector_id)
                 return TextVector(
@@ -217,7 +217,7 @@ class AsyncVectors:
         if metadata is not None:
             data["metadata"] = metadata
         if delete_protection is not None:
-            data["delete_protection"] = delete_protection
+            data["delete_protection"] = delete_protection  # type: ignore[assignment]  # type: ignore[assignment]
 
         if not data:
             raise ValueError("At least one field must be provided for update")

@@ -511,7 +511,7 @@ class Execution:
             return self._response.logs
 
         # Fallback for command responses
-        logs = {"stdout": [], "stderr": []}
+        logs: dict = {"stdout": [], "stderr": []}
         if hasattr(self._response, "stdout") and self._response.stdout:
             logs["stdout"] = self._response.stdout.split("\n")
         if hasattr(self._response, "stderr") and self._response.stderr:

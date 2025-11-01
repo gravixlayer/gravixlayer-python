@@ -66,7 +66,7 @@ class Vectors:
         # We need to get the vector separately using its ID
         if "upserted_count" in result and result["upserted_count"] > 0:
             # If it's a batch response, we need to get the vector separately
-            vector_id = vector_data.get("id")
+            vector_id = str(vector_data.get("id"))  # type: ignore[arg-type]
             if vector_id:
                 return self.get(vector_id)
             else:
@@ -86,7 +86,7 @@ class Vectors:
                     id="auto-generated",
                     embedding=vector_data["embedding"],
                     metadata=vector_data.get("metadata", {}),
-                    delete_protection=vector_data.get("delete_protection", False),
+                    delete_protection=bool(vector_data.get("delete_protection", False)),  # type: ignore[arg-type]
                     created_at="",
                     updated_at="",
                 )
@@ -138,7 +138,7 @@ class Vectors:
         # For single text upsert, we need to handle the batch response
         if "upserted_count" in result and result["upserted_count"] > 0:
             # If successful, get the vector
-            vector_id = vector_data.get("id")
+            vector_id = str(vector_data.get("id"))  # type: ignore[arg-type]
             if vector_id:
                 # Get the vector and convert to TextVector format
                 vector = self.get(vector_id)
@@ -283,7 +283,7 @@ class Vectors:
         if metadata is not None:
             data["metadata"] = metadata
         if delete_protection is not None:
-            data["delete_protection"] = delete_protection
+            data["delete_protection"] = delete_protection  # type: ignore[assignment]  # type: ignore[assignment]
 
         if not data:
             raise ValueError("At least one field must be provided for update")

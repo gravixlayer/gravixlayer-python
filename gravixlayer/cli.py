@@ -174,19 +174,25 @@ def main():
     # Get file info
     info_parser = files_subparsers.add_parser("info", help="Get file information")
     info_parser.add_argument("--api-key", type=str, default=None, help="API key")
-    info_parser.add_argument("file_id", help="File ID")
+    info_parser.add_argument("file_id", help="File ID or filename")
     info_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # Get file content
+    content_parser = files_subparsers.add_parser("content", help="Get file content for reading/processing")
+    content_parser.add_argument("--api-key", type=str, default=None, help="API key")
+    content_parser.add_argument("file_id", help="File ID or filename")
+    content_parser.add_argument("--output", help="Save content to file (optional)")
+
     # Download file
-    download_parser = files_subparsers.add_parser("download", help="Download a file")
+    download_parser = files_subparsers.add_parser("download", help="Download a file to disk")
     download_parser.add_argument("--api-key", type=str, default=None, help="API key")
-    download_parser.add_argument("file_id", help="File ID")
+    download_parser.add_argument("file_id", help="File ID or filename")
     download_parser.add_argument("--output", help="Output file path (optional)")
 
     # Delete file
     delete_files_parser = files_subparsers.add_parser("delete", help="Delete a file")
     delete_files_parser.add_argument("--api-key", type=str, default=None, help="API key")
-    delete_files_parser.add_argument("file_id", help="File ID to delete")
+    delete_files_parser.add_argument("file_id", help="File ID or filename to delete")
 
     # Vectors parser (for vector database management)
     vectors_parser = subparsers.add_parser("vectors", help="Vector database management")
@@ -383,7 +389,7 @@ def main():
     timeout_parser = sandbox_subparsers.add_parser("timeout", help="Set sandbox timeout")
     timeout_parser.add_argument("--api-key", type=str, default=None, help="API key")
     timeout_parser.add_argument("sandbox_id", help="Sandbox ID")
-    timeout_parser.add_argument("timeout", type=int, help="Timeout in seconds")
+    timeout_parser.add_argument("--timeout", type=int, required=True, help="Timeout in seconds")
 
     # Get metrics
     metrics_parser = sandbox_subparsers.add_parser("metrics", help="Get sandbox metrics")
@@ -957,10 +963,10 @@ def handle_files_commands(args):
                 if hasattr(file_info, "expires_at") and file_info.expires_at:
                     print(f"   Expires: {file_info.expires_at}")
 
-        elif args.files_action == "download":
-            # Download file
+        elif args.files_action == "content":
+            # Get file content
             file_identifier = args.file_id
-            print(f"Downloading file: {file_identifier}")
+            print(f"Retrieving file content: {file_identifier}")
 
             # Check if the identifier is a filename or file ID
             # File IDs are UUIDs (contain hyphens), filenames typically don't
@@ -987,6 +993,51 @@ def handle_files_commands(args):
 
             content = client.files.content(file_id)
 
+            # If output is specified, save to file
+            if args.output:
+                with open(args.output, "wb") as f:
+                    f.write(content)
+                print(f"SUCCESS: Content saved to: {args.output}")
+            else:
+                # Display content (try to decode as text)
+                print()
+                try:
+                    text_content = content.decode('utf-8')
+                    print(text_content)
+                except UnicodeDecodeError:
+                    print(f"[Binary content - {len(content)} bytes]")
+                    print("Use --output to save binary content to a file")
+
+        elif args.files_action == "download":
+            # Download file to disk
+            file_identifier = args.file_id
+            print(f"Downloading file: {file_identifier}")
+
+            # Check if the identifier is a filename or file ID
+            # File IDs are UUIDs (contain hyphens), filenames typically don't
+            if "-" not in file_identifier or not file_identifier.replace("-", "").replace("_", "").isalnum():
+                # Likely a filename, need to find the file ID
+                print("   Looking up file by name...")
+                files_response = client.files.list()
+                matching_file = None
+
+                for file in files_response.data:
+                    if file.filename == file_identifier:
+                        matching_file = file
+                        break
+
+                if not matching_file:
+                    print(f"ERROR: Error: No file found with filename '{file_identifier}'")
+                    return
+
+                file_id = matching_file.id
+                print(f"   Found file ID: {file_id}")
+            else:
+                # Assume it's a file ID
+                file_id = file_identifier
+
+            file_data = client.files.download(file_id)
+
             # Determine output filename
             if args.output:
                 output_path = args.output
@@ -996,7 +1047,7 @@ def handle_files_commands(args):
                 output_path = file_info.filename
 
             with open(output_path, "wb") as f:
-                f.write(content)
+                f.write(file_data)
 
             print(f"SUCCESS: File downloaded to: {output_path}")
 

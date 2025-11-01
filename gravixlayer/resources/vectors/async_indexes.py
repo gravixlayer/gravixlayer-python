@@ -149,7 +149,7 @@ class AsyncVectorIndexes:
         if metadata is not None:
             data["metadata"] = metadata
         if delete_protection is not None:
-            data["delete_protection"] = delete_protection
+            data["delete_protection"] = delete_protection  # type: ignore[assignment]  # type: ignore[assignment]
 
         if not data:
             raise ValueError("At least one field must be provided for update")

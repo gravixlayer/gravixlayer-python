@@ -189,6 +189,34 @@ class AsyncFiles:
 
             return response.content
 
+    async def download(self, file_id: str) -> bytes:
+        """
+        Download file with enhanced metadata in headers.
+        Alternative to content() that provides additional file metadata in response headers.
+
+        Args:
+            file_id: File ID (UUID format)
+
+        Returns:
+            bytes: Raw file content
+
+        Raises:
+            GravixLayerBadRequestError: If file_id is missing
+        """
+        if not file_id:
+            raise GravixLayerBadRequestError("file ID required")
+
+        # Use httpx for async binary content
+        headers = {"Authorization": f"Bearer {self.client.api_key}", "User-Agent": self.client.user_agent}
+
+        async with httpx.AsyncClient(timeout=self.client.timeout) as client:
+            response = await client.get(f"{self._base_url}/{file_id}/download", headers=headers)
+
+            if response.status_code != 200:
+                await self.client._handle_error_response(response)
+
+            return response.content
+
     async def delete(self, file_id: str) -> FileDeleteResponse:
         """
         Delete a file permanently. This action cannot be undone.

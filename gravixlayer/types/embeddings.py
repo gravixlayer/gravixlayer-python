@@ -7,8 +7,12 @@ class EmbeddingObject:
     """Represents an embedding vector."""
 
     object: str = "embedding"
-    embedding: List[float] = None
+    embedding: List[float] = None  # type: ignore[assignment]
     index: int = 0
+    
+    def __post_init__(self):
+        if self.embedding is None:
+            self.embedding = []
 
 
 @dataclass
@@ -24,7 +28,7 @@ class EmbeddingResponse:
     """Response from embeddings API."""
 
     object: str = "list"
-    data: List[EmbeddingObject] = None
+    data: List[EmbeddingObject] = None  # type: ignore[assignment]
     model: str = ""
     usage: Optional[EmbeddingUsage] = None
 

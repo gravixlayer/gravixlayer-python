@@ -77,7 +77,7 @@ class AsyncSandboxes:
         if env_vars:
             data["env_vars"] = env_vars
         if metadata:
-            data["metadata"] = metadata
+            data["metadata"] = metadata  # type: ignore[assignment]  # type: ignore[assignment]
 
         response = await self._make_agents_request("POST", "sandboxes", data)
         result = response.json()
@@ -288,9 +288,9 @@ class AsyncSandboxes:
         if working_dir:
             data["working_dir"] = working_dir
         if environment:
-            data["environment"] = environment
+            data["environment"] = environment  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]
         if timeout:
-            data["timeout"] = timeout
+            data["timeout"] = timeout  # type: ignore[assignment]  # type: ignore[assignment]
 
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/commands/run", data)
         result = response.json()
@@ -318,17 +318,17 @@ class AsyncSandboxes:
         if context_id:
             data["context_id"] = context_id
         if environment:
-            data["environment"] = environment
+            data["environment"] = environment  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]
         if timeout:
-            data["timeout"] = timeout
+            data["timeout"] = timeout  # type: ignore[assignment]  # type: ignore[assignment]
         if on_stdout:
-            data["on_stdout"] = on_stdout
+            data["on_stdout"] = on_stdout  # type: ignore[assignment]  # type: ignore[assignment]
         if on_stderr:
-            data["on_stderr"] = on_stderr
+            data["on_stderr"] = on_stderr  # type: ignore[assignment]  # type: ignore[assignment]
         if on_result:
-            data["on_result"] = on_result
+            data["on_result"] = on_result  # type: ignore[assignment]  # type: ignore[assignment]
         if on_error:
-            data["on_error"] = on_error
+            data["on_error"] = on_error  # type: ignore[assignment]  # type: ignore[assignment]
 
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/code/run", data)
         result = response.json()

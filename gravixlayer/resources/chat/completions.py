@@ -37,7 +37,10 @@ class ChatCompletions:
         for msg in messages:
             if hasattr(msg, "__dict__"):
                 # Convert dataclass to dict
-                msg_dict = {"role": msg.role, "content": msg.content}
+                msg_dict = {
+                    "role": msg.role,  # type: ignore[attr-defined]
+                    "content": msg.content  # type: ignore[attr-defined]
+                }
                 if hasattr(msg, "name") and msg.name:
                     msg_dict["name"] = msg.name
                 if hasattr(msg, "tool_call_id") and msg.tool_call_id:

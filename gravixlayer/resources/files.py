@@ -221,6 +221,38 @@ class Files:
 
         return response.content
 
+    def download(self, file_id: str) -> bytes:
+        """
+        Download file with enhanced metadata in headers.
+        Alternative to content() that provides additional file metadata in response headers.
+
+        Args:
+            file_id: File ID (UUID format)
+
+        Returns:
+            bytes: Raw file content
+
+        Raises:
+            GravixLayerBadRequestError: If file_id is missing
+        """
+        if not file_id:
+            raise GravixLayerBadRequestError("file ID required")
+
+        # Use raw request for binary content
+        import requests
+
+        headers = {"Authorization": f"Bearer {self.client.api_key}", "User-Agent": self.client.user_agent}
+
+        # Use the correct base URL for files API
+        files_base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
+
+        response = requests.get(f"{files_base_url}/{file_id}/download", headers=headers, timeout=self.client.timeout)
+
+        if response.status_code != 200:
+            self.client._handle_error_response(response)
+
+        return response.content
+
     def delete(self, file_id: str) -> FileDeleteResponse:
         """
         Delete a file permanently. This action cannot be undone.
