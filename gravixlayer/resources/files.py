@@ -278,9 +278,9 @@ class Files:
 
             result = response.json()
             return FileDeleteResponse(
-                message=result.get("message", ""),
-                file_id=result.get("file_id", ""),
-                file_name=result.get("file_name", ""),
+                message=result.get("message", "File deleted"),
+                file_id=result.get("file_id", "") or result.get("id", ""),
+                file_name=result.get("file_name", "") or result.get("filename", ""),
             )
         finally:
             self.client.base_url = original_base_url

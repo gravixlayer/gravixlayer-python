@@ -221,7 +221,10 @@ class SyncExternalMemory:
         if not isinstance(memory_entries, list):
             memory_entries = [memory_entries]
 
-        results = [{"id": entry.id, "memory": entry.content, "event": "ADD"} for entry in memory_entries]
+        results = [
+            {"id": entry.id, "memory": entry.content, "metadata": entry.metadata, "event": "ADD"}
+            for entry in memory_entries
+        ]
 
         return {"results": results}
 
