@@ -431,3 +431,64 @@ sandbox.filesystem.delete("test.txt")
 # Kill Instance
 sandbox.kill()
 ```
+
+## SDK Development Guide
+
+### Setup
+
+1.  **Prerequisites**: Ensure you have Python 3.7+ installed.
+2.  **Virtual Environment**:
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    ```
+3.  **Install Dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    pip install -e .[dev]
+    ```
+
+### Testing
+
+The project currently uses a manual verification script `test.py`.
+
+*   **Run Verification Script**:
+    ```bash
+    python test.py
+    ```
+    *Note: This script requires a valid API key and environment setup.*
+
+### Code Quality
+
+The following tools are included in the `dev` dependencies:
+
+*   **Linting**:
+    ```bash
+    pylint gravixlayer
+    flake8 gravixlayer
+    ```
+*   **Formatting**:
+    ```bash
+    black gravixlayer
+    ```
+*   **Type Checking**:
+    ```bash
+    mypy gravixlayer
+    ```
+
+### Making Changes
+
+1.  **Structure**: Source code is in `gravixlayer/`. Resources are organized in `gravixlayer/resources/`.
+2.  **Adding a Resource**:
+    *   Create a new file in `gravixlayer/resources/`.
+    *   Define the class and methods.
+    *   Export it in `gravixlayer/__init__.py` if needed.
+    *   Instantiate it in `gravixlayer/client.py`.
+3.  **Updating Types**: Add or update type definitions in `gravixlayer/types/`.
+
+### Before Submitting
+
+1.  Ensure all tests pass.
+2.  Format code with `black`.
+3.  Check types with `mypy`.
+4.  Update documentation if API changes.
