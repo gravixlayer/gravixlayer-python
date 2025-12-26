@@ -1,8 +1,8 @@
-## Maintainer's Handover Guide
+## SDK Documentation
 
-This section is designed for new developers taking ownership of the SDK. It covers architecture, workflows, and release processes.
+This documentation covers the codebase structure, development workflows, and release processes for the SDK.
 
-### 1. Project Architecture
+### 1. Codebase Structure
 
 The SDK is a standard Python package managed by `setuptools` and `pyproject.toml`.
 
@@ -513,6 +513,27 @@ sandbox.filesystem.delete("test.txt")
 # Kill Instance
 sandbox.kill()
 ```
+
+### 5. SDK Architecture
+
+#### Sync vs Async Clients
+The SDK provides two separate clients to handle synchronous and asynchronous workflows:
+*   **`GravixLayer`**: Uses the `requests` library for blocking, synchronous I/O. Ideal for scripts and simple applications.
+*   **`AsyncGravixLayer`**: Uses the `httpx` library for non-blocking, asynchronous I/O. Essential for high-performance web servers (FastAPI, etc.).
+
+#### Package Structure
+*   **`gravixlayer/`**: Root package.
+    *   **`__init__.py`**: Exposes the public API.
+    *   **`client.py`**: Defines the synchronous `GravixLayer` client.
+    *   **`types/async_client.py`**: Defines the `AsyncGravixLayer` client.
+    *   **`resources/`**: Contains logic for each API domain.
+        *   **`chat/`**, **`embeddings.py`**, etc.: Implement the actual API calls.
+        *   **Async Variants**: Some resources have specific async implementations (e.g., `async_completions.py`) to leverage `httpx` capabilities.
+
+#### Type Safety
+The SDK uses `Pydantic` models and `TypedDict` (in `gravixlayer/types/`) to define request and response structures. This provides:
+1.  **Validation**: Ensures data sent to the API is correct.
+2.  **IntelliSense**: IDEs can autocomplete fields for users.
 
 
 
