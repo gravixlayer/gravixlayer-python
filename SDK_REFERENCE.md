@@ -432,63 +432,85 @@ sandbox.filesystem.delete("test.txt")
 sandbox.kill()
 ```
 
-## SDK Development Guide
+## Maintainer's Handover Guide
 
-### Setup
+This section is designed for new developers taking ownership of the SDK. It covers architecture, workflows, and release processes.
 
-1.  **Prerequisites**: Ensure you have Python 3.7+ installed.
-2.  **Virtual Environment**:
+### 1. Project Architecture
+
+The SDK is a standard Python package managed by `setuptools` and `pyproject.toml`.
+
+*   **`gravixlayer/__init__.py`**: The package entry point. Exports the main client.
+*   **`gravixlayer/client.py`**: Contains the `GravixLayer` class. It initializes the HTTP client (using `httpx`) and instantiates resource classes.
+*   **`gravixlayer/resources/`**: Contains the API resource definitions.
+    *   Files are split by domain (e.g., `chat.py`, `embeddings.py`).
+    *   **Async Support**: Note that async resources are often defined separately or handled via `AsyncGravixLayer` in `gravixlayer/client.py`.
+*   **`gravixlayer/types/`**: Pydantic models or TypedDicts for request/response validation.
+*   **`release.py`**: Automation script for version bumping and releasing.
+
+### 2. Development Workflow
+
+#### Setup
+1.  Create a virtual environment:
     ```bash
     python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    source venv/bin/activate
     ```
-3.  **Install Dependencies**:
+2.  Install in editable mode with dev dependencies:
     ```bash
-    pip install -r requirements.txt
     pip install -e .[dev]
     ```
 
-### Testing
+#### Testing
+Currently, the project relies on a manual verification script.
+```bash
+python test.py
+```
+*Note: Ensure `GRAVIXLAYER_API_KEY` is set in your environment.*
 
-The project currently uses a manual verification script `test.py`.
+#### Code Quality
+Run these tools before committing:
+```bash
+pylint gravixlayer
+flake8 gravixlayer
+black gravixlayer  # Formatter
+mypy gravixlayer   # Type checker
+```
 
-*   **Run Verification Script**:
+### 3. How to Add a New Feature
+
+**Scenario**: You need to add a new API resource called `FineTuning`.
+
+1.  **Create the Resource**:
+    *   Create `gravixlayer/resources/fine_tuning.py`.
+    *   Define the `FineTuning` class.
+2.  **Register in Client**:
+    *   Open `gravixlayer/client.py`.
+    *   Import the class.
+    *   Initialize it in `__init__`: `self.fine_tuning = FineTuning(self)`.
+3.  **Export (Optional)**:
+    *   If the class should be importable directly, add it to `gravixlayer/__init__.py`.
+
+### 4. Release Process
+
+The release process is automated via the `release.py` script and GitHub Actions.
+
+**To publish a new version:**
+1.  Ensure you are on the `main` branch.
+2.  Run the release script:
     ```bash
-    python test.py
+    python release.py patch  # or minor, major
     ```
-    *Note: This script requires a valid API key and environment setup.*
+3.  **What this script does**:
+    *   Commits any pending changes.
+    *   Triggers the **"Build, Bump and Publish to PyPI"** GitHub Action.
+    *   The Action will bump the version, tag the release, build the wheel/sdist, and upload to PyPI.
 
-### Code Quality
+**Manual Release (Fallback)**:
+If the script fails, you can manually build and upload:
+```bash
+pip install build twine
+python -m build
+twine upload dist/*
+```
 
-The following tools are included in the `dev` dependencies:
-
-*   **Linting**:
-    ```bash
-    pylint gravixlayer
-    flake8 gravixlayer
-    ```
-*   **Formatting**:
-    ```bash
-    black gravixlayer
-    ```
-*   **Type Checking**:
-    ```bash
-    mypy gravixlayer
-    ```
-
-### Making Changes
-
-1.  **Structure**: Source code is in `gravixlayer/`. Resources are organized in `gravixlayer/resources/`.
-2.  **Adding a Resource**:
-    *   Create a new file in `gravixlayer/resources/`.
-    *   Define the class and methods.
-    *   Export it in `gravixlayer/__init__.py` if needed.
-    *   Instantiate it in `gravixlayer/client.py`.
-3.  **Updating Types**: Add or update type definitions in `gravixlayer/types/`.
-
-### Before Submitting
-
-1.  Ensure all tests pass.
-2.  Format code with `black`.
-3.  Check types with `mypy`.
-4.  Update documentation if API changes.
