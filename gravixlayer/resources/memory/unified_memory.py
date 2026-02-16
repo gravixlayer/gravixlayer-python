@@ -199,7 +199,7 @@ class UnifiedMemory:
             }
 
             response = await self.client._make_request(
-                "POST", "https://api.gravixlayer.com/v1/vectors/indexes", data=create_data
+                "POST", "indexes", data=create_data, _service="v1/vectors"
             )
 
             result = response.json()

@@ -73,16 +73,13 @@ class Files:
             files["file"] = (upload_filename, file)
             should_close = False
 
-        # Use a different base URL for files API
-        original_base_url = self.client.base_url
-        self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
-
         try:
             response = self.client._make_request(
                 method="POST",
-                endpoint="",  # Empty endpoint since base_url already points to /v1/files
+                endpoint="",
                 data=form_data,
                 files=files,
+                _service="v1/files",
             )
 
             result = response.json()
@@ -92,7 +89,6 @@ class Files:
                 purpose=result.get("purpose", ""),
             )
         finally:
-            self.client.base_url = original_base_url
             if should_close and "file" in files:
                 # Close the file object from the tuple
                 files["file"][1].close()
@@ -126,33 +122,26 @@ class Files:
         Returns:
             FileListResponse: List of file objects
         """
-        # Use a different base URL for files API
-        original_base_url = self.client.base_url
-        self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
+        response = self.client._make_request(method="GET", endpoint="", _service="v1/files")
 
-        try:
-            response = self.client._make_request(method="GET", endpoint="")
+        result = response.json()
+        files_data = result.get("data", [])
 
-            result = response.json()
-            files_data = result.get("data", [])
-
-            files = []
-            for file_data in files_data:
-                files.append(
-                    FileObject(
-                        id=file_data.get("id", ""),
-                        object=file_data.get("object", "file"),
-                        bytes=file_data.get("bytes", 0),
-                        created_at=file_data.get("created_at", 0),
-                        filename=file_data.get("filename", ""),
-                        purpose=file_data.get("purpose", ""),
-                        expires_after=file_data.get("expires_after"),
-                    )
+        files = []
+        for file_data in files_data:
+            files.append(
+                FileObject(
+                    id=file_data.get("id", ""),
+                    object=file_data.get("object", "file"),
+                    bytes=file_data.get("bytes", 0),
+                    created_at=file_data.get("created_at", 0),
+                    filename=file_data.get("filename", ""),
+                    purpose=file_data.get("purpose", ""),
+                    expires_after=file_data.get("expires_after"),
                 )
+            )
 
-            return FileListResponse(data=files)
-        finally:
-            self.client.base_url = original_base_url
+        return FileListResponse(data=files)
 
     def retrieve(self, file_id: str) -> FileObject:
         """
@@ -170,25 +159,18 @@ class Files:
         if not file_id:
             raise GravixLayerBadRequestError("file ID required")
 
-        # Use a different base URL for files API
-        original_base_url = self.client.base_url
-        self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
+        response = self.client._make_request(method="GET", endpoint=file_id, _service="v1/files")
 
-        try:
-            response = self.client._make_request(method="GET", endpoint=file_id)
-
-            result = response.json()
-            return FileObject(
-                id=result.get("id", ""),
-                object=result.get("object", "file"),
-                bytes=result.get("bytes", 0),
-                created_at=result.get("created_at", 0),
-                filename=result.get("filename", ""),
-                purpose=result.get("purpose", ""),
-                expires_after=result.get("expires_after"),
-            )
-        finally:
-            self.client.base_url = original_base_url
+        result = response.json()
+        return FileObject(
+            id=result.get("id", ""),
+            object=result.get("object", "file"),
+            bytes=result.get("bytes", 0),
+            created_at=result.get("created_at", 0),
+            filename=result.get("filename", ""),
+            purpose=result.get("purpose", ""),
+            expires_after=result.get("expires_after"),
+        )
 
     def content(self, file_id: str) -> bytes:
         """
@@ -211,10 +193,9 @@ class Files:
 
         headers = {"Authorization": f"Bearer {self.client.api_key}", "User-Agent": self.client.user_agent}
 
-        # Use the correct base URL for files API
-        files_base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
+        files_base = f"{self.client.base_url.rstrip('/')}/v1/files"
 
-        response = requests.get(f"{files_base_url}/{file_id}/content", headers=headers, timeout=self.client.timeout)
+        response = requests.get(f"{files_base}/{file_id}/content", headers=headers, timeout=self.client.timeout)
 
         if response.status_code != 200:
             self.client._handle_error_response(response)
@@ -243,10 +224,9 @@ class Files:
 
         headers = {"Authorization": f"Bearer {self.client.api_key}", "User-Agent": self.client.user_agent}
 
-        # Use the correct base URL for files API
-        files_base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
+        files_base = f"{self.client.base_url.rstrip('/')}/v1/files"
 
-        response = requests.get(f"{files_base_url}/{file_id}/download", headers=headers, timeout=self.client.timeout)
+        response = requests.get(f"{files_base}/{file_id}/download", headers=headers, timeout=self.client.timeout)
 
         if response.status_code != 200:
             self.client._handle_error_response(response)
@@ -269,18 +249,11 @@ class Files:
         if not file_id:
             raise GravixLayerBadRequestError("File ID is required")
 
-        # Use a different base URL for files API
-        original_base_url = self.client.base_url
-        self.client.base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
+        response = self.client._make_request(method="DELETE", endpoint=file_id, _service="v1/files")
 
-        try:
-            response = self.client._make_request(method="DELETE", endpoint=file_id)
-
-            result = response.json()
-            return FileDeleteResponse(
-                message=result.get("message", "File deleted"),
-                file_id=result.get("file_id", "") or result.get("id", ""),
-                file_name=result.get("file_name", "") or result.get("filename", ""),
-            )
-        finally:
-            self.client.base_url = original_base_url
+        result = response.json()
+        return FileDeleteResponse(
+            message=result.get("message", "File deleted"),
+            file_id=result.get("file_id", "") or result.get("id", ""),
+            file_name=result.get("file_name", "") or result.get("filename", ""),
+        )

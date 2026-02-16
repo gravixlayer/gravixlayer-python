@@ -2,6 +2,7 @@ import os
 import requests
 import logging
 from typing import Optional, Dict, Any, Type
+from urllib.parse import urlparse, urlunparse
 from .resources.chat.completions import ChatCompletions
 from .resources.embeddings import Embeddings
 from .resources.completions import Completions
@@ -10,6 +11,7 @@ from .resources.accelerators import Accelerators
 from .resources.files import Files
 from .resources.vectors.main import VectorDatabase
 from .resources.sandbox import SandboxResource
+from .resources.templates import Templates
 from .types.exceptions import (
     GravixLayerError,
     GravixLayerAuthenticationError,
@@ -19,6 +21,9 @@ from .types.exceptions import (
     GravixLayerConnectionError,
 )
 
+# Known API service path prefixes — stripped during base_url normalization
+_KNOWN_SERVICE_PATHS = ("/v1/inference", "/v1/agents", "/v1/vectors", "/v1/files", "/v1/deployments")
+
 
 class GravixLayer:
     """
@@ -27,19 +32,34 @@ class GravixLayer:
     Official Python client for the GravixLayer API. Provides a familiar interface
     compatible with popular AI SDKs for easy migration and integration.
 
+    Args:
+        api_key: API key for authentication (or GRAVIXLAYER_API_KEY env var)
+        base_url: Base URL for the API (or GRAVIXLAYER_BASE_URL env var)
+        cloud: Default cloud provider for sandbox/template operations (e.g. "gravix", "aws", "gcp")
+        region: Default region for sandbox/template operations (e.g. "eu-west-1", "us-east-1")
+        timeout: Request timeout in seconds (default: 60.0)
+        max_retries: Maximum retry attempts for transient failures (default: 3)
+        headers: Additional HTTP headers to include in requests
+        organization: Organization identifier
+        project: Project identifier
+
     Example:
         >>> from gravixlayer import GravixLayer
-        >>> client = GravixLayer(api_key="your-api-key")
-        >>> response = client.chat.completions.create(
-        ...     model="mistralai/mistral-nemo-instruct-2407",
-        ...     messages=[{"role": "user", "content": "Hello!"}]
+        >>> client = GravixLayer(
+        ...     api_key="your-api-key",
+        ...     cloud="gravix",
+        ...     region="eu-west-1",
         ... )
+        >>> # cloud and region are used as defaults for sandbox/template calls
+        >>> sandbox = client.sandbox.sandboxes.create(template="python-base-v1")
     """
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
+        cloud: Optional[str] = None,
+        region: Optional[str] = None,
         timeout: float = 60.0,
         max_retries: int = 3,
         headers: Optional[Dict[str, str]] = None,
@@ -50,7 +70,24 @@ class GravixLayer:
         **kwargs,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
-        self.base_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com/v1/inference")
+        raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com")
+
+        # Normalize base_url to just the origin (scheme + host).
+        # This allows users to pass any variant:
+        #   https://api.gravixlayer.com
+        #   https://api.gravixlayer.com/v1/inference   (legacy default)
+        #   https://api.gravixlayer.com/v1/agents
+        # All are normalised to https://api.gravixlayer.com
+        parsed = urlparse(raw_url.rstrip("/"))
+        path = parsed.path
+        for prefix in _KNOWN_SERVICE_PATHS:
+            if path == prefix or path.startswith(prefix + "/"):
+                path = ""
+                break
+        self.base_url = urlunparse((parsed.scheme, parsed.netloc, path.rstrip("/"), "", "", ""))
+
+        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD")
+        self.region = region or os.environ.get("GRAVIXLAYER_REGION")
 
         self.organization = organization
         self.project = project
@@ -78,6 +115,7 @@ class GravixLayer:
         self.files = Files(self)
         self.vectors = VectorDatabase(self)
         self.sandbox = SandboxResource(self)
+        self.templates = Templates(self)
 
         # Memory is now a factory method - requires parameters
         # Users must call client.memory(...) with required parameters
@@ -129,11 +167,19 @@ class GravixLayer:
     def _make_request(
         self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, stream: bool = False, **kwargs
     ) -> requests.Response:
-        # Handle full URLs (for vector database endpoints)
+        # Pop the service path from kwargs (default: inference)
+        _service = kwargs.pop("_service", "v1/inference")
+
+        # Handle full URLs (for legacy code that may still pass them)
         if endpoint and (endpoint.startswith("http://") or endpoint.startswith("https://")):
             url = endpoint
         else:
-            url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}" if endpoint else self.base_url
+            # Build: base_url / service / endpoint
+            if _service:
+                service_base = f"{self.base_url.rstrip('/')}/{_service}"
+            else:
+                service_base = self.base_url.rstrip("/")
+            url = f"{service_base}/{endpoint.lstrip('/')}" if endpoint else service_base
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "User-Agent": self.user_agent,
@@ -163,8 +209,9 @@ class GravixLayer:
                     request_kwargs["json"] = data
 
                 resp = requests.request(**request_kwargs)
-                # Accept both 200 (OK) and 201 (Created) as successful responses
-                if resp.status_code in [200, 201]:
+                # Accept standard success codes:
+                # 200 OK, 201 Created, 202 Accepted, 204 No Content, 207 Multi-Status
+                if resp.status_code in [200, 201, 202, 204, 207]:
                     return resp
                 elif resp.status_code == 401:
                     raise GravixLayerAuthenticationError("Authentication failed.")

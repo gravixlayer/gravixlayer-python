@@ -49,7 +49,7 @@ class Sandbox:
     def create(
         cls,
         template: str = "python-base-v1",
-        provider: str = "gravix",
+        cloud: str = "gravix",
         region: str = "eu-west-1",
         timeout: int = 300,
         metadata: Optional[Dict[str, Any]] = None,
@@ -61,9 +61,9 @@ class Sandbox:
 
         Args:
             template: Template to use (default: "python-base-v1")
-            provider: Cloud provider (default: "gravix")
+            cloud: Cloud provider (default: "gravix")
             region: Region to deploy in (default: "eu-west-1")
-            timeout: Timeout in seconds (default: 300 = 5 minutes, max: 3600)
+            timeout: Timeout in seconds (default: 300 = 5 minutes, max: 43200)
             metadata: Optional metadata tags
             api_key: API key (uses GRAVIXLAYER_API_KEY env var if not provided)
             base_url: Base URL (uses GRAVIXLAYER_BASE_URL env var if not provided)
@@ -73,13 +73,11 @@ class Sandbox:
         """
         from ..client import GravixLayer
 
-        client = GravixLayer(api_key=api_key, base_url=base_url)
+        client = GravixLayer(api_key=api_key, base_url=base_url, cloud=cloud, region=region)
 
         sandbox_response = client.sandbox.sandboxes.create(
-            provider=provider,
-            region=region,
             template=template,
-            timeout=timeout,  # Use seconds directly, consistent with API
+            timeout=timeout,
             metadata=metadata or {},
         )
 
@@ -185,6 +183,64 @@ class Sandbox:
 
         with open(local_path, "rb") as f:
             self._client.sandbox.sandboxes.upload_file(self.sandbox_id, file=f, path=remote_path)
+
+    def write(
+        self,
+        path: str,
+        data: Union[str, bytes, Any],
+        user: Optional[str] = None,
+        mode: Optional[int] = None,
+    ) -> "WriteResult":
+        """Write a file to the sandbox using multipart upload (no base64).
+
+        Args:
+            path: Destination path (absolute or relative to /home/user/)
+            data: Content as str, bytes, or file-like object
+            user: Optional owner username
+            mode: Optional file permissions as octal int (e.g. 0o755)
+
+        Example:
+            >>> sandbox.write("/home/user/hello.py", "print('hello')")
+            >>> sandbox.write("data.bin", b"\\x00\\x01\\x02")
+            >>> with open("local.txt", "rb") as f:
+            ...     sandbox.write("/tmp/remote.txt", f)
+        """
+        if not self._alive:
+            raise RuntimeError("Sandbox has been terminated")
+        if self._client is None:
+            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
+
+        return self._client.sandbox.sandboxes.write(
+            self.sandbox_id, path=path, data=data, user=user, mode=mode
+        )
+
+    def write_files(
+        self,
+        entries: "List[WriteEntry]",
+        user: Optional[str] = None,
+    ) -> "WriteFilesResponse":
+        """Write multiple files in a single multipart upload (no base64).
+
+        Args:
+            entries: List of WriteEntry(path, data, mode) objects
+            user: Optional default owner username for all files
+
+        Example:
+            >>> from gravixlayer.types.sandbox import WriteEntry
+            >>> sandbox.write_files([
+            ...     WriteEntry(path="main.py", data="print('hello')"),
+            ...     WriteEntry(path="config.json", data=b'{"key": "val"}'),
+            ...     WriteEntry(path="/tmp/run.sh", data="#!/bin/bash\\necho hi", mode=0o755),
+            ... ])
+        """
+        if not self._alive:
+            raise RuntimeError("Sandbox has been terminated")
+        if self._client is None:
+            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
+
+        return self._client.sandbox.sandboxes.write_files(
+            self.sandbox_id, entries=entries, user=user
+        )
 
     def kill(self) -> None:
         """Terminate the sandbox and clean up resources"""
@@ -376,6 +432,40 @@ class FileUploadResponse:
     message: str
     path: Optional[str] = None
     size: Optional[int] = None
+
+
+@dataclass
+class WriteEntry:
+    """Entry for batch file write via multipart upload
+
+    Args:
+        path: Destination path inside the sandbox (absolute or relative to /home/user/)
+        data: File content as str, bytes, or file-like object (BinaryIO)
+        mode: Optional file permissions as octal int (e.g. 0o755)
+    """
+
+    path: str
+    data: Union[str, bytes, Any]  # str | bytes | BinaryIO
+    mode: Optional[int] = None
+
+
+@dataclass
+class WriteResult:
+    """Result for a single file in a batch write"""
+
+    path: str
+    name: str
+    type: str
+    size: Optional[int] = None
+    error: Optional[str] = None
+
+
+@dataclass
+class WriteFilesResponse:
+    """Response from write/write_files operations"""
+
+    files: List[WriteResult]
+    partial_failure: bool = False
 
 
 @dataclass

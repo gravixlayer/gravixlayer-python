@@ -42,24 +42,10 @@ class AsyncSandboxes:
 
     def __init__(self, client):
         self.client = client
-        self._agents_base_url = None
-
-    def _get_agents_base_url(self) -> str:
-        """Get the agents API base URL"""
-        if self._agents_base_url is None:
-            # Replace /v1/inference with /v1/agents for agent endpoints
-            self._agents_base_url = self.client.base_url.replace("/v1/inference", "/v1/agents")
-        return self._agents_base_url
 
     async def _make_agents_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs):
-        """Make a request to the agents API"""
-        original_base_url = self.client.base_url
-        self.client.base_url = self._get_agents_base_url()
-
-        try:
-            return await self.client._make_request(method, endpoint, data, **kwargs)
-        finally:
-            self.client.base_url = original_base_url
+        """Make a request to the agents API (/v1/agents/...)"""
+        return await self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
 
     # Sandbox Lifecycle Methods
 
@@ -401,24 +387,10 @@ class AsyncSandboxTemplates:
 
     def __init__(self, client):
         self.client = client
-        self._agents_base_url = None
-
-    def _get_agents_base_url(self) -> str:
-        """Get the agents API base URL"""
-        if self._agents_base_url is None:
-            # Replace /v1/inference with /v1/agents for agent endpoints
-            self._agents_base_url = self.client.base_url.replace("/v1/inference", "/v1/agents")
-        return self._agents_base_url
 
     async def _make_agents_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs):
-        """Make a request to the agents API"""
-        original_base_url = self.client.base_url
-        self.client.base_url = self._get_agents_base_url()
-
-        try:
-            return await self.client._make_request(method, endpoint, data, **kwargs)
-        finally:
-            self.client.base_url = original_base_url
+        """Make a request to the agents API (/v1/agents/...)"""
+        return await self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
 
     async def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> TemplateList:
         """List available sandbox templates"""

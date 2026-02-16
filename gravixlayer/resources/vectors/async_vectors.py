@@ -18,12 +18,11 @@ from ...types.vectors import (
 class AsyncVectors:
     """Async version of vector operations within an index"""
 
+    _SERVICE = "v1/vectors"
+
     def __init__(self, client, index_id: str):
         self.client = client
         self.index_id = index_id
-        # Use client's base URL and replace inference with vectors
-        vectors_base = client.base_url.replace("/v1/inference", "/v1/vectors")
-        self.base_url = f"{vectors_base}/{index_id}"
 
     async def upsert(
         self,
@@ -52,7 +51,7 @@ class AsyncVectors:
         # API expects batch format even for single operations
         data = {"vectors": [vector_data]}
 
-        response = await self.client._make_request("POST", f"{self.base_url}/upsert", data=data)
+        response = await self.client._make_request("POST", f"{self.index_id}/upsert", data=data, _service=self._SERVICE)
 
         result = response.json()
         # For single upsert, handle batch response
@@ -94,7 +93,7 @@ class AsyncVectors:
         # API expects batch format even for single operations
         data = {"vectors": [vector_data]}
 
-        response = await self.client._make_request("POST", f"{self.base_url}/text/upsert", data=data)
+        response = await self.client._make_request("POST", f"{self.index_id}/text/upsert", data=data, _service=self._SERVICE)
 
         result = response.json()
         # Handle batch response for single text upsert
@@ -162,7 +161,7 @@ class AsyncVectors:
         """
         data = {"vectors": vectors}
 
-        response = await self.client._make_request("POST", f"{self.base_url}/batch", data=data)
+        response = await self.client._make_request("POST", f"{self.index_id}/batch", data=data, _service=self._SERVICE)
 
         result = response.json()
         return BatchUpsertResponse(**result)
@@ -179,7 +178,7 @@ class AsyncVectors:
         """
         data = {"vectors": vectors}
 
-        response = await self.client._make_request("POST", f"{self.base_url}/text/batch", data=data)
+        response = await self.client._make_request("POST", f"{self.index_id}/text/batch", data=data, _service=self._SERVICE)
 
         result = response.json()
         return BatchUpsertResponse(**result)
@@ -194,7 +193,7 @@ class AsyncVectors:
         Returns:
             Vector: Vector information
         """
-        response = await self.client._make_request("GET", f"{self.base_url}/{vector_id}")
+        response = await self.client._make_request("GET", f"{self.index_id}/{vector_id}", _service=self._SERVICE)
 
         result = response.json()
         return Vector(**result)
@@ -222,7 +221,7 @@ class AsyncVectors:
         if not data:
             raise ValueError("At least one field must be provided for update")
 
-        response = await self.client._make_request("PUT", f"{self.base_url}/{vector_id}", data=data)
+        response = await self.client._make_request("PUT", f"{self.index_id}/{vector_id}", data=data, _service=self._SERVICE)
 
         result = response.json()
 
@@ -239,7 +238,7 @@ class AsyncVectors:
         Args:
             vector_id: The vector ID
         """
-        await self.client._make_request("POST", f"{self.base_url}/delete", data={"vector_ids": [vector_id]})
+        await self.client._make_request("POST", f"{self.index_id}/delete", data={"vector_ids": [vector_id]}, _service=self._SERVICE)
 
     async def list_ids(self) -> VectorListResponse:
         """
@@ -248,7 +247,7 @@ class AsyncVectors:
         Returns:
             VectorListResponse: List of vector IDs
         """
-        response = await self.client._make_request("GET", f"{self.base_url}/list")
+        response = await self.client._make_request("GET", f"{self.index_id}/list", _service=self._SERVICE)
 
         result = response.json()
         return VectorListResponse(**result)
@@ -263,12 +262,12 @@ class AsyncVectors:
         Returns:
             VectorDictResponse: Dictionary of vectors
         """
-        endpoint = f"{self.base_url}/fetch"
+        endpoint = f"{self.index_id}/fetch"
         if vector_ids:
             query_param = ",".join(vector_ids)
-            endpoint = f"{self.base_url}/fetch?vector_ids={query_param}"
+            endpoint = f"{self.index_id}/fetch?vector_ids={query_param}"
 
-        response = await self.client._make_request("GET", endpoint)
+        response = await self.client._make_request("GET", endpoint, _service=self._SERVICE)
 
         result = response.json()
 
@@ -317,7 +316,7 @@ class AsyncVectors:
         if filter is not None:
             data["filter"] = filter
 
-        response = await self.client._make_request("POST", f"{self.base_url}/search", data=data)
+        response = await self.client._make_request("POST", f"{self.index_id}/search", data=data, _service=self._SERVICE)
 
         result = response.json()
         hits = [VectorSearchHit(**hit) for hit in result["hits"]]
@@ -361,7 +360,7 @@ class AsyncVectors:
         if filter is not None:
             data["filter"] = filter
 
-        response = await self.client._make_request("POST", f"{self.base_url}/search/text", data=data)
+        response = await self.client._make_request("POST", f"{self.index_id}/search/text", data=data, _service=self._SERVICE)
 
         result = response.json()
         hits = [VectorSearchHit(**hit) for hit in result["hits"]]

@@ -27,6 +27,25 @@ from .accelerators import (
     Accelerator,
     AcceleratorList,
 )
+from .sandbox import (
+    WriteEntry,
+    WriteResult,
+    WriteFilesResponse,
+)
+from .templates import (
+    BuildStepType,
+    BuildStep,
+    TemplateBuildStatusEnum,
+    TemplateBuildPhase,
+    TemplateBuildResponse,
+    TemplateBuildStatus,
+    TemplateInfo,
+    TemplateSnapshot,
+    TemplateListResponse,
+    TemplateDeleteResponse,
+    BuildLogEntry,
+    TemplateBuilder,
+)
 
 __all__ = [
     "ChatCompletion",
@@ -48,4 +67,20 @@ __all__ = [
     "DeploymentResponse",
     "Accelerator",
     "AcceleratorList",
+    "WriteEntry",
+    "WriteResult",
+    "WriteFilesResponse",
+    # Template types
+    "BuildStepType",
+    "BuildStep",
+    "TemplateBuildStatusEnum",
+    "TemplateBuildPhase",
+    "TemplateBuildResponse",
+    "TemplateBuildStatus",
+    "TemplateInfo",
+    "TemplateSnapshot",
+    "TemplateListResponse",
+    "TemplateDeleteResponse",
+    "BuildLogEntry",
+    "TemplateBuilder",
 ]

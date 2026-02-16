@@ -16,10 +16,10 @@ from ...types.vectors import (
 class VectorIndexes:
     """Manages vector indexes"""
 
+    _SERVICE = "v1/vectors"
+
     def __init__(self, client):
         self.client = client
-        # Use client's base URL and replace inference with vectors
-        self.base_url = client.base_url.replace("/v1/inference", "/v1/vectors")
 
     def create(
         self,
@@ -84,8 +84,7 @@ class VectorIndexes:
             "delete_protection": delete_protection,
         }
 
-        # Use the full vector API URL
-        response = self.client._make_request("POST", f"{self.base_url}/indexes", data=data)
+        response = self.client._make_request("POST", "indexes", data=data, _service=self._SERVICE)
 
         result = response.json()
         return VectorIndex(**result)
@@ -104,10 +103,9 @@ class VectorIndexes:
         if page_size > 1000:
             raise ValueError("Page size cannot exceed 1000")
 
-        # Build query parameters into URL for GET request
-        endpoint = f"{self.base_url}/indexes?page={page}&page_size={page_size}"
+        endpoint = f"indexes?page={page}&page_size={page_size}"
 
-        response = self.client._make_request("GET", endpoint)
+        response = self.client._make_request("GET", endpoint, _service=self._SERVICE)
 
         result = response.json()
         indexes = [VectorIndex(**idx) for idx in result["indexes"]]
@@ -127,7 +125,7 @@ class VectorIndexes:
         Returns:
             VectorIndex: Index information
         """
-        response = self.client._make_request("GET", f"{self.base_url}/indexes/{index_id}")
+        response = self.client._make_request("GET", f"indexes/{index_id}", _service=self._SERVICE)
 
         result = response.json()
         return VectorIndex(**result)
@@ -155,7 +153,7 @@ class VectorIndexes:
         if not data:
             raise ValueError("At least one field must be provided for update")
 
-        response = self.client._make_request("PUT", f"{self.base_url}/indexes/{index_id}", data=data)
+        response = self.client._make_request("PUT", f"indexes/{index_id}", data=data, _service=self._SERVICE)
 
         result = response.json()
 
@@ -181,4 +179,4 @@ class VectorIndexes:
                 # If update fails, continue with delete attempt anyway
                 pass
 
-        self.client._make_request("DELETE", f"https://api.gravixlayer.com/v1/vectors/indexes/{index_id}")
+        self.client._make_request("DELETE", f"indexes/{index_id}", _service=self._SERVICE)

@@ -14,7 +14,6 @@ class AsyncFiles:
 
     def __init__(self, client):
         self.client = client
-        self._base_url = self.client.base_url.replace("/v1/inference", "/v1/files")
 
     async def create(
         self,
@@ -74,7 +73,7 @@ class AsyncFiles:
             should_close = False
 
         try:
-            response = await self.client._make_request(method="POST", url=self._base_url, data=form_data, files=files)
+            response = await self.client._make_request(method="POST", endpoint="", data=form_data, files=files, _service="v1/files")
 
             result = response.json()
             return FileUploadResponse(
@@ -116,7 +115,7 @@ class AsyncFiles:
         Returns:
             FileListResponse: List of file objects
         """
-        response = await self.client._make_request(method="GET", url=self._base_url)
+        response = await self.client._make_request(method="GET", endpoint="", _service="v1/files")
 
         files = []
         for file_data in response.get("data", []):
@@ -150,7 +149,7 @@ class AsyncFiles:
         if not file_id:
             raise GravixLayerBadRequestError("file ID required")
 
-        response = await self.client._make_request(method="GET", url=f"{self._base_url}/{file_id}")
+        response = await self.client._make_request(method="GET", endpoint=file_id, _service="v1/files")
 
         return FileObject(
             id=response.get("id", ""),
@@ -182,7 +181,8 @@ class AsyncFiles:
         headers = {"Authorization": f"Bearer {self.client.api_key}", "User-Agent": self.client.user_agent}
 
         async with httpx.AsyncClient(timeout=self.client.timeout) as client:
-            response = await client.get(f"{self._base_url}/{file_id}/content", headers=headers)
+            files_base = f"{self.client.base_url.rstrip('/')}/v1/files"
+            response = await client.get(f"{files_base}/{file_id}/content", headers=headers)
 
             if response.status_code != 200:
                 await self.client._handle_error_response(response)
@@ -210,7 +210,8 @@ class AsyncFiles:
         headers = {"Authorization": f"Bearer {self.client.api_key}", "User-Agent": self.client.user_agent}
 
         async with httpx.AsyncClient(timeout=self.client.timeout) as client:
-            response = await client.get(f"{self._base_url}/{file_id}/download", headers=headers)
+            files_base = f"{self.client.base_url.rstrip('/')}/v1/files"
+            response = await client.get(f"{files_base}/{file_id}/download", headers=headers)
 
             if response.status_code != 200:
                 await self.client._handle_error_response(response)
@@ -233,7 +234,7 @@ class AsyncFiles:
         if not file_id:
             raise GravixLayerBadRequestError("File ID is required")
 
-        response = await self.client._make_request(method="DELETE", url=f"{self._base_url}/{file_id}")
+        response = await self.client._make_request(method="DELETE", endpoint=file_id, _service="v1/files")
 
         return FileDeleteResponse(
             message=response.get("message", ""),

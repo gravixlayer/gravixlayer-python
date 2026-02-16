@@ -72,6 +72,28 @@ from .types.sandbox import (
     TemplateList,
     SandboxKillResponse,
     Execution,
+    WriteEntry,
+    WriteResult,
+    WriteFilesResponse,
+)
+from .types.templates import (
+    BuildStepType,
+    BuildStep,
+    TemplateBuildStatusEnum,
+    TemplateBuildPhase,
+    TemplateBuildResponse,
+    TemplateBuildStatus,
+    TemplateInfo,
+    TemplateSnapshot,
+    TemplateListResponse,
+    TemplateDeleteResponse,
+    BuildLogEntry,
+    TemplateBuilder,
+)
+from .resources.templates import (
+    Templates,
+    TemplateBuildError,
+    TemplateBuildTimeoutError,
 )
 
 # Memory imports will be done lazily to avoid circular imports
@@ -133,6 +155,25 @@ __all__ = [
     "TemplateList",
     "SandboxKillResponse",
     "Execution",
+    "WriteEntry",
+    "WriteResult",
+    "WriteFilesResponse",
+    # Template build pipeline
+    "BuildStepType",
+    "BuildStep",
+    "TemplateBuildStatusEnum",
+    "TemplateBuildPhase",
+    "TemplateBuildResponse",
+    "TemplateBuildStatus",
+    "TemplateInfo",
+    "TemplateSnapshot",
+    "TemplateListResponse",
+    "TemplateDeleteResponse",
+    "BuildLogEntry",
+    "TemplateBuilder",
+    "Templates",
+    "TemplateBuildError",
+    "TemplateBuildTimeoutError",
     # Memory types
     "Memory",
     "MemoryType",

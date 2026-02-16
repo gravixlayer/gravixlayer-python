@@ -99,10 +99,17 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+# IDE / editor
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Temp test scripts (not the test suite)
 test.py
 test_stream.py
 test_embeddings.py
 test_async.py
 comparison.py
-
-tests
+/tests/

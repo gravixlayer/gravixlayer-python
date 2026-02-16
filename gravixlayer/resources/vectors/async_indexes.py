@@ -16,10 +16,10 @@ from ...types.vectors import (
 class AsyncVectorIndexes:
     """Async version of vector index management"""
 
+    _SERVICE = "v1/vectors"
+
     def __init__(self, client):
         self.client = client
-        # Use client's base URL and replace inference with vectors
-        self.base_url = client.base_url.replace("/v1/inference", "/v1/vectors")
 
     async def create(
         self,
@@ -84,7 +84,7 @@ class AsyncVectorIndexes:
             "delete_protection": delete_protection,
         }
 
-        response = await self.client._make_request("POST", f"{self.base_url}/indexes", data=data)
+        response = await self.client._make_request("POST", "indexes", data=data, _service=self._SERVICE)
 
         result = response.json()
         return VectorIndex(**result)
@@ -103,10 +103,9 @@ class AsyncVectorIndexes:
         if page_size > 1000:
             raise ValueError("Page size cannot exceed 1000")
 
-        # Build query parameters into URL for GET request
-        endpoint = f"{self.base_url}/indexes?page={page}&page_size={page_size}"
+        endpoint = f"indexes?page={page}&page_size={page_size}"
 
-        response = await self.client._make_request("GET", endpoint)
+        response = await self.client._make_request("GET", endpoint, _service=self._SERVICE)
 
         result = response.json()
         indexes = [VectorIndex(**idx) for idx in result["indexes"]]
@@ -126,7 +125,7 @@ class AsyncVectorIndexes:
         Returns:
             VectorIndex: Index information
         """
-        response = await self.client._make_request("GET", f"{self.base_url}/indexes/{index_id}")
+        response = await self.client._make_request("GET", f"indexes/{index_id}", _service=self._SERVICE)
 
         result = response.json()
         return VectorIndex(**result)
@@ -154,7 +153,7 @@ class AsyncVectorIndexes:
         if not data:
             raise ValueError("At least one field must be provided for update")
 
-        response = await self.client._make_request("PUT", f"{self.base_url}/indexes/{index_id}", data=data)
+        response = await self.client._make_request("PUT", f"indexes/{index_id}", data=data, _service=self._SERVICE)
 
         result = response.json()
 
@@ -180,4 +179,4 @@ class AsyncVectorIndexes:
                 # If update fails, continue with delete attempt anyway
                 pass
 
-        await self.client._make_request("DELETE", f"https://api.gravixlayer.com/v1/vectors/indexes/{index_id}")
+        await self.client._make_request("DELETE", f"indexes/{index_id}", _service=self._SERVICE)

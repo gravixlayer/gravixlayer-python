@@ -25,12 +25,11 @@ from ...types.vectors import (
 class Vectors:
     """Manages vector operations within an index"""
 
+    _SERVICE = "v1/vectors"
+
     def __init__(self, client, index_id: str):
         self.client = client
         self.index_id = index_id
-        # Use client's base URL and replace inference with vectors
-        vectors_base = client.base_url.replace("/v1/inference", "/v1/vectors")
-        self.base_url = f"{vectors_base}/{index_id}"
 
     def upsert(
         self,
@@ -59,7 +58,7 @@ class Vectors:
         # API expects batch format even for single operations
         data = {"vectors": [vector_data]}
 
-        response = self.client._make_request("POST", f"{self.base_url}/upsert", data=data)
+        response = self.client._make_request("POST", f"{self.index_id}/upsert", data=data, _service=self._SERVICE)
 
         result = response.json()
         # The API returns a batch response with upserted_count
@@ -132,7 +131,7 @@ class Vectors:
         # API expects batch format even for single operations
         data = {"vectors": [vector_data]}
 
-        response = self.client._make_request("POST", f"{self.base_url}/text/upsert", data=data)
+        response = self.client._make_request("POST", f"{self.index_id}/text/upsert", data=data, _service=self._SERVICE)
 
         result = response.json()
         # For single text upsert, we need to handle the batch response
@@ -228,7 +227,7 @@ class Vectors:
         """
         data = {"vectors": vectors}
 
-        response = self.client._make_request("POST", f"{self.base_url}/batch", data=data)
+        response = self.client._make_request("POST", f"{self.index_id}/batch", data=data, _service=self._SERVICE)
 
         result = response.json()
         return BatchUpsertResponse(**result)
@@ -245,7 +244,7 @@ class Vectors:
         """
         data = {"vectors": vectors}
 
-        response = self.client._make_request("POST", f"{self.base_url}/text/batch", data=data)
+        response = self.client._make_request("POST", f"{self.index_id}/text/batch", data=data, _service=self._SERVICE)
 
         result = response.json()
         return BatchUpsertResponse(**result)
@@ -260,7 +259,7 @@ class Vectors:
         Returns:
             Vector: Vector information
         """
-        response = self.client._make_request("GET", f"{self.base_url}/{vector_id}")
+        response = self.client._make_request("GET", f"{self.index_id}/{vector_id}", _service=self._SERVICE)
 
         result = response.json()
         return Vector(**result)
@@ -288,7 +287,7 @@ class Vectors:
         if not data:
             raise ValueError("At least one field must be provided for update")
 
-        response = self.client._make_request("PUT", f"{self.base_url}/{vector_id}", data=data)
+        response = self.client._make_request("PUT", f"{self.index_id}/{vector_id}", data=data, _service=self._SERVICE)
 
         result = response.json()
 
@@ -305,7 +304,7 @@ class Vectors:
         Args:
             vector_id: The vector ID
         """
-        self.client._make_request("POST", f"{self.base_url}/delete", data={"vector_ids": [vector_id]})
+        self.client._make_request("POST", f"{self.index_id}/delete", data={"vector_ids": [vector_id]}, _service=self._SERVICE)
 
     def batch_delete(self, vector_ids: List[str]) -> Dict[str, Any]:
         """
@@ -322,7 +321,7 @@ class Vectors:
 
         data = {"vector_ids": vector_ids}
 
-        response = self.client._make_request("POST", f"{self.base_url}/delete", data=data)
+        response = self.client._make_request("POST", f"{self.index_id}/delete", data=data, _service=self._SERVICE)
 
         return response.json()
 
@@ -333,7 +332,7 @@ class Vectors:
         Returns:
             VectorListResponse: List of vector IDs
         """
-        response = self.client._make_request("GET", f"{self.base_url}/list")
+        response = self.client._make_request("GET", f"{self.index_id}/list", _service=self._SERVICE)
 
         result = response.json()
         return VectorListResponse(**result)
@@ -348,12 +347,12 @@ class Vectors:
         Returns:
             VectorDictResponse: Dictionary of vectors
         """
-        endpoint = f"{self.base_url}/fetch"
+        endpoint = f"{self.index_id}/fetch"
         if vector_ids:
             query_param = ",".join(vector_ids)
-            endpoint = f"{self.base_url}/fetch?vector_ids={query_param}"
+            endpoint = f"{self.index_id}/fetch?vector_ids={query_param}"
 
-        response = self.client._make_request("GET", endpoint)
+        response = self.client._make_request("GET", endpoint, _service=self._SERVICE)
 
         result = response.json()
 
@@ -413,7 +412,7 @@ class Vectors:
         if filter is not None:
             data["filter"] = filter
 
-        response = self.client._make_request("POST", f"{self.base_url}/search", data=data)
+        response = self.client._make_request("POST", f"{self.index_id}/search", data=data, _service=self._SERVICE)
 
         result = response.json()
         hits = [VectorSearchHit(**hit) for hit in result["hits"]]
@@ -457,7 +456,7 @@ class Vectors:
         if filter is not None:
             data["filter"] = filter
 
-        response = self.client._make_request("POST", f"{self.base_url}/search/text", data=data)
+        response = self.client._make_request("POST", f"{self.index_id}/search/text", data=data, _service=self._SERVICE)
 
         result = response.json()
         hits = [VectorSearchHit(**hit) for hit in result["hits"]]

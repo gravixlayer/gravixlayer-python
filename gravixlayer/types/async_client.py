@@ -3,6 +3,7 @@ import httpx
 import logging
 import asyncio
 import json
+from urllib.parse import urlparse, urlunparse
 from typing import Optional, Dict, Any, List, Union, AsyncIterator
 from ..types.chat import (
     ChatCompletion,
@@ -281,7 +282,17 @@ class AsyncGravixLayer:
         user_agent: Optional[str] = None,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
-        self.base_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com/v1/inference")
+        raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com")
+
+        # Normalize base_url to just the origin (scheme + host)
+        _known = ("/v1/inference", "/v1/agents", "/v1/vectors", "/v1/files")
+        parsed = urlparse(raw_url.rstrip("/"))
+        path = parsed.path
+        for prefix in _known:
+            if path == prefix or path.startswith(prefix + "/"):
+                path = ""
+                break
+        self.base_url = urlunparse((parsed.scheme, parsed.netloc, path.rstrip("/"), "", "", ""))
 
         # Validate URL scheme - support both HTTP and HTTPS
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
@@ -342,11 +353,18 @@ class AsyncGravixLayer:
     async def _make_request(
         self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, stream: bool = False, **kwargs
     ) -> httpx.Response:
-        # Handle full URLs (for vector database endpoints)
+        # Pop the service path from kwargs (default: inference)
+        _service = kwargs.pop("_service", "v1/inference")
+
+        # Handle full URLs (for legacy code)
         if endpoint and (endpoint.startswith("http://") or endpoint.startswith("https://")):
             url = endpoint
         else:
-            url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}" if endpoint else self.base_url
+            if _service:
+                service_base = f"{self.base_url}/{_service}"
+            else:
+                service_base = self.base_url
+            url = f"{service_base}/{endpoint.lstrip('/')}" if endpoint else service_base
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
