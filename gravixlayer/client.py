@@ -1,8 +1,13 @@
 import os
-import requests
+import time
 import logging
 from typing import Optional, Dict, Any, Type
 from urllib.parse import urlparse, urlunparse
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 from .resources.chat.completions import ChatCompletions
 from .resources.embeddings import Embeddings
 from .resources.completions import Completions
@@ -23,6 +28,10 @@ from .types.exceptions import (
 
 # Known API service path prefixes — stripped during base_url normalization
 _KNOWN_SERVICE_PATHS = ("/v1/inference", "/v1/agents", "/v1/vectors", "/v1/files", "/v1/deployments")
+
+# Connection pool sizing — reuse TCP connections across requests
+_POOL_CONNECTIONS = 10
+_POOL_MAXSIZE = 20
 
 
 class GravixLayer:
@@ -70,6 +79,11 @@ class GravixLayer:
         **kwargs,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "API key must be provided via 'api_key' argument or GRAVIXLAYER_API_KEY environment variable"
+            )
+
         raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com")
 
         # Normalize base_url to just the origin (scheme + host).
@@ -86,27 +100,52 @@ class GravixLayer:
                 break
         self.base_url = urlunparse((parsed.scheme, parsed.netloc, path.rstrip("/"), "", "", ""))
 
-        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD")
-        self.region = region or os.environ.get("GRAVIXLAYER_REGION")
-
-        self.organization = organization
-        self.project = project
-
-        # Validate URL scheme - support both HTTP and HTTPS
+        # Validate URL scheme
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
             raise ValueError("Base URL must start with http:// or https://")
+
+        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD")
+        self.region = region or os.environ.get("GRAVIXLAYER_REGION")
+        self.organization = organization
+        self.project = project
         self.timeout = timeout
         self.max_retries = max_retries
         self.custom_headers = headers or {}
+
+        # Logger — never call basicConfig; let the caller configure logging
         self.logger = logger or logging.getLogger("gravixlayer")
-        self.logger.setLevel(logging.INFO)
-        if not self.logger.hasHandlers():
-            logging.basicConfig(level=logging.INFO)
-        self.user_agent = user_agent or "gravixlayer-python/0.0.45"
-        if not self.api_key:
-            raise ValueError(
-                "API key must be provided via 'api_key' argument or GRAVIXLAYER_API_KEY environment variable"
-            )
+        if not self.logger.handlers:
+            self.logger.addHandler(logging.NullHandler())
+
+        # User-agent auto-tracks the installed version
+        from . import __version__
+        self.user_agent = user_agent or f"gravixlayer-python/{__version__}"
+
+        # Pre-compute stripped base URL and service URL map for fast path construction
+        self._base_url_stripped = self.base_url.rstrip("/")
+        self._service_urls = {
+            svc: f"{self._base_url_stripped}/{svc}"
+            for svc in ("v1/inference", "v1/agents", "v1/vectors", "v1/files", "v1/deployments")
+        }
+
+        # Persistent HTTP session with connection pooling and keep-alive
+        self._session = requests.Session()
+        adapter = HTTPAdapter(
+            pool_connections=_POOL_CONNECTIONS,
+            pool_maxsize=_POOL_MAXSIZE,
+            max_retries=Retry(total=0),  # We handle retries ourselves
+        )
+        self._session.mount("https://", adapter)
+        self._session.mount("http://", adapter)
+
+        # Set persistent headers on the session — avoids re-creating per request
+        self._session.headers.update({
+            "Authorization": f"Bearer {self.api_key}",
+            "User-Agent": self.user_agent,
+        })
+        if self.custom_headers:
+            self._session.headers.update(self.custom_headers)
+
         self.chat = ChatResource(self)
         self.embeddings = Embeddings(self)
         self.completions = Completions(self)
@@ -116,9 +155,6 @@ class GravixLayer:
         self.vectors = VectorDatabase(self)
         self.sandbox = SandboxResource(self)
         self.templates = Templates(self)
-
-        # Memory is now a factory method - requires parameters
-        # Users must call client.memory(...) with required parameters
 
     def memory(
         self,
@@ -167,96 +203,81 @@ class GravixLayer:
     def _make_request(
         self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, stream: bool = False, **kwargs
     ) -> requests.Response:
-        # Pop the service path from kwargs (default: inference)
         _service = kwargs.pop("_service", "v1/inference")
 
         # Handle full URLs (for legacy code that may still pass them)
         if endpoint and (endpoint.startswith("http://") or endpoint.startswith("https://")):
             url = endpoint
         else:
-            # Build: base_url / service / endpoint
             if _service:
-                service_base = f"{self.base_url.rstrip('/')}/{_service}"
+                service_base = self._service_urls.get(_service) or f"{self._base_url_stripped}/{_service}"
             else:
-                service_base = self.base_url.rstrip("/")
+                service_base = self._base_url_stripped
             url = f"{service_base}/{endpoint.lstrip('/')}" if endpoint else service_base
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "User-Agent": self.user_agent,
-            **self.custom_headers,
+
+        # Per-request headers — only Content-Type varies (session holds auth + UA)
+        has_files = "files" in kwargs
+        headers = {"Content-Type": "application/json"} if not has_files else {}
+
+        last_exc: Optional[Exception] = None
+
+        # Build request kwargs once — reused across retry attempts
+        request_kwargs: Dict[str, Any] = {
+            "method": method,
+            "url": url,
+            "headers": headers,
+            "timeout": self.timeout,
+            "stream": stream,
+            **kwargs,
         }
 
-        # Don't set Content-Type for file uploads (let requests handle it)
-        if "files" not in kwargs:
-            headers["Content-Type"] = "application/json"
+        if has_files:
+            request_kwargs["data"] = data
+        else:
+            request_kwargs["json"] = data
 
         for attempt in range(self.max_retries + 1):
             try:
-                # Use different parameters based on request type
-                request_kwargs = {
-                    "method": method,
-                    "url": url,
-                    "headers": headers,
-                    "timeout": self.timeout,
-                    "stream": stream,
-                    **kwargs,
-                }
+                resp = self._session.request(**request_kwargs)
 
-                # For file uploads, use 'data' and 'files' parameters
-                if "files" in kwargs:
-                    request_kwargs["data"] = data
-                else:
-                    request_kwargs["json"] = data
-
-                resp = requests.request(**request_kwargs)
-                # Accept standard success codes:
-                # 200 OK, 201 Created, 202 Accepted, 204 No Content, 207 Multi-Status
-                if resp.status_code in [200, 201, 202, 204, 207]:
+                if resp.status_code in (200, 201, 202, 204, 207):
                     return resp
-                elif resp.status_code == 401:
-                    raise GravixLayerAuthenticationError("Authentication failed.")
-                elif resp.status_code == 429:
-                    retry_after = resp.headers.get("Retry-After")
-                    self.logger.warning(f"Rate limit exceeded. Retrying in {retry_after or 2**attempt}s...")
-                    if attempt < self.max_retries:
-                        import time
 
-                        time.sleep(float(retry_after) if retry_after else (2**attempt))
+                if resp.status_code == 401:
+                    raise GravixLayerAuthenticationError("Authentication failed.")
+
+                if resp.status_code == 429:
+                    if attempt < self.max_retries:
+                        retry_after = resp.headers.get("Retry-After")
+                        delay = float(retry_after) if retry_after else (2 ** attempt)
+                        self.logger.warning("Rate limited. Retrying in %.1fs...", delay)
+                        time.sleep(delay)
                         continue
                     raise GravixLayerRateLimitError(resp.text)
-                elif resp.status_code in [502, 503, 504] and attempt < self.max_retries:
-                    self.logger.warning(f"Server error: {resp.status_code}. Retrying...")
-                    import time
 
-                    time.sleep(2**attempt)
+                if resp.status_code in (502, 503, 504) and attempt < self.max_retries:
+                    delay = 2 ** attempt
+                    self.logger.warning("Server error %d. Retrying in %ds...", resp.status_code, delay)
+                    time.sleep(delay)
                     continue
-                elif 400 <= resp.status_code < 500:
+
+                if 400 <= resp.status_code < 500:
                     raise GravixLayerBadRequestError(resp.text)
-                elif 500 <= resp.status_code < 600:
+                if 500 <= resp.status_code < 600:
                     raise GravixLayerServerError(resp.text)
-                else:
-                    resp.raise_for_status()
-            except requests.RequestException as e:
-                if attempt == self.max_retries:
-                    raise GravixLayerConnectionError(str(e)) from e
-                self.logger.warning("Transient connection error, retrying...")
-                import time
 
-                time.sleep(2**attempt)
-        raise GravixLayerError("Failed to complete request.")
+                resp.raise_for_status()
 
-    def _handle_error_response(self, response):
-        """Handle error responses from API calls"""
-        if response.status_code == 401:
-            raise GravixLayerAuthenticationError("Authentication failed.")
-        elif response.status_code == 429:
-            raise GravixLayerRateLimitError(response.text)
-        elif 400 <= response.status_code < 500:
-            raise GravixLayerBadRequestError(response.text)
-        elif 500 <= response.status_code < 600:
-            raise GravixLayerServerError(response.text)
-        else:
-            response.raise_for_status()
+            except requests.RequestException as exc:
+                last_exc = exc
+                if attempt < self.max_retries:
+                    delay = 2 ** attempt
+                    self.logger.warning("Connection error, retrying in %ds...", delay)
+                    time.sleep(delay)
+                    continue
+                raise GravixLayerConnectionError(str(exc)) from exc
+
+        raise GravixLayerError("Failed to complete request.") from last_exc
 
 
 class ChatResource:

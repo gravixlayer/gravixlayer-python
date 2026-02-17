@@ -2,6 +2,7 @@
 Type definitions for Sandbox API
 """
 
+import dataclasses
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
 from datetime import datetime
@@ -35,14 +36,25 @@ class Sandbox:
     ended_at: Optional[str] = None
     ip_address: Optional[str] = None
 
-    # Fields known to the dataclass — used to filter API responses
-    _KNOWN_FIELDS: set = None  # type: ignore[assignment]
+    # Cached set of public field names — populated once on first use
+    _cached_fields: Optional[frozenset] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
+
+    @classmethod
+    def _known_fields(cls) -> frozenset:
+        """Return the set of public field names for this dataclass (cached)."""
+        if cls._cached_fields is None:
+            cls._cached_fields = frozenset(
+                f.name for f in dataclasses.fields(cls)
+                if not f.name.startswith("_")
+            )
+        return cls._cached_fields
 
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> "Sandbox":
         """Create a Sandbox from an API response dict, ignoring unknown fields."""
-        import dataclasses
-        known = {f.name for f in dataclasses.fields(cls) if not f.name.startswith("_")}
+        known = cls._known_fields()
         filtered = {k: v for k, v in data.items() if k in known}
         return cls(**filtered)
 
@@ -50,7 +62,14 @@ class Sandbox:
         """Initialize client reference after dataclass creation"""
         self._client = None
         self._alive = True
-        self._timeout_seconds = None  # Store the original timeout value
+        self._timeout_seconds = None
+
+    def _require_alive(self) -> None:
+        """Guard: raise if sandbox is terminated or client is missing."""
+        if not self._alive:
+            raise RuntimeError("Sandbox has been terminated")
+        if self._client is None:
+            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
 
     @property
     def timeout(self) -> Optional[int]:
@@ -67,6 +86,7 @@ class Sandbox:
         metadata: Optional[Dict[str, Any]] = None,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
+        client: Optional[Any] = None,
     ) -> "Sandbox":
         """
         Create a new sandbox instance with simplified interface.
@@ -79,13 +99,14 @@ class Sandbox:
             metadata: Optional metadata tags
             api_key: API key (uses GRAVIXLAYER_API_KEY env var if not provided)
             base_url: Base URL (uses GRAVIXLAYER_BASE_URL env var if not provided)
+            client: Existing GravixLayer client to reuse (avoids creating a new session)
 
         Returns:
             Sandbox instance ready for code execution
         """
-        from ..client import GravixLayer
-
-        client = GravixLayer(api_key=api_key, base_url=base_url, cloud=cloud, region=region)
+        if client is None:
+            from ..client import GravixLayer
+            client = GravixLayer(api_key=api_key, base_url=base_url, cloud=cloud, region=region)
 
         sandbox_response = client.sandbox.sandboxes.create(
             template=template,
@@ -93,7 +114,6 @@ class Sandbox:
             metadata=metadata or {},
         )
 
-        # Create instance from response
         instance = cls(
             sandbox_id=sandbox_response.sandbox_id,
             status=sandbox_response.status,
@@ -108,19 +128,13 @@ class Sandbox:
         )
 
         instance._client = client
-        instance._timeout_seconds = timeout  # Store the original timeout value
+        instance._timeout_seconds = timeout
         return instance
 
     def run_code(self, code: str, language: str = "python") -> "Execution":
         """Execute code in the sandbox"""
-        if not self._alive:
-            raise RuntimeError("Sandbox has been terminated")
-
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
-
+        self._require_alive()
         response = self._client.sandbox.sandboxes.run_code(self.sandbox_id, code=code, language=language)
-
         return Execution(response)
 
     def run_command(
@@ -131,68 +145,37 @@ class Sandbox:
         timeout: Optional[int] = None,
     ) -> "Execution":
         """Execute a shell command in the sandbox"""
-        if not self._alive:
-            raise RuntimeError("Sandbox has been terminated")
-
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
-
+        self._require_alive()
         response = self._client.sandbox.sandboxes.run_command(
             self.sandbox_id, command=command, args=args or [], working_dir=working_dir, timeout=timeout
         )
-
         return Execution(response)
 
     def write_file(self, path: str, content: str) -> None:
         """Write content to a file in the sandbox"""
-        if not self._alive:
-            raise RuntimeError("Sandbox has been terminated")
-
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
-
+        self._require_alive()
         self._client.sandbox.sandboxes.write_file(self.sandbox_id, path=path, content=content)
 
     def read_file(self, path: str) -> str:
         """Read content from a file in the sandbox"""
-        if not self._alive:
-            raise RuntimeError("Sandbox has been terminated")
-
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
-
+        self._require_alive()
         response = self._client.sandbox.sandboxes.read_file(self.sandbox_id, path=path)
         return response.content
 
     def list_files(self, path: str = "/home/user") -> List[str]:
         """List files in a directory"""
-        if not self._alive:
-            raise RuntimeError("Sandbox has been terminated")
-
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
-
+        self._require_alive()
         response = self._client.sandbox.sandboxes.list_files(self.sandbox_id, path=path)
         return [f.name for f in response.files]
 
     def delete_file(self, path: str) -> None:
         """Delete a file in the sandbox"""
-        if not self._alive:
-            raise RuntimeError("Sandbox has been terminated")
-
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
-
+        self._require_alive()
         self._client.sandbox.sandboxes.delete_file(self.sandbox_id, path=path)
 
     def upload_file(self, local_path: str, remote_path: str) -> None:
         """Upload a local file to the sandbox"""
-        if not self._alive:
-            raise RuntimeError("Sandbox has been terminated")
-
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
-
+        self._require_alive()
         with open(local_path, "rb") as f:
             self._client.sandbox.sandboxes.upload_file(self.sandbox_id, file=f, path=remote_path)
 
@@ -217,11 +200,7 @@ class Sandbox:
             >>> with open("local.txt", "rb") as f:
             ...     sandbox.write("/tmp/remote.txt", f)
         """
-        if not self._alive:
-            raise RuntimeError("Sandbox has been terminated")
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
-
+        self._require_alive()
         return self._client.sandbox.sandboxes.write(
             self.sandbox_id, path=path, data=data, user=user, mode=mode
         )
@@ -245,11 +224,7 @@ class Sandbox:
             ...     WriteEntry(path="/tmp/run.sh", data="#!/bin/bash\\necho hi", mode=0o755),
             ... ])
         """
-        if not self._alive:
-            raise RuntimeError("Sandbox has been terminated")
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() to create a new instance.")
-
+        self._require_alive()
         return self._client.sandbox.sandboxes.write_files(
             self.sandbox_id, entries=entries, user=user
         )
@@ -260,18 +235,17 @@ class Sandbox:
             try:
                 self._client.sandbox.sandboxes.kill(self.sandbox_id)
             except Exception:
-                pass  # Ignore errors during cleanup
+                pass
             self._alive = False
 
     def is_alive(self) -> bool:
         """Check if the sandbox is still running"""
         if not self._alive or self._client is None:
             return False
-
         try:
             info = self._client.sandbox.sandboxes.get(self.sandbox_id)
             return info.status == "running"
-        except:
+        except Exception:
             self._alive = False
             return False
 
@@ -294,14 +268,6 @@ class Sandbox:
         """Context manager exit - automatically terminate sandbox"""
         self.kill()
 
-    def __del__(self):
-        """Destructor - ensure sandbox is terminated"""
-        if hasattr(self, "_alive") and self._alive:
-            try:
-                self.kill()
-            except:
-                pass  # Ignore errors during cleanup
-
 
 @dataclass
 class SandboxList:
@@ -315,14 +281,14 @@ class SandboxList:
 class SandboxMetrics:
     """Sandbox resource usage metrics"""
 
-    timestamp: str
-    cpu_usage: float
-    memory_usage: float
-    memory_total: float
-    disk_read: int
-    disk_write: int
-    network_rx: int
-    network_tx: int
+    timestamp: str = ""
+    cpu_usage: float = 0.0
+    memory_usage: float = 0.0
+    memory_total: float = 0.0
+    disk_read: int = 0
+    disk_write: int = 0
+    network_rx: int = 0
+    network_tx: int = 0
 
 
 @dataclass
@@ -554,8 +520,8 @@ class CodeContext:
     context_id: str
     language: str
     cwd: str
-    created_at: str
-    expires_at: str
+    created_at: Optional[str] = None
+    expires_at: Optional[str] = None
     status: Optional[str] = None
     last_used: Optional[str] = None
 
@@ -601,54 +567,63 @@ class SandboxKillResponse:
 
 
 class Execution:
-    """Represents the result of code or command execution in a sandbox"""
+    """Represents the result of code or command execution in a sandbox.
+
+    Wraps either a CodeRunResponse or CommandRunResponse, providing a
+    unified interface.  Uses a cached type check instead of repeated
+    hasattr/getattr calls for faster property access at scale.
+    """
+
+    __slots__ = ("_response", "_is_command")
 
     def __init__(self, response: Union[CodeRunResponse, CommandRunResponse]):
         self._response = response
+        self._is_command = isinstance(response, CommandRunResponse)
 
     @property
     def logs(self) -> Dict[str, List[str]]:
         """Get execution logs with stdout and stderr"""
-        if hasattr(self._response, "logs") and self._response.logs:
-            return self._response.logs
-
-        # Fallback for command responses
-        logs: dict = {"stdout": [], "stderr": []}
-        if hasattr(self._response, "stdout") and self._response.stdout:
-            logs["stdout"] = self._response.stdout.split("\n")
-        if hasattr(self._response, "stderr") and self._response.stderr:
-            logs["stderr"] = self._response.stderr.split("\n")
-        return logs
+        if not self._is_command:
+            if self._response.logs:
+                return self._response.logs
+            return {"stdout": [], "stderr": []}
+        # Command response — build logs from stdout/stderr fields
+        result: Dict[str, List[str]] = {"stdout": [], "stderr": []}
+        if self._response.stdout:
+            result["stdout"] = self._response.stdout.split("\n")
+        if self._response.stderr:
+            result["stderr"] = self._response.stderr.split("\n")
+        return result
 
     @property
     def stdout(self) -> str:
         """Get standard output as a string"""
-        if hasattr(self._response, "stdout"):
+        if self._is_command:
             return self._response.stdout or ""
-        if hasattr(self._response, "logs") and self._response.logs:
+        if self._response.logs:
             return "\n".join(self._response.logs.get("stdout", []))
         return ""
 
     @property
     def stderr(self) -> str:
         """Get standard error as a string"""
-        if hasattr(self._response, "stderr"):
+        if self._is_command:
             return self._response.stderr or ""
-        if hasattr(self._response, "logs") and self._response.logs:
+        if self._response.logs:
             return "\n".join(self._response.logs.get("stderr", []))
         return ""
 
     @property
     def exit_code(self) -> int:
         """Get the exit code of the execution"""
-        return getattr(self._response, "exit_code", 0)
+        return self._response.exit_code if self._is_command else 0
 
     @property
     def success(self) -> bool:
         """Check if execution was successful"""
-        return getattr(self._response, "success", self.exit_code == 0)
+        return self._response.success if self._is_command else self.exit_code == 0
 
     @property
     def error(self) -> Optional[Any]:
         """Get execution error if any"""
-        return getattr(self._response, "error", None)
+        return self._response.error

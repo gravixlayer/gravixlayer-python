@@ -2,7 +2,11 @@
 Sandbox API resource for synchronous client
 """
 
+import dataclasses
+import os
 from typing import List, Dict, Any, Optional, BinaryIO, Union
+from urllib.parse import urlencode
+
 from ..types.sandbox import (
     SandboxCreate,
     Sandbox,
@@ -37,8 +41,21 @@ from ..types.sandbox import (
     TemplateList,
     SandboxKillResponse,
 )
-import os
-import io
+
+# Field names known to the SandboxMetrics dataclass — cached once at import time
+_METRICS_FIELDS: frozenset = frozenset(f.name for f in dataclasses.fields(SandboxMetrics))
+
+# Default values for sandbox response fields the API may omit
+_SANDBOX_DEFAULTS: Dict[str, Any] = {
+    "metadata": {},
+    "template": None,
+    "template_id": None,
+    "started_at": None,
+    "timeout_at": None,
+    "cpu_count": None,
+    "memory_mb": None,
+    "ended_at": None,
+}
 
 
 class Sandboxes:
@@ -50,6 +67,16 @@ class Sandboxes:
     def _make_agents_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs):
         """Make a request to the agents API (/v1/agents/...)"""
         return self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
+
+    @staticmethod
+    def _apply_defaults(data: Dict[str, Any], template: Optional[str] = None) -> Dict[str, Any]:
+        """Fill in missing sandbox fields with safe defaults."""
+        for key, default in _SANDBOX_DEFAULTS.items():
+            if key not in data or data[key] is None:
+                data[key] = default
+        if template and not data.get("template"):
+            data["template"] = template
+        return data
 
     # Sandbox Lifecycle Methods
 
@@ -83,91 +110,43 @@ class Sandboxes:
                 "region is required. Pass it to create() or set region on GravixLayer client."
             )
 
-        data = {"provider": resolved_provider, "region": resolved_region, "template": template, "timeout": timeout}
+        data: Dict[str, Any] = {
+            "provider": resolved_provider,
+            "region": resolved_region,
+            "template": template,
+            "timeout": timeout,
+        }
         if env_vars:
             data["env_vars"] = env_vars
         if metadata:
-            data["metadata"] = metadata  # type: ignore[assignment]  # type: ignore[assignment]
+            data["metadata"] = metadata
 
         response = self._make_agents_request("POST", "sandboxes", data)
-        result = response.json()
-
-        # Ensure all fields have defaults if missing
-        defaults = {
-            "metadata": {},
-            "template": template,  # Use the requested template as default
-            "template_id": None,
-            "started_at": None,
-            "timeout_at": None,
-            "cpu_count": None,
-            "memory_mb": None,
-            "ended_at": None,
-        }
-
-        for key, default_value in defaults.items():
-            if key not in result or result[key] is None:
-                result[key] = default_value
-
+        result = self._apply_defaults(response.json(), template=template)
         return Sandbox.from_api(result)
 
     def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> SandboxList:
         """List all sandboxes"""
-        params = {}
+        params: Dict[str, Any] = {}
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
 
-        endpoint = "sandboxes"
-        if params:
-            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-            endpoint = f"sandboxes?{query_string}"
-
+        endpoint = f"sandboxes?{urlencode(params)}" if params else "sandboxes"
         response = self._make_agents_request("GET", endpoint)
         result = response.json()
 
-        # Fix missing fields for each sandbox
-        sandboxes = []
-        defaults = {
-            "metadata": {},
-            "template": None,
-            "template_id": None,
-            "started_at": None,
-            "timeout_at": None,
-            "cpu_count": None,
-            "memory_mb": None,
-            "ended_at": None,
-        }
-
-        for sandbox_data in result["sandboxes"]:
-            for key, default_value in defaults.items():
-                if key not in sandbox_data or sandbox_data[key] is None:
-                    sandbox_data[key] = default_value
-            sandboxes.append(Sandbox.from_api(sandbox_data))
-
+        sandboxes = [
+            Sandbox.from_api(self._apply_defaults(s))
+            for s in result["sandboxes"]
+        ]
         return SandboxList(sandboxes=sandboxes, total=result["total"])
 
     def get(self, sandbox_id: str) -> Sandbox:
         """Get detailed information about a specific sandbox"""
         response = self._make_agents_request("GET", f"sandboxes/{sandbox_id}")
-        result = response.json()
-
-        # Ensure all fields have defaults if missing
-        defaults = {
-            "metadata": {},
-            "template": None,
-            "template_id": None,
-            "started_at": None,
-            "timeout_at": None,
-            "cpu_count": None,
-            "memory_mb": None,
-            "ended_at": None,
-        }
-
-        for key, default_value in defaults.items():
-            if key not in result or result[key] is None:
-                result[key] = default_value
-
+        result = self._apply_defaults(response.json())
         return Sandbox.from_api(result)
 
     def kill(self, sandbox_id: str) -> SandboxKillResponse:
@@ -189,7 +168,8 @@ class Sandboxes:
         """Get current resource usage metrics for a sandbox"""
         response = self._make_agents_request("GET", f"sandboxes/{sandbox_id}/metrics")
         result = response.json()
-        return SandboxMetrics(**result)
+        filtered = {k: v for k, v in result.items() if k in _METRICS_FIELDS}
+        return SandboxMetrics(**filtered)
 
     def get_host_url(self, sandbox_id: str, port: int) -> SandboxHostURL:
         """Get the public URL for accessing a specific port on the sandbox"""
@@ -262,7 +242,7 @@ class Sandboxes:
 
     def download_file(self, sandbox_id: str, path: str) -> bytes:
         """Download a file from the sandbox filesystem"""
-        endpoint = f"sandboxes/{sandbox_id}/download?path={path}"
+        endpoint = f"sandboxes/{sandbox_id}/download?{urlencode({'path': path})}"
         response = self._make_agents_request("GET", endpoint)
         return response.content
 
@@ -310,15 +290,14 @@ class Sandboxes:
         content = self._coerce_to_bytes(data)
         filename = os.path.basename(path)
 
-        # Build query params
-        params = [f"path={path}"]
+        # Build query params with proper URL encoding
+        params: Dict[str, str] = {"path": path}
         if user:
-            params.append(f"username={user}")
+            params["username"] = user
         if mode is not None:
-            params.append(f"mode={oct(mode)}")
-        query = "&".join(params)
+            params["mode"] = oct(mode)
 
-        endpoint = f"sandboxes/{sandbox_id}/files?{query}"
+        endpoint = f"sandboxes/{sandbox_id}/files?{urlencode(params)}"
         files = {"file": (filename, content, "application/octet-stream")}
         response = self._make_agents_request("POST", endpoint, files=files)
         result = response.json()
@@ -370,11 +349,11 @@ class Sandboxes:
             # Use full path as filename so the server preserves the destination
             multipart_files.append(("file", (entry.path, content, "application/octet-stream")))
 
-        # Build query params
-        params = []
+        # Build query params with proper URL encoding
+        params: Dict[str, str] = {}
         if user:
-            params.append(f"username={user}")
-        query = f"?{'&'.join(params)}" if params else ""
+            params["username"] = user
+        query = f"?{urlencode(params)}" if params else ""
 
         endpoint = f"sandboxes/{sandbox_id}/files{query}"
         response = self._make_agents_request("POST", endpoint, files=multipart_files)
@@ -414,15 +393,15 @@ class Sandboxes:
         timeout: Optional[int] = None,
     ) -> CommandRunResponse:
         """Execute a shell command in the sandbox"""
-        data = {"command": command}
-        if args:
+        data: Dict[str, Any] = {"command": command}
+        if args is not None:
             data["args"] = args
-        if working_dir:
+        if working_dir is not None:
             data["working_dir"] = working_dir
-        if environment:
-            data["environment"] = environment  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]
-        if timeout:
-            data["timeout"] = timeout  # type: ignore[assignment]  # type: ignore[assignment]
+        if environment is not None:
+            data["environment"] = environment
+        if timeout is not None:
+            data["timeout"] = timeout
 
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/commands/run", data)
         result = response.json()
@@ -438,42 +417,37 @@ class Sandboxes:
         context_id: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
-        on_stdout: Optional[bool] = False,
-        on_stderr: Optional[bool] = False,
-        on_result: Optional[bool] = False,
-        on_error: Optional[bool] = False,
+        on_stdout: bool = False,
+        on_stderr: bool = False,
+        on_result: bool = False,
+        on_error: bool = False,
     ) -> CodeRunResponse:
         """Execute code in the sandbox using Jupyter kernel"""
-        data = {"code": code}
-        if language:
+        data: Dict[str, Any] = {"code": code}
+        if language is not None:
             data["language"] = language
-        if context_id:
+        if context_id is not None:
             data["context_id"] = context_id
-        if environment:
-            data["environment"] = environment  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]
-        if timeout:
-            data["timeout"] = timeout  # type: ignore[assignment]  # type: ignore[assignment]
+        if environment is not None:
+            data["environment"] = environment
+        if timeout is not None:
+            data["timeout"] = timeout
         if on_stdout:
-            data["on_stdout"] = on_stdout  # type: ignore[assignment]  # type: ignore[assignment]
+            data["on_stdout"] = on_stdout
         if on_stderr:
-            data["on_stderr"] = on_stderr  # type: ignore[assignment]  # type: ignore[assignment]
+            data["on_stderr"] = on_stderr
         if on_result:
-            data["on_result"] = on_result  # type: ignore[assignment]  # type: ignore[assignment]
+            data["on_result"] = on_result
         if on_error:
-            data["on_error"] = on_error  # type: ignore[assignment]  # type: ignore[assignment]
+            data["on_error"] = on_error
 
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/code/run", data)
         result = response.json()
 
-        # Ensure all required fields have defaults
-        if "execution_id" not in result:
-            result["execution_id"] = None
-        if "results" not in result:
-            result["results"] = {}
-        if "error" not in result:
-            result["error"] = None
-        if "logs" not in result:
-            result["logs"] = {"stdout": [], "stderr": []}
+        result.setdefault("execution_id", None)
+        result.setdefault("results", {})
+        result.setdefault("error", None)
+        result.setdefault("logs", {"stdout": [], "stderr": []})
 
         return CodeRunResponse(**result)
 
@@ -540,17 +514,13 @@ class SandboxTemplates:
 
     def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> TemplateList:
         """List available sandbox templates"""
-        params = {}
+        params: Dict[str, Any] = {}
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
 
-        endpoint = "templates"
-        if params:
-            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-            endpoint = f"templates?{query_string}"
-
+        endpoint = f"templates?{urlencode(params)}" if params else "templates"
         response = self._make_agents_request("GET", endpoint)
         result = response.json()
 

@@ -5,11 +5,14 @@ Provides dataclasses and enums for template creation, build orchestration,
 and status tracking. Aligned with the backend template build API contract.
 """
 
+import base64
+import os
+import shlex
+import warnings
 from typing import Dict, Any, List, Optional, Union, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-import os
 
 
 # ---------------------------------------------------------------------------
@@ -45,7 +48,6 @@ class BuildStep:
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to API request format."""
-        import base64
         result: Dict[str, Any] = {"type": self.type, "args": self.args}
         if self.content is not None:
             result["content"] = base64.b64encode(self.content).decode("ascii")
@@ -514,55 +516,63 @@ class TemplateBuilder:
     @staticmethod
     def wait_for_url(url: str, expected_status: int = 200) -> str:
         """Generate a ready_cmd that waits for an HTTP endpoint."""
-        return f"curl -sf -o /dev/null -w '%{{http_code}}' {url} | grep -q {expected_status}"
+        return f"curl -sf -o /dev/null -w '%{{http_code}}' {shlex.quote(url)} | grep -q {expected_status}"
 
     @staticmethod
     def wait_for_file(path: str) -> str:
         """Generate a ready_cmd that waits for a file to exist."""
-        return f"test -f {path}"
+        return f"test -f {shlex.quote(path)}"
 
     @staticmethod
     def wait_for_process(name: str) -> str:
         """Generate a ready_cmd that waits for a process to be running."""
-        return f"pgrep {name} > /dev/null"
+        return f"pgrep {shlex.quote(name)} > /dev/null"
 
     # -- Backward-compatible aliases (deprecated) ---------------------------
-    # These will be removed in a future version. Use the shorter names above.
 
     def set_vcpu(self, count: int) -> "TemplateBuilder":
         """Deprecated: use :meth:`vcpu` instead."""
+        warnings.warn("set_vcpu() is deprecated, use vcpu() instead", DeprecationWarning, stacklevel=2)
         return self.vcpu(count)
 
     def set_memory(self, mb: int) -> "TemplateBuilder":
         """Deprecated: use :meth:`memory` instead."""
+        warnings.warn("set_memory() is deprecated, use memory() instead", DeprecationWarning, stacklevel=2)
         return self.memory(mb)
 
     def set_disk(self, mb: int) -> "TemplateBuilder":
         """Deprecated: use :meth:`disk` instead."""
+        warnings.warn("set_disk() is deprecated, use disk() instead", DeprecationWarning, stacklevel=2)
         return self.disk(mb)
 
     def set_template_id(self, tid: str) -> "TemplateBuilder":
         """Deprecated: use :meth:`template_id` instead."""
+        warnings.warn("set_template_id() is deprecated, use template_id() instead", DeprecationWarning, stacklevel=2)
         return self.template_id(tid)
 
     def set_start_cmd(self, cmd: str) -> "TemplateBuilder":
         """Deprecated: use :meth:`start_cmd` instead."""
+        warnings.warn("set_start_cmd() is deprecated, use start_cmd() instead", DeprecationWarning, stacklevel=2)
         return self.start_cmd(cmd)
 
     def set_ready_cmd(self, cmd: str, timeout_secs: int = 60) -> "TemplateBuilder":
         """Deprecated: use :meth:`ready_cmd` instead."""
+        warnings.warn("set_ready_cmd() is deprecated, use ready_cmd() instead", DeprecationWarning, stacklevel=2)
         return self.ready_cmd(cmd, timeout_secs)
 
     def set_envs(self, e: Dict[str, str]) -> "TemplateBuilder":
         """Deprecated: use :meth:`envs` instead."""
+        warnings.warn("set_envs() is deprecated, use envs() instead", DeprecationWarning, stacklevel=2)
         return self.envs(e)
 
     def set_env(self, key: str, value: str) -> "TemplateBuilder":
         """Deprecated: use :meth:`env` instead."""
+        warnings.warn("set_env() is deprecated, use env() instead", DeprecationWarning, stacklevel=2)
         return self.env(key, value)
 
     def set_tags(self, t: Dict[str, str]) -> "TemplateBuilder":
         """Deprecated: use :meth:`tags` instead."""
+        warnings.warn("set_tags() is deprecated, use tags() instead", DeprecationWarning, stacklevel=2)
         return self.tags(t)
 
     def copy_local_file(
@@ -570,22 +580,27 @@ class TemplateBuilder:
         mode: Optional[str] = None, user: Optional[str] = None,
     ) -> "TemplateBuilder":
         """Deprecated: use :meth:`copy_file` instead."""
+        warnings.warn("copy_local_file() is deprecated, use copy_file() instead", DeprecationWarning, stacklevel=2)
         return self.copy_file(local_path, dest_path, mode=mode, user=user)
 
     def from_python(self, version: str = "3.11-slim") -> "TemplateBuilder":
         """Deprecated: use :meth:`from_image` with ``'python:<version>'``."""
+        warnings.warn("from_python() is deprecated, use from_image('python:...') instead", DeprecationWarning, stacklevel=2)
         return self.from_image(f"python:{version}")
 
     def from_node(self, version: str = "lts") -> "TemplateBuilder":
         """Deprecated: use :meth:`from_image` with ``'node:<version>'``."""
+        warnings.warn("from_node() is deprecated, use from_image('node:...') instead", DeprecationWarning, stacklevel=2)
         return self.from_image(f"node:{version}")
 
     def from_ubuntu(self, version: str = "22.04") -> "TemplateBuilder":
         """Deprecated: use :meth:`from_image` with ``'ubuntu:<version>'``."""
+        warnings.warn("from_ubuntu() is deprecated, use from_image('ubuntu:...') instead", DeprecationWarning, stacklevel=2)
         return self.from_image(f"ubuntu:{version}")
 
     def from_dockerfile(self, content: str) -> "TemplateBuilder":
         """Deprecated: use :meth:`dockerfile` instead."""
+        warnings.warn("from_dockerfile() is deprecated, use dockerfile() instead", DeprecationWarning, stacklevel=2)
         return self.dockerfile(content)
 
     # -- Serialization ------------------------------------------------------

@@ -8,6 +8,7 @@ deleting VM templates via the backend API.
 import time
 import logging
 from typing import Dict, Any, List, Optional, Union
+from urllib.parse import urlencode
 
 from ..types.templates import (
     TemplateBuilder,
@@ -290,11 +291,10 @@ class Templates:
         Returns:
             TemplateListResponse containing template list and pagination info.
         """
-        params = [f"limit={limit}", f"offset={offset}"]
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
         if project_id:
-            params.append(f"project_id={project_id}")
-        query = "&".join(params)
-        endpoint = f"templates?{query}"
+            params["project_id"] = project_id
+        endpoint = f"templates?{urlencode(params)}"
 
         response = self._make_agents_request("GET", endpoint)
         data = response.json()
