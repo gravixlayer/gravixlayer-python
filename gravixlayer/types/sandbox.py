@@ -33,6 +33,18 @@ class Sandbox:
     memory_mb: Optional[int] = None
     metadata: Optional[Dict[str, Any]] = None
     ended_at: Optional[str] = None
+    ip_address: Optional[str] = None
+
+    # Fields known to the dataclass — used to filter API responses
+    _KNOWN_FIELDS: set = None  # type: ignore[assignment]
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "Sandbox":
+        """Create a Sandbox from an API response dict, ignoring unknown fields."""
+        import dataclasses
+        known = {f.name for f in dataclasses.fields(cls) if not f.name.startswith("_")}
+        filtered = {k: v for k, v in data.items() if k in known}
+        return cls(**filtered)
 
     def __post_init__(self):
         """Initialize client reference after dataclass creation"""

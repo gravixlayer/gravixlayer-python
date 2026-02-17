@@ -108,7 +108,7 @@ class Sandboxes:
             if key not in result or result[key] is None:
                 result[key] = default_value
 
-        return Sandbox(**result)
+        return Sandbox.from_api(result)
 
     def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> SandboxList:
         """List all sandboxes"""
@@ -143,7 +143,7 @@ class Sandboxes:
             for key, default_value in defaults.items():
                 if key not in sandbox_data or sandbox_data[key] is None:
                     sandbox_data[key] = default_value
-            sandboxes.append(Sandbox(**sandbox_data))
+            sandboxes.append(Sandbox.from_api(sandbox_data))
 
         return SandboxList(sandboxes=sandboxes, total=result["total"])
 
@@ -168,7 +168,7 @@ class Sandboxes:
             if key not in result or result[key] is None:
                 result[key] = default_value
 
-        return Sandbox(**result)
+        return Sandbox.from_api(result)
 
     def kill(self, sandbox_id: str) -> SandboxKillResponse:
         """Terminate a running sandbox immediately"""

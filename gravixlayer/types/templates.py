@@ -66,21 +66,15 @@ class TemplateBuildStatusEnum(str, Enum):
 
 
 class TemplateBuildPhase(str, Enum):
-    """Fine-grained build phase within a running build.
+    """User-facing build phases.
 
-    The agent may report additional phases not listed here;
+    The server may return phases not listed here;
     callers should handle unknown phase strings gracefully.
     """
-    INIT = "init"
+    INITIALIZING = "initializing"
+    PREPARING = "preparing"
     BUILDING = "building"
-    PULLING_IMAGE = "pulling_image"
-    EXPORTING_IMAGE = "exporting_image"
-    CREATING_ROOTFS = "creating_rootfs"
-    INJECTING_ENVD = "injecting_envd"
-    CREATING_VM = "creating_vm"
-    RUNNING_START_CMD = "running_start_cmd"
-    WAITING_READY = "waiting_ready"
-    CREATING_SNAPSHOT = "creating_snapshot"
+    FINALIZING = "finalizing"
     COMPLETED = "completed"
 
 
