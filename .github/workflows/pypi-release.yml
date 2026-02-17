@@ -24,18 +24,25 @@ jobs:
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
           echo "Commit message: $COMMIT_MSG"
-          
+
+          # Skip version bump commits (pushed by this workflow) to prevent loops
+          if [[ "$COMMIT_MSG" == Bump\ version:* ]]; then
+            echo "Skipping — this is a version bump commit from the release workflow"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           if [[ $COMMIT_MSG =~ ^(patch|minor|major):[[:space:]]*(.+)$ ]]; then
             TYPE="${BASH_REMATCH[1]}"
             NOTES="${BASH_REMATCH[2]}"
-            
-            echo "✅ Release detected: $TYPE"
-            echo "📝 Notes: $NOTES"
+
+            echo "Release detected: $TYPE"
+            echo "Notes: $NOTES"
             echo "should_release=true" >> $GITHUB_OUTPUT
             echo "release_type=$TYPE" >> $GITHUB_OUTPUT
             echo "release_notes=$NOTES" >> $GITHUB_OUTPUT
           else
-            echo "ℹ️ Not a release commit - skipping"
+            echo "Not a release commit — skipping"
             echo "should_release=false" >> $GITHUB_OUTPUT
           fi
 
@@ -50,14 +57,14 @@ jobs:
         id: bump
         run: |
           TYPE="${{ steps.check.outputs.release_type }}"
-          
-          # Get current version
+
+          # Get current version from version.py
           CURRENT_VERSION=$(python -c "exec(open('version.py').read()); print(__version__)")
           echo "Current version: $CURRENT_VERSION"
-          
+
           # Parse version
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-          
+
           # Bump version
           case $TYPE in
             major)
@@ -73,27 +80,35 @@ jobs:
               PATCH=$((PATCH + 1))
               ;;
           esac
-          
+
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
           echo "New version: $NEW_VERSION"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          
+
           # Update version files
           sed -i "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" version.py
           sed -i "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" gravixlayer/__init__.py
           sed -i "s/version=\".*\"/version=\"$NEW_VERSION\"/" setup.py
-          sed -i "s/version = \".*\"/version = \"$NEW_VERSION\"/" pyproject.toml
-          
-          # Configure git with your info (not bot)
+          # Only update the project version line, not tool.mypy.python_version
+          sed -i "/^\[project\]/,/^\[/{s/^version = \".*\"/version = \"$NEW_VERSION\"/}" pyproject.toml
+
+          # Configure git
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
-          
+
           # Commit version bump
           git add version.py gravixlayer/__init__.py setup.py pyproject.toml
           git commit -m "Bump version: $CURRENT_VERSION -> $NEW_VERSION"
-          
+
+          # Delete existing tag if it exists (handles re-runs and force-pushes)
+          git tag -d "v$NEW_VERSION" 2>/dev/null || true
+          git push origin --delete "v$NEW_VERSION" 2>/dev/null || true
+
           # Create and push tag
           git tag "v$NEW_VERSION"
+
+          # Pull with rebase to handle any concurrent changes, then push
+          git pull --rebase origin main || true
           git push origin main
           git push origin "v$NEW_VERSION"
 

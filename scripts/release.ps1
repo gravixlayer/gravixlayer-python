@@ -96,7 +96,8 @@ function Update-VersionInFile($FilePath, $NewVersion) {
         $content = $content -replace 'version=".*"', "version=""$NewVersion"""
     }
     elseif ($FilePath -like "*pyproject.toml") {
-        $content = $content -replace 'version = ".*"', "version = ""$NewVersion"""
+        # Only replace the [project] version, not tool.mypy.python_version
+        $content = $content -replace '(?m)^(version = )".*"', "`${1}""$NewVersion"""
     }
     
     Set-Content -Path $FilePath -Value $content -NoNewline
