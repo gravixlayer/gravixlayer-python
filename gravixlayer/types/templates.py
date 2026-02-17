@@ -8,6 +8,8 @@ and status tracking. Aligned with the backend template build API contract.
 from typing import Dict, Any, List, Optional, Union, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+import os
 
 
 # ---------------------------------------------------------------------------
@@ -187,20 +189,22 @@ class TemplateBuilder:
     """Fluent builder for constructing template build configurations.
 
     Accumulates build steps, environment variables, and configuration
-    that get serialized into a single API request. All mutator methods
-    return self for chaining.
+    that get serialized into a single API request. All methods return
+    ``self`` for chaining.
 
-    Example:
-        >>> template = (
-        ...     TemplateBuilder("my-ml-template")
-        ...     .from_image("python:3.11-slim")
-        ...     .apt_install("git", "curl")
-        ...     .pip_install("numpy", "pandas", "torch")
-        ...     .copy_file("/app/config.yaml", b"model: gpt2")
-        ...     .run("python -c 'import torch; print(torch.__version__)'")
-        ...     .set_start_cmd("python /app/server.py")
-        ...     .set_ready_cmd("curl -s http://localhost:8000/health")
-        ... )
+    Example::
+
+        template = (
+            TemplateBuilder("my-ml-template")
+            .from_image("python:3.11-slim")
+            .vcpu(2)
+            .memory(512)
+            .apt_install("git", "curl")
+            .pip_install("numpy", "pandas")
+            .copy_file("./src/main.py", "/app/main.py")
+            .start_cmd("python /app/main.py")
+            .ready_cmd(TemplateBuilder.wait_for_port(8080))
+        )
     """
 
     def __init__(self, name: str, description: str = ""):
@@ -224,67 +228,76 @@ class TemplateBuilder:
     # -- Base image selection -----------------------------------------------
 
     def from_image(self, image: str) -> "TemplateBuilder":
-        """Set the base Docker image (e.g. 'python:3.11-slim')."""
+        """Set the base Docker image.
+
+        Works exactly like ``FROM`` in a Dockerfile.  Pass the full image
+        reference including the tag.
+
+        Examples::
+
+            builder.from_image("python:3.11-slim")
+            builder.from_image("node:20-slim")
+            builder.from_image("ubuntu:22.04")
+            builder.from_image("nvidia/cuda:12.2.0-base-ubuntu22.04")
+        """
         if self._dockerfile:
             raise ValueError("Cannot set docker_image when dockerfile is already set")
         self._docker_image = image
         return self
 
-    def from_dockerfile(self, content: str) -> "TemplateBuilder":
-        """Set the base image via Dockerfile content."""
+    def dockerfile(self, content: str) -> "TemplateBuilder":
+        """Build the base image from raw Dockerfile content.
+
+        When using this method you do NOT need ``pip_install`` or
+        ``apt_install`` build steps -- handle everything inside the
+        Dockerfile.  You still need ``start_cmd`` and ``ready_cmd`` so
+        the build pipeline knows how to launch and verify the app.
+
+        Example::
+
+            builder.dockerfile(open("Dockerfile").read())
+        """
         if self._docker_image:
             raise ValueError("Cannot set dockerfile when docker_image is already set")
         self._dockerfile = content
         return self
 
-    def from_python(self, version: str = "3.11-slim") -> "TemplateBuilder":
-        """Use a Python base image."""
-        return self.from_image(f"python:{version}")
-
-    def from_node(self, version: str = "lts") -> "TemplateBuilder":
-        """Use a Node.js base image."""
-        return self.from_image(f"node:{version}")
-
-    def from_ubuntu(self, version: str = "22.04") -> "TemplateBuilder":
-        """Use an Ubuntu base image."""
-        return self.from_image(f"ubuntu:{version}")
-
     # -- Resource configuration ---------------------------------------------
 
-    def set_vcpu(self, count: int) -> "TemplateBuilder":
+    def vcpu(self, count: int) -> "TemplateBuilder":
         """Set the number of vCPUs (default: 2)."""
         if count < 1:
             raise ValueError("vcpu_count must be >= 1")
         self._vcpu_count = count
         return self
 
-    def set_memory(self, mb: int) -> "TemplateBuilder":
+    def memory(self, mb: int) -> "TemplateBuilder":
         """Set memory in MB (default: 512)."""
         if mb < 1:
             raise ValueError("memory_mb must be >= 1")
         self._memory_mb = mb
         return self
 
-    def set_disk(self, mb: int) -> "TemplateBuilder":
+    def disk(self, mb: int) -> "TemplateBuilder":
         """Set disk size in MB (default: 4096)."""
         if mb < 1:
             raise ValueError("disk_mb must be >= 1")
         self._disk_mb = mb
         return self
 
-    def set_template_id(self, template_id: str) -> "TemplateBuilder":
+    def template_id(self, tid: str) -> "TemplateBuilder":
         """Set a custom template ID (auto-generated by default)."""
-        self._template_id = template_id
+        self._template_id = tid
         return self
 
     # -- Startup and readiness ----------------------------------------------
 
-    def set_start_cmd(self, cmd: str) -> "TemplateBuilder":
+    def start_cmd(self, cmd: str) -> "TemplateBuilder":
         """Set the command to run after VM starts (captured in snapshot)."""
         self._start_cmd = cmd
         return self
 
-    def set_ready_cmd(self, cmd: str, timeout_secs: int = 60) -> "TemplateBuilder":
+    def ready_cmd(self, cmd: str, timeout_secs: int = 60) -> "TemplateBuilder":
         """Set the readiness check command that must exit 0.
 
         The build process polls this command until success or timeout.
@@ -295,17 +308,17 @@ class TemplateBuilder:
 
     # -- Environment and tags -----------------------------------------------
 
-    def set_envs(self, envs: Dict[str, str]) -> "TemplateBuilder":
-        """Set environment variables (persisted to /etc/profile.d/)."""
+    def envs(self, envs: Dict[str, str]) -> "TemplateBuilder":
+        """Set multiple environment variables (persisted to /etc/profile.d/)."""
         self._environment.update(envs)
         return self
 
-    def set_env(self, key: str, value: str) -> "TemplateBuilder":
+    def env(self, key: str, value: str) -> "TemplateBuilder":
         """Set a single environment variable."""
         self._environment[key] = value
         return self
 
-    def set_tags(self, tags: Dict[str, str]) -> "TemplateBuilder":
+    def tags(self, tags: Dict[str, str]) -> "TemplateBuilder":
         """Set metadata tags."""
         self._tags.update(tags)
         return self
@@ -347,50 +360,105 @@ class TemplateBuilder:
 
     def copy_file(
         self,
-        dest_path: str,
-        content: Union[str, bytes],
+        src: Union[str, bytes, Path],
+        dest: str,
         mode: Optional[str] = None,
         user: Optional[str] = None,
     ) -> "TemplateBuilder":
-        """Copy file content to a path inside the VM.
+        """Copy a file into the template VM.
+
+        The SDK automatically detects whether *src* is a local file path
+        or inline content:
+
+        - **Local file** — if *src* points to an existing file on disk,
+          its contents are read and uploaded.
+        - **Inline string** — if *src* is a string that is not a file path,
+          it is treated as file content and encoded as UTF-8.
+        - **Raw bytes** — if *src* is ``bytes``, it is used as-is.
 
         Args:
-            dest_path: Destination path inside the VM
-            content: File content as str (utf-8 encoded) or bytes
-            mode: Optional file permissions (e.g. "0755")
-            user: Optional file owner
+            src:  Local file path, inline string content, or raw bytes.
+            dest: Destination path inside the VM (e.g. ``"/app/main.py"``).
+            mode: Optional file permissions (e.g. ``"0755"``).
+            user: Optional file owner.
+
+        Examples::
+
+            # Copy a local file
+            builder.copy_file("./src/main.py", "/app/main.py")
+
+            # Copy inline content
+            builder.copy_file("print('hello')", "/app/hello.py")
+
+            # Copy with permissions
+            builder.copy_file("./run.sh", "/app/run.sh", mode="0755")
         """
-        if isinstance(content, str):
-            content = content.encode("utf-8")
-        options = {}
+        if isinstance(src, bytes):
+            content = src
+        elif isinstance(src, Path):
+            with open(str(src), "rb") as f:
+                content = f.read()
+        elif isinstance(src, str) and os.path.isfile(src):
+            with open(src, "rb") as f:
+                content = f.read()
+        elif isinstance(src, str):
+            content = src.encode("utf-8")
+        else:
+            raise ValueError(
+                f"src must be a file path, string content, or bytes, got {type(src)}"
+            )
+
+        options: Dict[str, str] = {}
         if mode:
             options["mode"] = mode
         if user:
             options["user"] = user
         self._build_steps.append(
-            BuildStep(type="copy_file", args=[dest_path], content=content,
+            BuildStep(type="copy_file", args=[dest], content=content,
                       options=options if options else None)
         )
         return self
 
-    def copy_local_file(
+    def copy_dir(
         self,
-        local_path: str,
-        dest_path: str,
+        src: Union[str, Path],
+        dest: str,
         mode: Optional[str] = None,
         user: Optional[str] = None,
     ) -> "TemplateBuilder":
-        """Copy a local file into the template VM.
+        """Copy an entire local directory into the template VM.
+
+        Recursively walks *src* and copies every file, preserving the
+        relative directory structure under *dest*.
 
         Args:
-            local_path: Path to the local file
-            dest_path: Destination path inside the VM
-            mode: Optional file permissions (e.g. "0755")
-            user: Optional file owner
+            src:  Path to the local directory.
+            dest: Destination root inside the VM (e.g. ``"/app/src"``).
+            mode: Optional file permissions applied to every file.
+            user: Optional file owner applied to every file.
+
+        Raises:
+            FileNotFoundError: If *src* does not exist.
+            NotADirectoryError: If *src* is not a directory.
+
+        Examples::
+
+            builder.copy_dir("./src", "/app/src")
+            builder.copy_dir(Path("my_project"), "/app")
         """
-        with open(local_path, "rb") as f:
-            content = f.read()
-        return self.copy_file(dest_path, content, mode=mode, user=user)
+        src_abs = os.path.abspath(str(src))
+        if not os.path.exists(src_abs):
+            raise FileNotFoundError(f"Local directory not found: {src_abs}")
+        if not os.path.isdir(src_abs):
+            raise NotADirectoryError(f"Path is not a directory: {src_abs}")
+
+        for dirpath, _dirnames, filenames in os.walk(src_abs):
+            for filename in filenames:
+                local_path = os.path.join(dirpath, filename)
+                relative = os.path.relpath(local_path, src_abs)
+                vm_path = os.path.join(dest, relative).replace("\\", "/")
+                self.copy_file(local_path, vm_path, mode=mode, user=user)
+        return self
 
     def git_clone(
         self,
@@ -403,16 +471,16 @@ class TemplateBuilder:
         """Clone a git repository inside the VM.
 
         Args:
-            url: Repository URL
-            dest: Destination directory (optional)
-            branch: Branch to clone (optional)
-            depth: Clone depth for shallow clone (optional)
-            auth_token: HTTPS auth token for private repos (optional)
+            url: Repository URL.
+            dest: Destination directory (optional).
+            branch: Branch to clone (optional).
+            depth: Clone depth for shallow clone (optional).
+            auth_token: HTTPS auth token for private repos (optional).
         """
         args = [url]
         if dest:
             args.append(dest)
-        options = {}
+        options: Dict[str, str] = {}
         if branch:
             options["branch"] = branch
         if depth is not None:
@@ -426,8 +494,8 @@ class TemplateBuilder:
         return self
 
     def mkdir(self, path: str, mode: Optional[str] = None) -> "TemplateBuilder":
-        """Create a directory with parents (like mkdir -p)."""
-        options = {}
+        """Create a directory with parents (like ``mkdir -p``)."""
+        options: Dict[str, str] = {}
         if mode:
             options["mode"] = mode
         self._build_steps.append(
@@ -457,6 +525,68 @@ class TemplateBuilder:
     def wait_for_process(name: str) -> str:
         """Generate a ready_cmd that waits for a process to be running."""
         return f"pgrep {name} > /dev/null"
+
+    # -- Backward-compatible aliases (deprecated) ---------------------------
+    # These will be removed in a future version. Use the shorter names above.
+
+    def set_vcpu(self, count: int) -> "TemplateBuilder":
+        """Deprecated: use :meth:`vcpu` instead."""
+        return self.vcpu(count)
+
+    def set_memory(self, mb: int) -> "TemplateBuilder":
+        """Deprecated: use :meth:`memory` instead."""
+        return self.memory(mb)
+
+    def set_disk(self, mb: int) -> "TemplateBuilder":
+        """Deprecated: use :meth:`disk` instead."""
+        return self.disk(mb)
+
+    def set_template_id(self, tid: str) -> "TemplateBuilder":
+        """Deprecated: use :meth:`template_id` instead."""
+        return self.template_id(tid)
+
+    def set_start_cmd(self, cmd: str) -> "TemplateBuilder":
+        """Deprecated: use :meth:`start_cmd` instead."""
+        return self.start_cmd(cmd)
+
+    def set_ready_cmd(self, cmd: str, timeout_secs: int = 60) -> "TemplateBuilder":
+        """Deprecated: use :meth:`ready_cmd` instead."""
+        return self.ready_cmd(cmd, timeout_secs)
+
+    def set_envs(self, e: Dict[str, str]) -> "TemplateBuilder":
+        """Deprecated: use :meth:`envs` instead."""
+        return self.envs(e)
+
+    def set_env(self, key: str, value: str) -> "TemplateBuilder":
+        """Deprecated: use :meth:`env` instead."""
+        return self.env(key, value)
+
+    def set_tags(self, t: Dict[str, str]) -> "TemplateBuilder":
+        """Deprecated: use :meth:`tags` instead."""
+        return self.tags(t)
+
+    def copy_local_file(
+        self, local_path: str, dest_path: str,
+        mode: Optional[str] = None, user: Optional[str] = None,
+    ) -> "TemplateBuilder":
+        """Deprecated: use :meth:`copy_file` instead."""
+        return self.copy_file(local_path, dest_path, mode=mode, user=user)
+
+    def from_python(self, version: str = "3.11-slim") -> "TemplateBuilder":
+        """Deprecated: use :meth:`from_image` with ``'python:<version>'``."""
+        return self.from_image(f"python:{version}")
+
+    def from_node(self, version: str = "lts") -> "TemplateBuilder":
+        """Deprecated: use :meth:`from_image` with ``'node:<version>'``."""
+        return self.from_image(f"node:{version}")
+
+    def from_ubuntu(self, version: str = "22.04") -> "TemplateBuilder":
+        """Deprecated: use :meth:`from_image` with ``'ubuntu:<version>'``."""
+        return self.from_image(f"ubuntu:{version}")
+
+    def from_dockerfile(self, content: str) -> "TemplateBuilder":
+        """Deprecated: use :meth:`dockerfile` instead."""
+        return self.dockerfile(content)
 
     # -- Serialization ------------------------------------------------------
 

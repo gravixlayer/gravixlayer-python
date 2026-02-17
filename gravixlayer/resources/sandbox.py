@@ -266,7 +266,7 @@ class Sandboxes:
         response = self._make_agents_request("GET", endpoint)
         return response.content
 
-    # Multipart File Write Methods (E2B-style)
+    # Multipart File Write Methods
 
     @staticmethod
     def _coerce_to_bytes(data: Union[str, bytes, BinaryIO]) -> bytes:

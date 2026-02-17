@@ -80,18 +80,18 @@ def build_template():
 
     builder = (
         TemplateBuilder("fastapi-hello-agent", description="FastAPI hello-world agent environment")
-        .from_python("3.11-slim")
-        .set_vcpu(2)
-        .set_memory(512)
-        .set_disk(4096)
-        .set_envs({"PYTHONUNBUFFERED": "1"})
-        .set_tags({"agent": "fastapi-hello", "runtime": "python"})
+        .from_image("python:3.11-slim")
+        .vcpu(2)
+        .memory(512)
+        .disk(4096)
+        .envs({"PYTHONUNBUFFERED": "1"})
+        .tags({"agent": "fastapi-hello", "runtime": "python"})
         .apt_install("curl")
         .pip_install("fastapi", "uvicorn[standard]")
         .mkdir("/app")
-        .copy_file("/app/main.py", FASTAPI_APP_CODE)
-        .set_start_cmd(f"uvicorn main:app --host 0.0.0.0 --port {AGENT_PORT} --app-dir /app")
-        .set_ready_cmd(TemplateBuilder.wait_for_port(AGENT_PORT), timeout_secs=60)
+        .copy_file(FASTAPI_APP_CODE, "/app/main.py")
+        .start_cmd(f"uvicorn main:app --host 0.0.0.0 --port {AGENT_PORT} --app-dir /app")
+        .ready_cmd(TemplateBuilder.wait_for_port(AGENT_PORT), timeout_secs=60)
     )
 
     status = client.templates.build_and_wait(
