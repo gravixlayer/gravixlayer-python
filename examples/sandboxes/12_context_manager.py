@@ -31,8 +31,8 @@ print("--- Context Manager (Python sandbox) ---")
 
 with Sandbox.create(
     template=PYTHON_TEMPLATE,
-    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "gravix"),
-    region=os.environ.get("GRAVIXLAYER_REGION", "eu-west-1"),
+    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "azure"),
+    region=os.environ.get("GRAVIXLAYER_REGION", "eastus2"),
     api_key=os.environ["GRAVIXLAYER_API_KEY"],
     timeout=300,
 ) as sbx:
@@ -67,8 +67,8 @@ print("--- Context Manager (Node.js sandbox) ---")
 
 with Sandbox.create(
     template=NODE_TEMPLATE,
-    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "gravix"),
-    region=os.environ.get("GRAVIXLAYER_REGION", "eu-west-1"),
+    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "azure"),
+    region=os.environ.get("GRAVIXLAYER_REGION", "eastus2"),
     api_key=os.environ["GRAVIXLAYER_API_KEY"],
     timeout=300,
 ) as sbx:

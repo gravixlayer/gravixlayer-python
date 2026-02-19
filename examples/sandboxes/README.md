@@ -5,15 +5,48 @@ Standalone examples for creating and managing GravixLayer sandboxes.
 Each file is a complete, runnable script. Cloud and region are set once on the client
 and used automatically for all sandbox operations.
 
-## Prerequisites
+## Get Started
+
+### 1. Get Your API Key
+
+Sign up at [platform.gravixlayer.com](https://platform.gravixlayer.com) to get your API key.
+
+### 2. Install the SDK
 
 ```bash
 pip install gravixlayer
+```
+
+### 3. Set Environment Variables
+
+```bash
 export GRAVIXLAYER_API_KEY="tg_api_key_xxxxx"
 
-# Optional — defaults to gravix / eu-west-1
-export GRAVIXLAYER_CLOUD="gravix"
-export GRAVIXLAYER_REGION="eu-west-1"
+# Required: Set your cloud provider and region
+export GRAVIXLAYER_CLOUD="azure"
+export GRAVIXLAYER_REGION="eastus2"
+```
+
+## Supported Providers and Regions
+
+GravixLayer currently supports Azure for running sandboxes:
+
+| Provider | Regions | Status |
+|----------|---------|--------|
+| **azure** | `eastus2` | ✅ Available |
+| **aws** | - | 🚧 Coming soon |
+| **gcp** | - | 🚧 Coming soon |
+
+**Note:** Cloud provider and region are **required** when creating the client. Set them via environment variables or pass directly to the client:
+
+```python
+from gravixlayer import GravixLayer
+
+client = GravixLayer(
+    api_key="tg_api_key_xxxxx",
+    cloud="azure",        # Required
+    region="eastus2",     # Required
+)
 ```
 
 ## Examples
@@ -67,8 +100,8 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer(
     api_key="tg_api_key_xxxxx",
-    cloud="gravix",
-    region="eu-west-1",
+    cloud="azure",
+    region="eastus2",
 )
 ```
 

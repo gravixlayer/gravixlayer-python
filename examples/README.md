@@ -52,7 +52,7 @@ The `apps/` directory contains minimal applications referenced by the local-dire
 ```python
 from gravixlayer import GravixLayer, TemplateBuilder
 
-client = GravixLayer(cloud="gravix", region="eu-west-1")
+client = GravixLayer(cloud="azure", region="eastus2")
 
 builder = (
     TemplateBuilder("my-python-env")
@@ -101,7 +101,7 @@ status = client.templates.build_and_wait(builder)
 from gravixlayer import GravixLayer
 
 # Cloud and region are set once on the client
-client = GravixLayer(cloud="gravix", region="eu-west-1")
+client = GravixLayer(cloud="azure", region="eastus2")
 
 # Create
 sandbox = client.sandbox.sandboxes.create(template="python-base-v1", timeout=300)

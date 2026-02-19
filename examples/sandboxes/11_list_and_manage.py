@@ -23,8 +23,8 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer(
     api_key=os.environ["GRAVIXLAYER_API_KEY"],
-    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "gravix"),
-    region=os.environ.get("GRAVIXLAYER_REGION", "eu-west-1"),
+    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "azure"),
+    region=os.environ.get("GRAVIXLAYER_REGION", "eastus2"),
 )
 
 # ---------------------------------------------------------------------------

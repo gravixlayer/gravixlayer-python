@@ -23,8 +23,8 @@ log = logging.getLogger(__name__)
 
 client = GravixLayer(
     api_key=os.environ["GRAVIXLAYER_API_KEY"],
-    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "gravix"),
-    region=os.environ.get("GRAVIXLAYER_REGION", "eu-west-1"),
+    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "azure"),
+    region=os.environ.get("GRAVIXLAYER_REGION", "eastus2"),
 )
 
 # -- Build the template -----------------------------------------------------
@@ -39,13 +39,13 @@ builder = (
     .tags({"runtime": "node", "source": "git-repo"})
     .apt_install("curl", "git")
     .git_clone(
-        url="https://github.com/nicolo-gravixlayer/node-express-demo.git",
+        url="https://github.com/IBM/node-hello-world",
         dest="/app",
         branch="main",
         depth=1,
     )
     .run("cd /app && npm install --production")
-    .start_cmd("cd /app && node server.js")
+    .start_cmd("cd /app && node app.js")
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
 )
 

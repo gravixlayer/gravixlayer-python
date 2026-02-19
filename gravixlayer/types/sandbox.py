@@ -80,8 +80,8 @@ class Sandbox:
     def create(
         cls,
         template: str = "python-base-v1",
-        cloud: str = "gravix",
-        region: str = "eu-west-1",
+        cloud: str = "azure",
+        region: str = "eastus2",
         timeout: int = 300,
         metadata: Optional[Dict[str, Any]] = None,
         api_key: Optional[str] = None,
@@ -93,8 +93,8 @@ class Sandbox:
 
         Args:
             template: Template to use (default: "python-base-v1")
-            cloud: Cloud provider (default: "gravix")
-            region: Region to deploy in (default: "eu-west-1")
+            cloud: Cloud provider (default: "azure")
+            region: Region to deploy in (default: "eastus2")
             timeout: Timeout in seconds (default: 300 = 5 minutes, max: 43200)
             metadata: Optional metadata tags
             api_key: API key (uses GRAVIXLAYER_API_KEY env var if not provided)

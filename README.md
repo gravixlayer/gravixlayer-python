@@ -14,25 +14,71 @@ Official Python SDK for [GravixLayer API](https://gravixlayer.com). Simple and p
 pip install gravixlayer
 ```
 
-## Quick Start
+## Get Started
+
+### 1. Get Your API Key
+
+Sign up at [platform.gravixlayer.com](https://platform.gravixlayer.com) to obtain your API key.
+
+### 2. Create a Template
+
+Templates define the runtime environment for your sandboxes. Create one using the SDK:
 
 ```python
 import os
-from gravixlayer import GravixLayer
+from gravixlayer import GravixLayer, TemplateBuilder
 
-client = GravixLayer(api_key=os.environ.get("GRAVIXLAYER_API_KEY"))
-
-response = client.chat.completions.create(
-    model="mistralai/mistral-nemo-instruct-2407",
-    messages=[{"role": "user", "content": "Hello!"}]
+client = GravixLayer(
+    api_key=os.environ["GRAVIXLAYER_API_KEY"],
+    cloud="azure",
+    region="eastus2",
 )
 
-print(response.choices[0].message.content)
+# Build a Python template
+builder = (
+    TemplateBuilder("my-python-app", description="My Python application")
+    .from_image("python:3.11-slim")
+    .vcpu(2)
+    .memory(512)
+    .pip_install("fastapi", "uvicorn[standard]")
+    .copy_file("print('Hello, World!')", "/app/main.py")
+    .start_cmd("cd /app && python main.py")
+)
+
+status = client.templates.build_and_wait(builder, timeout_secs=600)
+print(f"Template ID: {status.template_id}")
 ```
 
----
+### 3. Create a Sandbox
 
-## Chat Completions
+Launch a sandbox instance from your template:
+
+```python
+# Create a sandbox
+sandbox = client.sandbox.sandboxes.create(
+    template="my-python-app",  # or use template ID
+    timeout=300,
+)
+
+print(f"Sandbox ID: {sandbox.sandbox_id}")
+print(f"Status: {sandbox.status}")
+
+# Run code in the sandbox
+result = client.sandbox.sandboxes.run_code(
+    sandbox.sandbox_id,
+    code="print('Hello from sandbox!')",
+    language="python"
+)
+
+print(f"Output: {result.logs}")
+
+# Clean up
+client.sandbox.sandboxes.kill(sandbox.sandbox_id)
+```
+
+## Quick Examples
+
+### Chat Completions
 
 Talk to AI models.
 

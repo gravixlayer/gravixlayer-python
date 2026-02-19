@@ -4,12 +4,51 @@ Step-by-step examples for creating custom sandbox templates with the GravixLayer
 
 Each file is a **complete, standalone script** you can copy and run directly.
 
-## Setup
+## Get Started
+
+### 1. Get Your API Key
+
+Sign up at [platform.gravixlayer.com](https://platform.gravixlayer.com) to get your API key.
+
+### 2. Install the SDK
 
 ```bash
 pip install gravixlayer
-export GRAVIXLAYER_API_KEY="tg_api_key_xxxxx"
 ```
+
+### 3. Set Environment Variables
+
+```bash
+export GRAVIXLAYER_API_KEY="tg_api_key_xxxxx"
+
+# Required: Set your cloud provider and region
+export GRAVIXLAYER_CLOUD="azure"
+export GRAVIXLAYER_REGION="eastus2"
+```
+
+## Supported Providers and Regions
+
+GravixLayer currently supports Azure for template building and sandbox deployment:
+
+| Provider | Regions | Status |
+|----------|---------|--------|
+| **azure** | `eastus2` | ✅ Available |
+| **aws** | - | 🚧 Coming soon |
+| **gcp** | - | 🚧 Coming soon |
+
+**Note:** Cloud provider and region are **required** when creating the client. Set them via environment variables or pass directly to the client:
+
+```python
+from gravixlayer import GravixLayer
+
+client = GravixLayer(
+    api_key="tg_api_key_xxxxx",
+    cloud="azure",        # Required
+    region="eastus2",     # Required
+)
+```
+
+Templates built in a specific provider/region are used to create sandboxes in that same environment.
 
 ## Examples
 

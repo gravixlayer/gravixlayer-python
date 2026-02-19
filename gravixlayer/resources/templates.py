@@ -62,7 +62,7 @@ class Templates:
         >>> from gravixlayer import GravixLayer
         >>> from gravixlayer.types.templates import TemplateBuilder
         >>>
-        >>> client = GravixLayer(api_key="...", cloud="aws", region="us-east-1")
+        >>> client = GravixLayer(api_key="...", cloud="azure", region="eastus2")
         >>> templates = Templates(client)
         >>>
         >>> builder = (

@@ -44,8 +44,8 @@ class GravixLayer:
     Args:
         api_key: API key for authentication (or GRAVIXLAYER_API_KEY env var)
         base_url: Base URL for the API (or GRAVIXLAYER_BASE_URL env var)
-        cloud: Default cloud provider for sandbox/template operations (e.g. "gravix", "aws", "gcp")
-        region: Default region for sandbox/template operations (e.g. "eu-west-1", "us-east-1")
+        cloud: Default cloud provider for sandbox/template operations (default: "azure")
+        region: Default region for sandbox/template operations (default: "eastus2")
         timeout: Request timeout in seconds (default: 60.0)
         max_retries: Maximum retry attempts for transient failures (default: 3)
         headers: Additional HTTP headers to include in requests
@@ -56,8 +56,8 @@ class GravixLayer:
         >>> from gravixlayer import GravixLayer
         >>> client = GravixLayer(
         ...     api_key="your-api-key",
-        ...     cloud="gravix",
-        ...     region="eu-west-1",
+        ...     cloud="azure",
+        ...     region="eastus2",
         ... )
         >>> # cloud and region are used as defaults for sandbox/template calls
         >>> sandbox = client.sandbox.sandboxes.create(template="python-base-v1")
@@ -104,8 +104,8 @@ class GravixLayer:
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
             raise ValueError("Base URL must start with http:// or https://")
 
-        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD")
-        self.region = region or os.environ.get("GRAVIXLAYER_REGION")
+        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD", "azure")
+        self.region = region or os.environ.get("GRAVIXLAYER_REGION", "eastus2")
         self.organization = organization
         self.project = project
         self.timeout = timeout

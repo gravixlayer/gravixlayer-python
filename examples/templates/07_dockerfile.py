@@ -25,8 +25,8 @@ log = logging.getLogger(__name__)
 
 client = GravixLayer(
     api_key=os.environ["GRAVIXLAYER_API_KEY"],
-    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "gravix"),
-    region=os.environ.get("GRAVIXLAYER_REGION", "eu-west-1"),
+    cloud=os.environ.get("GRAVIXLAYER_CLOUD", "azure"),
+    region=os.environ.get("GRAVIXLAYER_REGION", "eastus2"),
 )
 
 # -- Dockerfile content -----------------------------------------------------
@@ -69,7 +69,7 @@ builder = (
     .memory(1024)
     .disk(8192)
     .tags({"source": "dockerfile"})
-    .start_cmd("uvicorn main:app --host 0.0.0.0 --port 8080")
+    .start_cmd("cd /app && uvicorn main:app --host 0.0.0.0 --port 8080")
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
 )
 
