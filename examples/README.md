@@ -9,6 +9,27 @@ pip install gravixlayer
 export GRAVIXLAYER_API_KEY="tg_api_key_xxxxx"
 ```
 
+## Supported Providers and Regions
+
+GravixLayer currently supports **Azure `eastus2`** as the only available provider and region.
+The SDK defaults to `cloud="azure"` and `region="eastus2"` when no value is provided.
+
+| Provider | Region | Status |
+|----------|--------|--------|
+| **azure** | `eastus2` | ✅ Default — available now |
+| **aws** | — | 🚧 Coming soon |
+| **gcp** | — | 🚧 Coming soon |
+
+You can omit `cloud` and `region` entirely — the SDK will use `azure` / `eastus2` by default:
+
+```python
+from gravixlayer import GravixLayer
+
+# These are equivalent:
+client = GravixLayer()                                    # defaults to azure / eastus2
+client = GravixLayer(cloud="azure", region="eastus2")  # explicit
+```
+
 ## Structure
 
 | Directory | Description |
@@ -52,7 +73,7 @@ The `apps/` directory contains minimal applications referenced by the local-dire
 ```python
 from gravixlayer import GravixLayer, TemplateBuilder
 
-client = GravixLayer(cloud="azure", region="eastus2")
+client = GravixLayer()  # defaults to azure / eastus2
 
 builder = (
     TemplateBuilder("my-python-env")
@@ -100,8 +121,8 @@ status = client.templates.build_and_wait(builder)
 ```python
 from gravixlayer import GravixLayer
 
-# Cloud and region are set once on the client
-client = GravixLayer(cloud="azure", region="eastus2")
+# Cloud and region default to azure / eastus2
+client = GravixLayer()
 
 # Create
 sandbox = client.sandbox.sandboxes.create(template="python-base-v1", timeout=300)

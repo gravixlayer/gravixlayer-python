@@ -21,31 +21,30 @@ pip install gravixlayer
 ```bash
 export GRAVIXLAYER_API_KEY="tg_api_key_xxxxx"
 
-# Required: Set your cloud provider and region
-export GRAVIXLAYER_CLOUD="azure"
-export GRAVIXLAYER_REGION="eastus2"
+# Optional — defaults to azure / eastus2 (currently the only supported config)
+# export GRAVIXLAYER_CLOUD="azure"
+# export GRAVIXLAYER_REGION="eastus2"
 ```
 
 ## Supported Providers and Regions
 
-GravixLayer currently supports Azure for template building and sandbox deployment:
+GravixLayer currently supports **Azure `eastus2`** as the only available provider and region.
+The SDK defaults to `cloud="azure"` and `region="eastus2"` when no value is provided.
 
-| Provider | Regions | Status |
-|----------|---------|--------|
-| **azure** | `eastus2` | ✅ Available |
-| **aws** | - | 🚧 Coming soon |
-| **gcp** | - | 🚧 Coming soon |
+| Provider | Region | Status |
+|----------|--------|--------|
+| **azure** | `eastus2` | ✅ Default — available now |
+| **aws** | — | 🚧 Coming soon |
+| **gcp** | — | 🚧 Coming soon |
 
-**Note:** Cloud provider and region are **required** when creating the client. Set them via environment variables or pass directly to the client:
+You can omit `cloud` and `region` entirely — the SDK will use `azure` / `eastus2` by default:
 
 ```python
 from gravixlayer import GravixLayer
 
-client = GravixLayer(
-    api_key="tg_api_key_xxxxx",
-    cloud="azure",        # Required
-    region="eastus2",     # Required
-)
+# These are equivalent:
+client = GravixLayer(api_key="tg_api_key_xxxxx")                                    # defaults to azure / eastus2
+client = GravixLayer(api_key="tg_api_key_xxxxx", cloud="azure", region="eastus2")  # explicit
 ```
 
 Templates built in a specific provider/region are used to create sandboxes in that same environment.
