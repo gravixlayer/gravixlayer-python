@@ -125,7 +125,7 @@ from gravixlayer import GravixLayer
 client = GravixLayer()
 
 # Create
-sandbox = client.sandbox.sandboxes.create(template="python-base-v1", timeout=300)
+sandbox = client.sandbox.sandboxes.create(template="python-base-v1")
 
 # Execute code
 result = client.sandbox.sandboxes.run_code(sandbox.sandbox_id, code="print('hello')")

@@ -363,7 +363,7 @@ def main():
     create_sandbox_parser.add_argument("--provider", required=True, help="Cloud provider (gravix, aws, gcp, azure)")
     create_sandbox_parser.add_argument("--region", required=True, help="Cloud region")
     create_sandbox_parser.add_argument("--template", default="python-base-v1", help="Template name")
-    create_sandbox_parser.add_argument("--timeout", type=int, default=300, help="Timeout in seconds")
+    create_sandbox_parser.add_argument("--timeout", type=int, default=None, help="Timeout in seconds (default: no timeout, runs indefinitely)")
     create_sandbox_parser.add_argument("--env-vars", help="Environment variables as JSON")
     create_sandbox_parser.add_argument("--metadata", help="Metadata as JSON")
 

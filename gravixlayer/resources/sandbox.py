@@ -85,7 +85,7 @@ class Sandboxes:
         provider: Optional[str] = None,
         region: Optional[str] = None,
         template: Optional[str] = "python-base-v1",
-        timeout: Optional[int] = 300,
+        timeout: Optional[int] = None,
         env_vars: Optional[Dict[str, str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Sandbox:
@@ -95,7 +95,7 @@ class Sandboxes:
             provider: Cloud provider (falls back to client.cloud if not set)
             region: Cloud region (falls back to client.region if not set)
             template: Template name or ID to use
-            timeout: Sandbox timeout in seconds (default: 300, max: 43200)
+            timeout: Sandbox timeout in seconds (default: None = no timeout, runs indefinitely)
             env_vars: Environment variables for the sandbox
             metadata: Metadata tags for the sandbox
         """
@@ -114,8 +114,9 @@ class Sandboxes:
             "provider": resolved_provider,
             "region": resolved_region,
             "template": template,
-            "timeout": timeout,
         }
+        if timeout is not None:
+            data["timeout"] = timeout
         if env_vars:
             data["env_vars"] = env_vars
         if metadata:

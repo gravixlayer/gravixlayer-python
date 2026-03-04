@@ -54,12 +54,14 @@ class AsyncSandboxes:
         provider: str,
         region: str,
         template: Optional[str] = "python-base-v1",
-        timeout: Optional[int] = 300,
+        timeout: Optional[int] = None,
         env_vars: Optional[Dict[str, str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Sandbox:
         """Create a new sandbox instance"""
-        data = {"provider": provider, "region": region, "template": template, "timeout": timeout}
+        data = {"provider": provider, "region": region, "template": template}
+        if timeout is not None:
+            data["timeout"] = timeout
         if env_vars:
             data["env_vars"] = env_vars
         if metadata:

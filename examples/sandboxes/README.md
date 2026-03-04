@@ -104,7 +104,7 @@ client = GravixLayer(api_key="tg_api_key_xxxxx")
 ### Create and Terminate
 
 ```python
-sandbox = client.sandbox.sandboxes.create(template="python-base-v1", timeout=300)
+sandbox = client.sandbox.sandboxes.create(template="python-base-v1")
 print(sandbox.sandbox_id)
 
 client.sandbox.sandboxes.kill(sandbox.sandbox_id)
@@ -181,7 +181,7 @@ with Sandbox.create(template="python-base-v1", api_key="...") as sbx:
 ### Timeout Management
 
 ```python
-# Create with custom timeout (seconds, max 43200 = 12 hours)
+# Create with custom timeout (seconds, 0 or omit for no timeout)
 sandbox = client.sandbox.sandboxes.create(template="python-base-v1", timeout=600)
 
 # Extend while running

@@ -15,7 +15,7 @@ class SandboxCreate:
     provider: str
     region: str
     template: Optional[str] = "python-base-v1"
-    timeout: Optional[int] = 300
+    timeout: Optional[int] = None
     env_vars: Optional[Dict[str, str]] = None
     metadata: Optional[Dict[str, Any]] = None
 
@@ -82,7 +82,7 @@ class Sandbox:
         template: str = "python-base-v1",
         cloud: str = "azure",
         region: str = "eastus2",
-        timeout: int = 300,
+        timeout: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
@@ -95,7 +95,7 @@ class Sandbox:
             template: Template to use (default: "python-base-v1")
             cloud: Cloud provider (default: "azure")
             region: Region to deploy in (default: "eastus2")
-            timeout: Timeout in seconds (default: 300 = 5 minutes, max: 43200)
+            timeout: Timeout in seconds (default: None = no timeout, runs indefinitely). Pass 0 to explicitly disable timeout.
             metadata: Optional metadata tags
             api_key: API key (uses GRAVIXLAYER_API_KEY env var if not provided)
             base_url: Base URL (uses GRAVIXLAYER_BASE_URL env var if not provided)

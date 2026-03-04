@@ -462,7 +462,7 @@ sandbox = client.sandbox.sandboxes.create(
     region="us-east-1",
     template="python-base-v1",
     name="my-sandbox",
-    timeout=300
+    timeout=600  # optional, default: no timeout
 )
 ```
 
