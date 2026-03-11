@@ -1,176 +1,204 @@
 """
-Sandbox API resource for asynchronous client
+Sandbox API resource for asynchronous client.
 """
 
-import httpx
-from typing import List, Dict, Any, Optional, BinaryIO
+import dataclasses
+import os
+from typing import List, Dict, Any, Optional, BinaryIO, Union
+from urllib.parse import urlencode
+
 from ..types.sandbox import (
-    SandboxCreate,
     Sandbox,
     SandboxList,
     SandboxMetrics,
-    SandboxTimeout,
     SandboxTimeoutResponse,
     SandboxHostURL,
-    FileRead,
+    SSHInfo,
+    SSHStatus,
     FileReadResponse,
-    FileWrite,
     FileWriteResponse,
-    FileList,
     FileListResponse,
     FileInfo,
-    FileDelete,
     FileDeleteResponse,
-    DirectoryCreate,
     DirectoryCreateResponse,
     FileUploadResponse,
-    CommandRun,
+    WriteEntry,
+    WriteResult,
+    WriteFilesResponse,
     CommandRunResponse,
-    CodeRun,
     CodeRunResponse,
-    CodeContextCreate,
     CodeContext,
     CodeContextDeleteResponse,
     Template,
     TemplateList,
     SandboxKillResponse,
+    _validate_sandbox_id,
+    _validate_path,
 )
+
+# Field names known to the SandboxMetrics dataclass — cached once at import time
+_METRICS_FIELDS: frozenset = frozenset(f.name for f in dataclasses.fields(SandboxMetrics))
+
+# Default values for sandbox response fields the API may omit
+_SANDBOX_DEFAULTS: Dict[str, Any] = {
+    "metadata": {},
+    "template": None,
+    "template_id": None,
+    "started_at": None,
+    "timeout_at": None,
+    "cpu_count": None,
+    "memory_mb": None,
+    "ended_at": None,
+}
 
 
 class AsyncSandboxes:
-    """Sandboxes resource for asynchronous client"""
+    """Sandboxes resource for asynchronous client."""
 
     def __init__(self, client):
         self.client = client
 
     async def _make_agents_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs):
-        """Make a request to the agents API (/v1/agents/...)"""
+        """Make a request to the agents API (/v1/agents/...)."""
         return await self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
+
+    @staticmethod
+    def _apply_defaults(data: Dict[str, Any], template: Optional[str] = None) -> Dict[str, Any]:
+        """Fill in missing sandbox fields with safe defaults."""
+        for key, default in _SANDBOX_DEFAULTS.items():
+            if key not in data or data[key] is None:
+                data[key] = default
+        if template and not data.get("template"):
+            data["template"] = template
+        return data
 
     # Sandbox Lifecycle Methods
 
     async def create(
         self,
-        provider: str,
-        region: str,
+        provider: Optional[str] = None,
+        region: Optional[str] = None,
         template: Optional[str] = "python-base-v1",
         timeout: Optional[int] = None,
         env_vars: Optional[Dict[str, str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        internet_access: Optional[bool] = None,
+        agent_id: Optional[str] = None,
     ) -> Sandbox:
-        """Create a new sandbox instance"""
-        data = {"provider": provider, "region": region, "template": template}
+        """Create a new sandbox instance.
+
+        Args:
+            provider: Cloud provider (falls back to client.cloud if not set)
+            region: Cloud region (falls back to client.region if not set)
+            template: Template name or ID to use
+            timeout: Sandbox timeout in seconds
+            env_vars: Environment variables for the sandbox
+            metadata: Metadata tags for the sandbox
+            internet_access: Whether to allow internet access
+            agent_id: Agent ID to associate with the sandbox
+        """
+        resolved_provider = provider or getattr(self.client, "cloud", None)
+        resolved_region = region or getattr(self.client, "region", None)
+        if not resolved_provider:
+            raise ValueError(
+                "provider is required. Pass it to create() or set cloud on AsyncGravixLayer client."
+            )
+        if not resolved_region:
+            raise ValueError(
+                "region is required. Pass it to create() or set region on AsyncGravixLayer client."
+            )
+
+        data: Dict[str, Any] = {
+            "provider": resolved_provider,
+            "region": resolved_region,
+            "template": template,
+        }
         if timeout is not None:
             data["timeout"] = timeout
         if env_vars:
             data["env_vars"] = env_vars
         if metadata:
-            data["metadata"] = metadata  # type: ignore[assignment]  # type: ignore[assignment]
+            data["metadata"] = metadata
+        if internet_access is not None:
+            data["internet_access"] = internet_access
+        if agent_id is not None:
+            data["agent_id"] = agent_id
 
         response = await self._make_agents_request("POST", "sandboxes", data)
-        result = response.json()
-
-        # Ensure all fields have defaults if missing
-        defaults = {
-            "metadata": {},
-            "template": template,  # Use the requested template as default
-            "template_id": None,
-            "started_at": None,
-            "timeout_at": None,
-            "cpu_count": None,
-            "memory_mb": None,
-            "ended_at": None,
-        }
-
-        for key, default_value in defaults.items():
-            if key not in result or result[key] is None:
-                result[key] = default_value
-
-        return Sandbox(**result)
+        result = self._apply_defaults(response.json(), template=template)
+        sandbox = Sandbox.from_api(result)
+        sandbox._client = self.client
+        return sandbox
 
     async def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> SandboxList:
-        """List all sandboxes"""
-        params = {}
+        """List all sandboxes."""
+        params: Dict[str, Any] = {}
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
 
-        endpoint = "sandboxes"
-        if params:
-            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-            endpoint = f"sandboxes?{query_string}"
-
+        endpoint = f"sandboxes?{urlencode(params)}" if params else "sandboxes"
         response = await self._make_agents_request("GET", endpoint)
         result = response.json()
 
-        # Fix missing fields for each sandbox
         sandboxes = []
-        defaults = {
-            "metadata": {},
-            "template": None,
-            "template_id": None,
-            "started_at": None,
-            "timeout_at": None,
-            "cpu_count": None,
-            "memory_mb": None,
-            "ended_at": None,
-        }
-
-        for sandbox_data in result["sandboxes"]:
-            for key, default_value in defaults.items():
-                if key not in sandbox_data or sandbox_data[key] is None:
-                    sandbox_data[key] = default_value
-            sandboxes.append(Sandbox(**sandbox_data))
-
+        for s in result["sandboxes"]:
+            sb = Sandbox.from_api(self._apply_defaults(s))
+            sb._client = self.client
+            sandboxes.append(sb)
         return SandboxList(sandboxes=sandboxes, total=result["total"])
 
     async def get(self, sandbox_id: str) -> Sandbox:
-        """Get detailed information about a specific sandbox"""
+        """Get detailed information about a specific sandbox."""
+        _validate_sandbox_id(sandbox_id)
         response = await self._make_agents_request("GET", f"sandboxes/{sandbox_id}")
-        result = response.json()
-
-        # Ensure all fields have defaults if missing
-        defaults = {
-            "metadata": {},
-            "template": None,
-            "template_id": None,
-            "started_at": None,
-            "timeout_at": None,
-            "cpu_count": None,
-            "memory_mb": None,
-            "ended_at": None,
-        }
-
-        for key, default_value in defaults.items():
-            if key not in result or result[key] is None:
-                result[key] = default_value
-
-        return Sandbox(**result)
+        result = self._apply_defaults(response.json())
+        sandbox = Sandbox.from_api(result)
+        sandbox._client = self.client
+        return sandbox
 
     async def kill(self, sandbox_id: str) -> SandboxKillResponse:
-        """Terminate a running sandbox immediately"""
+        """Terminate a running sandbox immediately."""
+        _validate_sandbox_id(sandbox_id)
         response = await self._make_agents_request("DELETE", f"sandboxes/{sandbox_id}")
         result = response.json()
         return SandboxKillResponse(**result)
 
+    async def connect(self, sandbox_id: str) -> Dict[str, Any]:
+        """Connect to an existing sandbox.
+
+        Args:
+            sandbox_id: Target sandbox ID.
+
+        Returns:
+            Dict with sandbox_id, status, domain, and message.
+        """
+        _validate_sandbox_id(sandbox_id)
+        response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/connect")
+        return response.json()
+
     # Sandbox Configuration Methods
 
     async def set_timeout(self, sandbox_id: str, timeout: int) -> SandboxTimeoutResponse:
-        """Update the timeout for a running sandbox"""
+        """Update the timeout for a running sandbox."""
+        _validate_sandbox_id(sandbox_id)
         data = {"timeout": timeout}
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/timeout", data)
         result = response.json()
         return SandboxTimeoutResponse(**result)
 
     async def get_metrics(self, sandbox_id: str) -> SandboxMetrics:
-        """Get current resource usage metrics for a sandbox"""
+        """Get current resource usage metrics for a sandbox."""
+        _validate_sandbox_id(sandbox_id)
         response = await self._make_agents_request("GET", f"sandboxes/{sandbox_id}/metrics")
         result = response.json()
-        return SandboxMetrics(**result)
+        filtered = {k: v for k, v in result.items() if k in _METRICS_FIELDS}
+        return SandboxMetrics(**filtered)
 
     async def get_host_url(self, sandbox_id: str, port: int) -> SandboxHostURL:
-        """Get the public URL for accessing a specific port on the sandbox"""
+        """Get the public URL for accessing a specific port on the sandbox."""
+        _validate_sandbox_id(sandbox_id)
         response = await self._make_agents_request("GET", f"sandboxes/{sandbox_id}/host/{port}")
         result = response.json()
         return SandboxHostURL(**result)
@@ -178,32 +206,35 @@ class AsyncSandboxes:
     # File Operations Methods
 
     async def read_file(self, sandbox_id: str, path: str) -> FileReadResponse:
-        """Read the contents of a file from the sandbox filesystem"""
+        """Read the contents of a file from the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path}
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/read", data)
         result = response.json()
         return FileReadResponse(**result)
 
     async def write_file(self, sandbox_id: str, path: str, content: str) -> FileWriteResponse:
-        """Write content to a file in the sandbox filesystem"""
+        """Write content to a file in the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path, "content": content}
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/write", data)
         result = response.json()
         return FileWriteResponse(**result)
 
     async def list_files(self, sandbox_id: str, path: str) -> FileListResponse:
-        """List files and directories in a specified path"""
+        """List files and directories in a specified path."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path}
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/list", data)
         result = response.json()
 
-        # Filter and map file info fields
         files = []
         for file_info in result["files"]:
-            # Map API fields to our dataclass fields
             mapped_info = {
                 "name": file_info.get("name", ""),
-                "path": file_info.get("path", ""),
                 "size": file_info.get("size", 0),
                 "is_dir": file_info.get("is_dir", False),
                 "modified_at": file_info.get("modified_at") or file_info.get("mod_time", ""),
@@ -214,49 +245,157 @@ class AsyncSandboxes:
         return FileListResponse(files=files)
 
     async def delete_file(self, sandbox_id: str, path: str) -> FileDeleteResponse:
-        """Delete a file or directory from the sandbox filesystem"""
+        """Delete a file or directory from the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path}
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/delete", data)
         result = response.json()
         return FileDeleteResponse(**result)
 
     async def make_directory(self, sandbox_id: str, path: str) -> DirectoryCreateResponse:
-        """Create a new directory in the sandbox filesystem"""
+        """Create a new directory in the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path}
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/mkdir", data)
         result = response.json()
         return DirectoryCreateResponse(**result)
 
     async def upload_file(self, sandbox_id: str, file: BinaryIO, path: Optional[str] = None) -> FileUploadResponse:
-        """Upload a file to the sandbox filesystem using multipart form data"""
-        # For async, we need to handle file uploads differently
-        # We'll use httpx directly for multipart uploads
-        url = f"{self._get_agents_base_url()}/sandboxes/{sandbox_id}/upload"
-        headers = {
-            "Authorization": f"Bearer {self.client.api_key}",
-            "User-Agent": self.client.user_agent,
-            **self.client.custom_headers,
-        }
-
-        files = {"file": file}
+        """Upload a file to the sandbox filesystem using multipart form data."""
+        _validate_sandbox_id(sandbox_id)
         data = {}
         if path:
             data["path"] = path
 
-        async with httpx.AsyncClient(timeout=self.client.timeout) as client:
-            response = await client.post(url, headers=headers, files=files, data=data)
-
-            if response.status_code in [200, 201]:
-                result = response.json()
-                return FileUploadResponse(**result)
-            else:
-                response.raise_for_status()
+        files = {"file": file}
+        response = await self._make_agents_request(
+            "POST", f"sandboxes/{sandbox_id}/upload", data=data, files=files
+        )
+        result = response.json()
+        return FileUploadResponse(**result)
 
     async def download_file(self, sandbox_id: str, path: str) -> bytes:
-        """Download a file from the sandbox filesystem"""
-        endpoint = f"sandboxes/{sandbox_id}/download?path={path}"
+        """Download a file from the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
+        endpoint = f"sandboxes/{sandbox_id}/download?{urlencode({'path': path})}"
         response = await self._make_agents_request("GET", endpoint)
         return response.content
+
+    # Multipart File Write Methods
+
+    @staticmethod
+    def _coerce_to_bytes(data: Union[str, bytes, BinaryIO]) -> bytes:
+        """Convert str, bytes, or file-like object to bytes."""
+        if isinstance(data, str):
+            return data.encode("utf-8")
+        if isinstance(data, bytes):
+            return data
+        if hasattr(data, "read"):
+            return data.read()
+        raise TypeError(f"Expected str, bytes, or file-like object, got {type(data).__name__}")
+
+    async def write(
+        self,
+        sandbox_id: str,
+        path: str,
+        data: Union[str, bytes, BinaryIO],
+        user: Optional[str] = None,
+        mode: Optional[int] = None,
+    ) -> WriteResult:
+        """Write a single file to the sandbox using multipart upload.
+
+        Args:
+            sandbox_id: ID of the target sandbox
+            path: Destination path inside the sandbox
+            data: File content as str, bytes, or file-like object
+            user: Optional owner username for the file
+            mode: Optional file permissions as octal int (e.g. 0o755)
+
+        Returns:
+            WriteResult with path, name, and type info
+        """
+        _validate_sandbox_id(sandbox_id)
+        content = self._coerce_to_bytes(data)
+        filename = os.path.basename(path)
+
+        params: Dict[str, str] = {"path": path}
+        if user:
+            params["username"] = user
+        if mode is not None:
+            params["mode"] = oct(mode)
+
+        endpoint = f"sandboxes/{sandbox_id}/files?{urlencode(params)}"
+        files = {"file": (filename, content, "application/octet-stream")}
+        response = await self._make_agents_request("POST", endpoint, files=files)
+        result = response.json()
+
+        if isinstance(result, list) and len(result) > 0:
+            entry = result[0]
+            return WriteResult(
+                path=entry.get("path", path),
+                name=entry.get("name", filename),
+                type=entry.get("type", "file"),
+                size=len(content),
+            )
+        return WriteResult(path=path, name=filename, type="file", size=len(content))
+
+    async def write_files(
+        self,
+        sandbox_id: str,
+        entries: List[WriteEntry],
+        user: Optional[str] = None,
+    ) -> WriteFilesResponse:
+        """Write multiple files to the sandbox in a single multipart upload.
+
+        Args:
+            sandbox_id: ID of the target sandbox
+            entries: List of WriteEntry objects with path, data, and optional mode
+            user: Optional default owner username for all files
+
+        Returns:
+            WriteFilesResponse with per-file results and partial_failure flag
+        """
+        _validate_sandbox_id(sandbox_id)
+        if not entries:
+            return WriteFilesResponse(files=[], partial_failure=False)
+
+        multipart_files = []
+        for entry in entries:
+            content = self._coerce_to_bytes(entry.data)
+            multipart_files.append(("file", (entry.path, content, "application/octet-stream")))
+
+        params: Dict[str, str] = {}
+        if user:
+            params["username"] = user
+        query = f"?{urlencode(params)}" if params else ""
+
+        endpoint = f"sandboxes/{sandbox_id}/files{query}"
+        response = await self._make_agents_request("POST", endpoint, files=multipart_files)
+        result = response.json()
+        partial_failure = response.status_code == 207
+
+        file_results = []
+        if isinstance(result, list):
+            for entry_result in result:
+                file_results.append(WriteResult(
+                    path=entry_result.get("path", ""),
+                    name=entry_result.get("name", ""),
+                    type=entry_result.get("type", "file"),
+                    error=entry_result.get("error"),
+                ))
+        elif isinstance(result, dict) and "files" in result:
+            for entry_result in result["files"]:
+                file_results.append(WriteResult(
+                    path=entry_result.get("path", ""),
+                    name=entry_result.get("name", ""),
+                    type=entry_result.get("type", "file"),
+                    error=entry_result.get("error"),
+                ))
+
+        return WriteFilesResponse(files=file_results, partial_failure=partial_failure)
 
     # Command Execution Methods
 
@@ -269,16 +408,26 @@ class AsyncSandboxes:
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
     ) -> CommandRunResponse:
-        """Execute a shell command in the sandbox"""
-        data = {"command": command}
-        if args:
+        """Execute a shell command in the sandbox.
+
+        Args:
+            sandbox_id: Target sandbox ID.
+            command: The command string to execute.
+            args: Additional arguments.
+            working_dir: Working directory.
+            environment: Environment variables.
+            timeout: Maximum execution time in **seconds** (converted to ms for the backend).
+        """
+        _validate_sandbox_id(sandbox_id)
+        data: Dict[str, Any] = {"command": command}
+        if args is not None:
             data["args"] = args
-        if working_dir:
+        if working_dir is not None:
             data["working_dir"] = working_dir
-        if environment:
-            data["environment"] = environment  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]
-        if timeout:
-            data["timeout"] = timeout  # type: ignore[assignment]  # type: ignore[assignment]
+        if environment is not None:
+            data["environment"] = environment
+        if timeout is not None:
+            data["timeout"] = timeout * 1000
 
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/commands/run", data)
         result = response.json()
@@ -294,50 +443,37 @@ class AsyncSandboxes:
         context_id: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
-        on_stdout: Optional[bool] = False,
-        on_stderr: Optional[bool] = False,
-        on_result: Optional[bool] = False,
-        on_error: Optional[bool] = False,
     ) -> CodeRunResponse:
-        """Execute code in the sandbox using Jupyter kernel"""
-        data = {"code": code}
-        if language:
+        """Execute code in the sandbox using Jupyter kernel.
+
+        Args:
+            sandbox_id: Target sandbox ID.
+            code: Code to execute.
+            language: Language (default: "python").
+            context_id: Execution context ID for state persistence.
+            environment: Environment variables.
+            timeout: Maximum execution time in **seconds** (backend expects seconds for code execution).
+        """
+        _validate_sandbox_id(sandbox_id)
+        data: Dict[str, Any] = {"code": code}
+        if language is not None:
             data["language"] = language
-        if context_id:
+        if context_id is not None:
             data["context_id"] = context_id
-        if environment:
-            data["environment"] = environment  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]  # type: ignore[assignment]
-        if timeout:
-            data["timeout"] = timeout  # type: ignore[assignment]  # type: ignore[assignment]
-        if on_stdout:
-            data["on_stdout"] = on_stdout  # type: ignore[assignment]  # type: ignore[assignment]
-        if on_stderr:
-            data["on_stderr"] = on_stderr  # type: ignore[assignment]  # type: ignore[assignment]
-        if on_result:
-            data["on_result"] = on_result  # type: ignore[assignment]  # type: ignore[assignment]
-        if on_error:
-            data["on_error"] = on_error  # type: ignore[assignment]  # type: ignore[assignment]
+        if environment is not None:
+            data["environment"] = environment
+        if timeout is not None:
+            data["timeout"] = timeout
 
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/code/run", data)
-        result = response.json()
-
-        # Ensure all required fields have defaults
-        if "execution_id" not in result:
-            result["execution_id"] = None
-        if "results" not in result:
-            result["results"] = {}
-        if "error" not in result:
-            result["error"] = None
-        if "logs" not in result:
-            result["logs"] = {"stdout": [], "stderr": []}
-
-        return CodeRunResponse(**result)
+        return CodeRunResponse.from_api(response.json())
 
     async def create_code_context(
         self, sandbox_id: str, language: Optional[str] = "python", cwd: Optional[str] = None
     ) -> CodeContext:
-        """Create an isolated code execution context"""
-        data = {}
+        """Create an isolated code execution context."""
+        _validate_sandbox_id(sandbox_id)
+        data: Dict[str, Any] = {}
         if language:
             data["language"] = language
         if cwd:
@@ -346,42 +482,87 @@ class AsyncSandboxes:
         response = await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/code/contexts", data)
         result = response.json()
 
-        # Map API response to our dataclass fields
         mapped_result = {
             "context_id": result.get("id") or result.get("context_id", ""),
             "language": result.get("language", language or "python"),
             "cwd": result.get("cwd", cwd or "/home/user"),
-            "created_at": result.get("created_at"),
-            "expires_at": result.get("expires_at"),
-            "status": result.get("status"),
-            "last_used": result.get("last_used"),
         }
 
         return CodeContext(**mapped_result)
 
     async def get_code_context(self, sandbox_id: str, context_id: str) -> CodeContext:
-        """Get information about a code execution context"""
+        """Get information about a code execution context."""
+        _validate_sandbox_id(sandbox_id)
         response = await self._make_agents_request("GET", f"sandboxes/{sandbox_id}/code/contexts/{context_id}")
         result = response.json()
 
-        # Map API response to our dataclass fields
         mapped_result = {
             "context_id": result.get("id") or result.get("context_id", ""),
             "language": result.get("language", "python"),
             "cwd": result.get("cwd", "/home/user"),
-            "created_at": result.get("created_at"),
-            "expires_at": result.get("expires_at"),
-            "status": result.get("status"),
-            "last_used": result.get("last_used"),
         }
 
-        return CodeContext(**result)
+        return CodeContext(**mapped_result)
 
     async def delete_code_context(self, sandbox_id: str, context_id: str) -> CodeContextDeleteResponse:
-        """Delete a code execution context"""
+        """Delete a code execution context."""
+        _validate_sandbox_id(sandbox_id)
         response = await self._make_agents_request("DELETE", f"sandboxes/{sandbox_id}/code/contexts/{context_id}")
         result = response.json()
         return CodeContextDeleteResponse(**result)
+
+    # SSH Methods
+
+    async def enable_ssh(self, sandbox_id: str, regenerate_keys: bool = False) -> SSHInfo:
+        """Enable SSH access on a sandbox."""
+        _validate_sandbox_id(sandbox_id)
+        endpoint = f"sandboxes/{sandbox_id}/ssh/enable"
+        if regenerate_keys:
+            endpoint += "?regenerate_keys=true"
+        response = await self._make_agents_request("POST", endpoint)
+        result = response.json()
+        return SSHInfo(
+            sandbox_id=result.get("sandbox_id", sandbox_id),
+            enabled=result.get("enabled", True),
+            port=result.get("port", 0),
+            username=result.get("username", ""),
+            connect_cmd=result.get("connect_cmd", ""),
+            key_fingerprint=result.get("key_fingerprint"),
+            private_key=result.get("private_key"),
+            public_key=result.get("public_key"),
+            ssh_config=result.get("ssh_config"),
+            message=result.get("message"),
+        )
+
+    async def disable_ssh(self, sandbox_id: str) -> None:
+        """Disable SSH access on a sandbox."""
+        _validate_sandbox_id(sandbox_id)
+        await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/ssh/disable")
+
+    async def ssh_status(self, sandbox_id: str) -> SSHStatus:
+        """Get current SSH status for a sandbox."""
+        _validate_sandbox_id(sandbox_id)
+        response = await self._make_agents_request("GET", f"sandboxes/{sandbox_id}/ssh/status")
+        result = response.json()
+        return SSHStatus(
+            sandbox_id=result.get("sandbox_id", sandbox_id),
+            enabled=result.get("enabled", False),
+            port=result.get("port", 0),
+            username=result.get("username", ""),
+            daemon_running=result.get("daemon_running", False),
+        )
+
+    # State Management Methods
+
+    async def pause(self, sandbox_id: str) -> None:
+        """Pause a running sandbox."""
+        _validate_sandbox_id(sandbox_id)
+        await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/pause")
+
+    async def resume(self, sandbox_id: str) -> None:
+        """Resume a paused sandbox."""
+        _validate_sandbox_id(sandbox_id)
+        await self._make_agents_request("POST", f"sandboxes/{sandbox_id}/resume")
 
 
 class AsyncSandboxTemplates:
@@ -395,8 +576,8 @@ class AsyncSandboxTemplates:
         return await self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
 
     async def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> TemplateList:
-        """List available sandbox templates"""
-        params = {}
+        """List available sandbox templates."""
+        params: Dict[str, Any] = {}
         if limit is not None:
             params["limit"] = limit
         if offset is not None:
@@ -404,8 +585,7 @@ class AsyncSandboxTemplates:
 
         endpoint = "templates"
         if params:
-            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-            endpoint = f"templates?{query_string}"
+            endpoint = f"templates?{urlencode(params)}"
 
         response = await self._make_agents_request("GET", endpoint)
         result = response.json()
@@ -415,9 +595,33 @@ class AsyncSandboxTemplates:
 
 
 class AsyncSandboxResource:
-    """Main Sandbox resource that contains sandboxes and templates"""
+    """Main Sandbox resource that contains sandboxes and templates.
+
+    Provides shortcut methods that delegate to ``self.sandboxes`` for
+    the most common operations, allowing both:
+        - ``await client.sandbox.create(...)``  (ergonomic)
+        - ``await client.sandbox.sandboxes.create(...)``  (explicit)
+    """
 
     def __init__(self, client):
         self.client = client
         self.sandboxes = AsyncSandboxes(client)
         self.templates = AsyncSandboxTemplates(client)
+
+    # -- Shortcut delegation methods ----------------------------------------
+
+    async def create(self, **kwargs) -> Sandbox:
+        """Shortcut for ``self.sandboxes.create(...)``."""
+        return await self.sandboxes.create(**kwargs)
+
+    async def list(self, **kwargs) -> SandboxList:
+        """Shortcut for ``self.sandboxes.list(...)``."""
+        return await self.sandboxes.list(**kwargs)
+
+    async def get(self, sandbox_id: str) -> Sandbox:
+        """Shortcut for ``self.sandboxes.get(...)``."""
+        return await self.sandboxes.get(sandbox_id)
+
+    async def kill(self, sandbox_id: str) -> SandboxKillResponse:
+        """Shortcut for ``self.sandboxes.kill(...)``."""
+        return await self.sandboxes.kill(sandbox_id)

@@ -75,6 +75,11 @@ from .types.sandbox import (
     WriteEntry,
     WriteResult,
     WriteFilesResponse,
+    SSHInfo,
+    SSHStatus,
+    ExecutionResult,
+    ExecutionError,
+    ExecutionLogs,
 )
 from .types.templates import (
     BuildStepType,
@@ -94,6 +99,11 @@ from .resources.templates import (
     Templates,
     TemplateBuildError,
     TemplateBuildTimeoutError,
+)
+from .resources.async_templates import (
+    AsyncTemplates,
+    AsyncTemplateBuildError,
+    AsyncTemplateBuildTimeoutError,
 )
 
 # Memory imports will be done lazily to avoid circular imports
@@ -158,6 +168,11 @@ __all__ = [
     "WriteEntry",
     "WriteResult",
     "WriteFilesResponse",
+    "SSHInfo",
+    "SSHStatus",
+    "ExecutionResult",
+    "ExecutionError",
+    "ExecutionLogs",
     # Template build pipeline
     "BuildStepType",
     "BuildStep",
@@ -174,6 +189,9 @@ __all__ = [
     "Templates",
     "TemplateBuildError",
     "TemplateBuildTimeoutError",
+    "AsyncTemplates",
+    "AsyncTemplateBuildError",
+    "AsyncTemplateBuildTimeoutError",
     # Memory types
     "Memory",
     "MemoryType",

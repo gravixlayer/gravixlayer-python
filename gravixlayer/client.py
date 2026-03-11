@@ -1,5 +1,6 @@
 import os
 import time
+import random
 import logging
 from typing import Optional, Dict, Any, Type
 from urllib.parse import urlparse, urlunparse
@@ -156,6 +157,16 @@ class GravixLayer:
         self.sandbox = SandboxResource(self)
         self.templates = Templates(self)
 
+    def close(self) -> None:
+        """Close the underlying HTTP session and release connections."""
+        self._session.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def memory(
         self,
         embedding_model: str,
@@ -249,15 +260,15 @@ class GravixLayer:
                 if resp.status_code == 429:
                     if attempt < self.max_retries:
                         retry_after = resp.headers.get("Retry-After")
-                        delay = float(retry_after) if retry_after else (2 ** attempt)
+                        delay = float(retry_after) if retry_after else (2 ** attempt + random.uniform(0, 1))
                         self.logger.warning("Rate limited. Retrying in %.1fs...", delay)
                         time.sleep(delay)
                         continue
                     raise GravixLayerRateLimitError(resp.text)
 
                 if resp.status_code in (502, 503, 504) and attempt < self.max_retries:
-                    delay = 2 ** attempt
-                    self.logger.warning("Server error %d. Retrying in %ds...", resp.status_code, delay)
+                    delay = 2 ** attempt + random.uniform(0, 1)
+                    self.logger.warning("Server error %d. Retrying in %.1fs...", resp.status_code, delay)
                     time.sleep(delay)
                     continue
 
@@ -271,8 +282,8 @@ class GravixLayer:
             except requests.RequestException as exc:
                 last_exc = exc
                 if attempt < self.max_retries:
-                    delay = 2 ** attempt
-                    self.logger.warning("Connection error, retrying in %ds...", delay)
+                    delay = 2 ** attempt + random.uniform(0, 1)
+                    self.logger.warning("Connection error, retrying in %.1fs...", delay)
                     time.sleep(delay)
                     continue
                 raise GravixLayerConnectionError(str(exc)) from exc

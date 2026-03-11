@@ -56,7 +56,7 @@ Launch a sandbox instance from your template:
 ```python
 # Create a sandbox
 sandbox = client.sandbox.sandboxes.create(
-    template="my-python-app",  # or use template ID
+    ,  # or use template ID
 )
 
 print(f"Sandbox ID: {sandbox.sandbox_id}")

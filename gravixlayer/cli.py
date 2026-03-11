@@ -8,8 +8,7 @@ from gravixlayer import GravixLayer
 def parse_gpu_spec(gpu_type, gpu_count=1):
     """Parse GPU specification and return hardware string"""
     gpu_mapping = {
-        "t4": "nvidia-t4-16gb-pcie_1",
-        "t4": "nvidia-t4-16gb-pcie_2",
+        "t4": "nvidia-t4-16gb-pcie",
     }
 
     gpu_key = gpu_type.lower()

@@ -8,38 +8,33 @@ from typing import List, Dict, Any, Optional, BinaryIO, Union
 from urllib.parse import urlencode
 
 from ..types.sandbox import (
-    SandboxCreate,
     Sandbox,
     SandboxList,
     SandboxMetrics,
     SandboxTimeout,
     SandboxTimeoutResponse,
     SandboxHostURL,
-    FileRead,
+    SSHInfo,
+    SSHStatus,
     FileReadResponse,
-    FileWrite,
     FileWriteResponse,
-    FileList,
     FileListResponse,
     FileInfo,
-    FileDelete,
     FileDeleteResponse,
-    DirectoryCreate,
     DirectoryCreateResponse,
     FileUploadResponse,
     WriteEntry,
     WriteResult,
     WriteFilesResponse,
-    CommandRun,
     CommandRunResponse,
-    CodeRun,
     CodeRunResponse,
-    CodeContextCreate,
     CodeContext,
     CodeContextDeleteResponse,
     Template,
     TemplateList,
     SandboxKillResponse,
+    _validate_sandbox_id,
+    _validate_path,
 )
 
 # Field names known to the SandboxMetrics dataclass — cached once at import time
@@ -88,6 +83,8 @@ class Sandboxes:
         timeout: Optional[int] = None,
         env_vars: Optional[Dict[str, str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        internet_access: Optional[bool] = None,
+        agent_id: Optional[str] = None,
     ) -> Sandbox:
         """Create a new sandbox instance.
 
@@ -95,9 +92,11 @@ class Sandboxes:
             provider: Cloud provider (falls back to client.cloud if not set)
             region: Cloud region (falls back to client.region if not set)
             template: Template name or ID to use
-            timeout: Sandbox timeout in seconds (default: None = no timeout, runs indefinitely)
+            timeout: Sandbox timeout in seconds (default: None = no timeout)
             env_vars: Environment variables for the sandbox
             metadata: Metadata tags for the sandbox
+            internet_access: Whether to allow internet access (default: None = server default)
+            agent_id: Agent ID to associate with the sandbox
         """
         resolved_provider = provider or getattr(self.client, "cloud", None)
         resolved_region = region or getattr(self.client, "region", None)
@@ -121,10 +120,16 @@ class Sandboxes:
             data["env_vars"] = env_vars
         if metadata:
             data["metadata"] = metadata
+        if internet_access is not None:
+            data["internet_access"] = internet_access
+        if agent_id is not None:
+            data["agent_id"] = agent_id
 
         response = self._make_agents_request("POST", "sandboxes", data)
         result = self._apply_defaults(response.json(), template=template)
-        return Sandbox.from_api(result)
+        sandbox = Sandbox.from_api(result)
+        sandbox._client = self.client
+        return sandbox
 
     def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> SandboxList:
         """List all sandboxes"""
@@ -138,42 +143,63 @@ class Sandboxes:
         response = self._make_agents_request("GET", endpoint)
         result = response.json()
 
-        sandboxes = [
-            Sandbox.from_api(self._apply_defaults(s))
-            for s in result["sandboxes"]
-        ]
+        sandboxes = []
+        for s in result["sandboxes"]:
+            sb = Sandbox.from_api(self._apply_defaults(s))
+            sb._client = self.client
+            sandboxes.append(sb)
         return SandboxList(sandboxes=sandboxes, total=result["total"])
 
     def get(self, sandbox_id: str) -> Sandbox:
-        """Get detailed information about a specific sandbox"""
+        """Get detailed information about a specific sandbox."""
+        _validate_sandbox_id(sandbox_id)
         response = self._make_agents_request("GET", f"sandboxes/{sandbox_id}")
         result = self._apply_defaults(response.json())
-        return Sandbox.from_api(result)
+        sandbox = Sandbox.from_api(result)
+        sandbox._client = self.client
+        return sandbox
 
     def kill(self, sandbox_id: str) -> SandboxKillResponse:
-        """Terminate a running sandbox immediately"""
+        """Terminate a running sandbox immediately."""
+        _validate_sandbox_id(sandbox_id)
         response = self._make_agents_request("DELETE", f"sandboxes/{sandbox_id}")
         result = response.json()
         return SandboxKillResponse(**result)
 
+    def connect(self, sandbox_id: str) -> Dict[str, Any]:
+        """Connect to an existing sandbox.
+
+        Args:
+            sandbox_id: Target sandbox ID.
+
+        Returns:
+            Dict with sandbox_id, status, domain, and message.
+        """
+        _validate_sandbox_id(sandbox_id)
+        response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/connect")
+        return response.json()
+
     # Sandbox Configuration Methods
 
     def set_timeout(self, sandbox_id: str, timeout: int) -> SandboxTimeoutResponse:
-        """Update the timeout for a running sandbox"""
+        """Update the timeout for a running sandbox."""
+        _validate_sandbox_id(sandbox_id)
         data = {"timeout": timeout}
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/timeout", data)
         result = response.json()
         return SandboxTimeoutResponse(**result)
 
     def get_metrics(self, sandbox_id: str) -> SandboxMetrics:
-        """Get current resource usage metrics for a sandbox"""
+        """Get current resource usage metrics for a sandbox."""
+        _validate_sandbox_id(sandbox_id)
         response = self._make_agents_request("GET", f"sandboxes/{sandbox_id}/metrics")
         result = response.json()
         filtered = {k: v for k, v in result.items() if k in _METRICS_FIELDS}
         return SandboxMetrics(**filtered)
 
     def get_host_url(self, sandbox_id: str, port: int) -> SandboxHostURL:
-        """Get the public URL for accessing a specific port on the sandbox"""
+        """Get the public URL for accessing a specific port on the sandbox."""
+        _validate_sandbox_id(sandbox_id)
         response = self._make_agents_request("GET", f"sandboxes/{sandbox_id}/host/{port}")
         result = response.json()
         return SandboxHostURL(**result)
@@ -181,32 +207,35 @@ class Sandboxes:
     # File Operations Methods
 
     def read_file(self, sandbox_id: str, path: str) -> FileReadResponse:
-        """Read the contents of a file from the sandbox filesystem"""
+        """Read the contents of a file from the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path}
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/read", data)
         result = response.json()
         return FileReadResponse(**result)
 
     def write_file(self, sandbox_id: str, path: str, content: str) -> FileWriteResponse:
-        """Write content to a file in the sandbox filesystem"""
+        """Write content to a file in the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path, "content": content}
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/write", data)
         result = response.json()
         return FileWriteResponse(**result)
 
     def list_files(self, sandbox_id: str, path: str) -> FileListResponse:
-        """List files and directories in a specified path"""
+        """List files and directories in a specified path."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path}
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/list", data)
         result = response.json()
 
-        # Filter and map file info fields
         files = []
         for file_info in result["files"]:
-            # Map API fields to our dataclass fields
             mapped_info = {
                 "name": file_info.get("name", ""),
-                "path": file_info.get("path", ""),
                 "size": file_info.get("size", 0),
                 "is_dir": file_info.get("is_dir", False),
                 "modified_at": file_info.get("modified_at") or file_info.get("mod_time", ""),
@@ -217,21 +246,26 @@ class Sandboxes:
         return FileListResponse(files=files)
 
     def delete_file(self, sandbox_id: str, path: str) -> FileDeleteResponse:
-        """Delete a file or directory from the sandbox filesystem"""
+        """Delete a file or directory from the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path}
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/delete", data)
         result = response.json()
         return FileDeleteResponse(**result)
 
     def make_directory(self, sandbox_id: str, path: str) -> DirectoryCreateResponse:
-        """Create a new directory in the sandbox filesystem"""
+        """Create a new directory in the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         data = {"path": path}
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/files/mkdir", data)
         result = response.json()
         return DirectoryCreateResponse(**result)
 
     def upload_file(self, sandbox_id: str, file: BinaryIO, path: Optional[str] = None) -> FileUploadResponse:
-        """Upload a file to the sandbox filesystem using multipart form data"""
+        """Upload a file to the sandbox filesystem using multipart form data."""
+        _validate_sandbox_id(sandbox_id)
         files = {"file": file}
         data = {}
         if path:
@@ -242,7 +276,9 @@ class Sandboxes:
         return FileUploadResponse(**result)
 
     def download_file(self, sandbox_id: str, path: str) -> bytes:
-        """Download a file from the sandbox filesystem"""
+        """Download a file from the sandbox filesystem."""
+        _validate_sandbox_id(sandbox_id)
+        _validate_path(path)
         endpoint = f"sandboxes/{sandbox_id}/download?{urlencode({'path': path})}"
         response = self._make_agents_request("GET", endpoint)
         return response.content
@@ -393,7 +429,17 @@ class Sandboxes:
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
     ) -> CommandRunResponse:
-        """Execute a shell command in the sandbox"""
+        """Execute a shell command in the sandbox.
+
+        Args:
+            sandbox_id: Target sandbox ID.
+            command: The command string to execute.
+            args: Additional arguments.
+            working_dir: Working directory.
+            environment: Environment variables.
+            timeout: Maximum execution time in **seconds** (converted to ms for the backend).
+        """
+        _validate_sandbox_id(sandbox_id)
         data: Dict[str, Any] = {"command": command}
         if args is not None:
             data["args"] = args
@@ -402,7 +448,8 @@ class Sandboxes:
         if environment is not None:
             data["environment"] = environment
         if timeout is not None:
-            data["timeout"] = timeout
+            # Backend expects milliseconds; SDK interface uses seconds
+            data["timeout"] = timeout * 1000
 
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/commands/run", data)
         result = response.json()
@@ -418,12 +465,18 @@ class Sandboxes:
         context_id: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
-        on_stdout: bool = False,
-        on_stderr: bool = False,
-        on_result: bool = False,
-        on_error: bool = False,
     ) -> CodeRunResponse:
-        """Execute code in the sandbox using Jupyter kernel"""
+        """Execute code in the sandbox using Jupyter kernel.
+
+        Args:
+            sandbox_id: Target sandbox ID.
+            code: Code to execute.
+            language: Language (default: "python").
+            context_id: Execution context ID for state persistence.
+            environment: Environment variables.
+            timeout: Maximum execution time in **seconds** (backend expects seconds for code execution).
+        """
+        _validate_sandbox_id(sandbox_id)
         data: Dict[str, Any] = {"code": code}
         if language is not None:
             data["language"] = language
@@ -433,29 +486,15 @@ class Sandboxes:
             data["environment"] = environment
         if timeout is not None:
             data["timeout"] = timeout
-        if on_stdout:
-            data["on_stdout"] = on_stdout
-        if on_stderr:
-            data["on_stderr"] = on_stderr
-        if on_result:
-            data["on_result"] = on_result
-        if on_error:
-            data["on_error"] = on_error
 
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/code/run", data)
-        result = response.json()
-
-        result.setdefault("execution_id", None)
-        result.setdefault("results", {})
-        result.setdefault("error", None)
-        result.setdefault("logs", {"stdout": [], "stderr": []})
-
-        return CodeRunResponse(**result)
+        return CodeRunResponse.from_api(response.json())
 
     def create_code_context(
         self, sandbox_id: str, language: Optional[str] = "python", cwd: Optional[str] = None
     ) -> CodeContext:
-        """Create an isolated code execution context"""
+        """Create an isolated code execution context."""
+        _validate_sandbox_id(sandbox_id)
         data = {}
         if language:
             data["language"] = language
@@ -465,42 +504,95 @@ class Sandboxes:
         response = self._make_agents_request("POST", f"sandboxes/{sandbox_id}/code/contexts", data)
         result = response.json()
 
-        # Map API response to our dataclass fields
         mapped_result = {
             "context_id": result.get("id") or result.get("context_id", ""),
             "language": result.get("language", language or "python"),
             "cwd": result.get("cwd", cwd or "/home/user"),
-            "created_at": result.get("created_at"),
-            "expires_at": result.get("expires_at"),
-            "status": result.get("status"),
-            "last_used": result.get("last_used"),
         }
 
         return CodeContext(**mapped_result)
 
     def get_code_context(self, sandbox_id: str, context_id: str) -> CodeContext:
-        """Get information about a code execution context"""
+        """Get information about a code execution context."""
+        _validate_sandbox_id(sandbox_id)
         response = self._make_agents_request("GET", f"sandboxes/{sandbox_id}/code/contexts/{context_id}")
         result = response.json()
 
-        # Map API response to our dataclass fields
         mapped_result = {
             "context_id": result.get("id") or result.get("context_id", ""),
             "language": result.get("language", "python"),
             "cwd": result.get("cwd", "/home/user"),
-            "created_at": result.get("created_at"),
-            "expires_at": result.get("expires_at"),
-            "status": result.get("status"),
-            "last_used": result.get("last_used"),
         }
 
         return CodeContext(**mapped_result)
 
     def delete_code_context(self, sandbox_id: str, context_id: str) -> CodeContextDeleteResponse:
-        """Delete a code execution context"""
+        """Delete a code execution context."""
+        _validate_sandbox_id(sandbox_id)
         response = self._make_agents_request("DELETE", f"sandboxes/{sandbox_id}/code/contexts/{context_id}")
         result = response.json()
         return CodeContextDeleteResponse(**result)
+
+    # SSH Methods
+
+    def enable_ssh(self, sandbox_id: str, regenerate_keys: bool = False) -> SSHInfo:
+        """Enable SSH access on a sandbox.
+
+        Args:
+            sandbox_id: Target sandbox ID.
+            regenerate_keys: If True, regenerate SSH keys even if already enabled.
+
+        Returns:
+            SSHInfo with connection details.
+        """
+        _validate_sandbox_id(sandbox_id)
+        endpoint = f"sandboxes/{sandbox_id}/ssh/enable"
+        if regenerate_keys:
+            endpoint += "?regenerate_keys=true"
+        response = self._make_agents_request("POST", endpoint)
+        result = response.json()
+        return SSHInfo(
+            sandbox_id=result.get("sandbox_id", sandbox_id),
+            enabled=result.get("enabled", True),
+            port=result.get("port", 0),
+            username=result.get("username", ""),
+            connect_cmd=result.get("connect_cmd", ""),
+            key_fingerprint=result.get("key_fingerprint"),
+            private_key=result.get("private_key"),
+            public_key=result.get("public_key"),
+            ssh_config=result.get("ssh_config"),
+            message=result.get("message"),
+        )
+
+    def disable_ssh(self, sandbox_id: str) -> None:
+        """Disable SSH access on a sandbox."""
+        _validate_sandbox_id(sandbox_id)
+        self._make_agents_request("POST", f"sandboxes/{sandbox_id}/ssh/disable")
+
+    def ssh_status(self, sandbox_id: str) -> SSHStatus:
+        """Get current SSH status for a sandbox."""
+        _validate_sandbox_id(sandbox_id)
+        response = self._make_agents_request("GET", f"sandboxes/{sandbox_id}/ssh/status")
+        result = response.json()
+        return SSHStatus(
+            sandbox_id=result.get("sandbox_id", sandbox_id),
+            enabled=result.get("enabled", False),
+            port=result.get("port", 0),
+            username=result.get("username", ""),
+            daemon_running=result.get("daemon_running", False),
+        )
+
+    # State Management Methods
+
+    def pause(self, sandbox_id: str) -> None:
+        """Pause a running sandbox."""
+        _validate_sandbox_id(sandbox_id)
+        self._make_agents_request("POST", f"sandboxes/{sandbox_id}/pause")
+
+    def resume(self, sandbox_id: str) -> None:
+        """Resume a paused sandbox."""
+        _validate_sandbox_id(sandbox_id)
+        self._make_agents_request("POST", f"sandboxes/{sandbox_id}/resume")
 
 
 class SandboxTemplates:
@@ -530,9 +622,33 @@ class SandboxTemplates:
 
 
 class SandboxResource:
-    """Main Sandbox resource that contains sandboxes and templates"""
+    """Main Sandbox resource that contains sandboxes and templates.
+
+    Provides shortcut methods that delegate to ``self.sandboxes`` for
+    the most common operations, allowing both:
+        - ``client.sandbox.create(...)``  (ergonomic)
+        - ``client.sandbox.sandboxes.create(...)``  (explicit)
+    """
 
     def __init__(self, client):
         self.client = client
         self.sandboxes = Sandboxes(client)
         self.templates = SandboxTemplates(client)
+
+    # -- Shortcut delegation methods ----------------------------------------
+
+    def create(self, **kwargs) -> Sandbox:
+        """Shortcut for ``self.sandboxes.create(...)``."""
+        return self.sandboxes.create(**kwargs)
+
+    def list(self, **kwargs) -> SandboxList:
+        """Shortcut for ``self.sandboxes.list(...)``."""
+        return self.sandboxes.list(**kwargs)
+
+    def get(self, sandbox_id: str) -> Sandbox:
+        """Shortcut for ``self.sandboxes.get(...)``."""
+        return self.sandboxes.get(sandbox_id)
+
+    def kill(self, sandbox_id: str) -> SandboxKillResponse:
+        """Shortcut for ``self.sandboxes.kill(...)``."""
+        return self.sandboxes.kill(sandbox_id)

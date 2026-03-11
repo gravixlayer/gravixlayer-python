@@ -112,4 +112,7 @@ test_stream.py
 test_embeddings.py
 test_async.py
 comparison.py
+
+# Internal review docs
+SDK_PRODUCTION_READINESS*.md
 /tests/

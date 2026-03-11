@@ -1,11 +1,11 @@
 """
-Template Build Pipeline resource for synchronous client.
+Template Build Pipeline resource for asynchronous client.
 
-Provides methods for creating, building, polling, listing, and
-deleting VM templates via the backend API.
+Provides async methods for creating, building, polling, listing, and
+deleting VM templates via the backend API. Mirrors the sync Templates class.
 """
 
-import time
+import asyncio
 import logging
 from typing import Dict, Any, List, Optional, Union
 from urllib.parse import urlencode
@@ -26,7 +26,7 @@ from ..types.templates import (
 logger = logging.getLogger(__name__)
 
 
-class TemplateBuildError(Exception):
+class AsyncTemplateBuildError(Exception):
     """Raised when a template build fails."""
 
     def __init__(self, build_id: str, message: str, status: Optional[TemplateBuildStatus] = None):
@@ -35,7 +35,7 @@ class TemplateBuildError(Exception):
         super().__init__(f"Template build {build_id} failed: {message}")
 
 
-class TemplateBuildTimeoutError(TemplateBuildError):
+class AsyncTemplateBuildTimeoutError(AsyncTemplateBuildError):
     """Raised when a template build exceeds the timeout."""
 
     def __init__(self, build_id: str, timeout_secs: int, status: Optional[TemplateBuildStatus] = None):
@@ -47,8 +47,8 @@ class TemplateBuildTimeoutError(TemplateBuildError):
         )
 
 
-class Templates:
-    """Template Build Pipeline resource.
+class AsyncTemplates:
+    """Async Template Build Pipeline resource.
 
     Exposes methods aligned with the backend template API:
         POST   /v1/agents/templates/build
@@ -59,23 +59,19 @@ class Templates:
         DELETE /v1/agents/templates/:id
 
     Example:
-        >>> from gravixlayer import GravixLayer
+        >>> from gravixlayer import AsyncGravixLayer
         >>> from gravixlayer.types.templates import TemplateBuilder
         >>>
-        >>> client = GravixLayer(api_key="...", cloud="azure", region="eastus2")
-        >>> templates = Templates(client)
-        >>>
-        >>> builder = (
-        ...     TemplateBuilder("my-ml-env")
-        ...     .from_python("3.11-slim")
-        ...     .apt_install("git", "curl")
-        ...     .pip_install("numpy", "pandas")
-        ...     .set_start_cmd("python /app/serve.py")
-        ... )
-        >>>
-        >>> # Blocking build with status polling
-        >>> status = templates.build_and_wait(builder, timeout_secs=600)
-        >>> print(status.template_id)
+        >>> async with AsyncGravixLayer(api_key="...") as client:
+        ...     builder = (
+        ...         TemplateBuilder("my-ml-env")
+        ...         .from_image("python:3.11-slim")
+        ...         .apt_install("git", "curl")
+        ...         .pip_install("numpy", "pandas")
+        ...         .start_cmd("python /app/serve.py")
+        ...     )
+        ...     status = await client.templates.build_and_wait(builder, timeout_secs=600)
+        ...     print(status.template_id)
     """
 
     def __init__(self, client):
@@ -83,7 +79,7 @@ class Templates:
 
     # -- Internal helpers ---------------------------------------------------
 
-    def _make_agents_request(
+    async def _make_agents_request(
         self,
         method: str,
         endpoint: str,
@@ -91,7 +87,7 @@ class Templates:
         **kwargs,
     ):
         """Issue a request against the agents API (/v1/agents/...)."""
-        return self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
+        return await self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
 
     @staticmethod
     def _parse_build_response(data: Dict[str, Any]) -> TemplateBuildResponse:
@@ -147,7 +143,7 @@ class Templates:
 
     # -- Build operations ---------------------------------------------------
 
-    def build(
+    async def build(
         self,
         builder: Union[TemplateBuilder, Dict[str, Any]],
     ) -> TemplateBuildResponse:
@@ -165,10 +161,10 @@ class Templates:
         else:
             payload = builder
 
-        response = self._make_agents_request("POST", "templates/build", payload)
+        response = await self._make_agents_request("POST", "templates/build", payload)
         return self._parse_build_response(response.json())
 
-    def get_build_status(self, build_id: str) -> TemplateBuildStatus:
+    async def get_build_status(self, build_id: str) -> TemplateBuildStatus:
         """Poll the status of a running template build.
 
         Args:
@@ -177,19 +173,19 @@ class Templates:
         Returns:
             TemplateBuildStatus with current phase and progress.
         """
-        response = self._make_agents_request(
+        response = await self._make_agents_request(
             "GET", f"templates/builds/{build_id}/status"
         )
         return self._parse_build_status(response.json())
 
-    def build_and_wait(
+    async def build_and_wait(
         self,
         builder: Union[TemplateBuilder, Dict[str, Any]],
         poll_interval_secs: float = 5.0,
         timeout_secs: int = 600,
         on_status: Optional[BuildLogCallback] = None,
     ) -> TemplateBuildStatus:
-        """Start a build and block until it completes or fails.
+        """Start a build and wait until it completes or fails.
 
         Args:
             builder: A TemplateBuilder or raw dict for the build request.
@@ -201,10 +197,10 @@ class Templates:
             Final TemplateBuildStatus when the build reaches a terminal state.
 
         Raises:
-            TemplateBuildError: If the build fails.
-            TemplateBuildTimeoutError: If the build exceeds timeout.
+            AsyncTemplateBuildError: If the build fails.
+            AsyncTemplateBuildTimeoutError: If the build exceeds timeout.
         """
-        build_response = self.build(builder)
+        build_response = await self.build(builder)
         build_id = build_response.build_id
 
         logger.info(
@@ -219,24 +215,23 @@ class Templates:
                 message=f"Build started: {build_response.message}",
             ))
 
-        deadline = time.monotonic() + timeout_secs
+        import time as _time
+        deadline = _time.monotonic() + timeout_secs
         last_phase = ""
 
         while True:
-            if time.monotonic() > deadline:
-                # Fetch one last status for the caller
+            if _time.monotonic() > deadline:
                 try:
-                    final = self.get_build_status(build_id)
+                    final = await self.get_build_status(build_id)
                 except Exception:
                     final = None
-                raise TemplateBuildTimeoutError(
+                raise AsyncTemplateBuildTimeoutError(
                     build_id, timeout_secs, status=final
                 )
 
-            time.sleep(poll_interval_secs)
-            status = self.get_build_status(build_id)
+            await asyncio.sleep(poll_interval_secs)
+            status = await self.get_build_status(build_id)
 
-            # Notify on phase transitions
             if status.phase != last_phase:
                 last_phase = status.phase
                 logger.info(
@@ -268,13 +263,13 @@ class Templates:
                             level="error",
                             message=f"Build failed: {error_msg}",
                         ))
-                    raise TemplateBuildError(
+                    raise AsyncTemplateBuildError(
                         build_id, error_msg, status=status
                     )
 
     # -- Template CRUD ------------------------------------------------------
 
-    def list(
+    async def list(
         self,
         limit: int = 100,
         offset: int = 0,
@@ -295,7 +290,7 @@ class Templates:
             params["project_id"] = project_id
         endpoint = f"templates?{urlencode(params)}"
 
-        response = self._make_agents_request("GET", endpoint)
+        response = await self._make_agents_request("GET", endpoint)
         data = response.json()
         templates = [self._parse_template_info(t) for t in data.get("templates", [])]
         return TemplateListResponse(
@@ -304,7 +299,7 @@ class Templates:
             offset=data.get("offset", offset),
         )
 
-    def get(self, template_id: str) -> TemplateInfo:
+    async def get(self, template_id: str) -> TemplateInfo:
         """Get a single template by ID.
 
         Args:
@@ -313,10 +308,10 @@ class Templates:
         Returns:
             TemplateInfo with full template metadata.
         """
-        response = self._make_agents_request("GET", f"templates/{template_id}")
+        response = await self._make_agents_request("GET", f"templates/{template_id}")
         return self._parse_template_info(response.json())
 
-    def get_snapshot(self, template_id: str) -> TemplateSnapshot:
+    async def get_snapshot(self, template_id: str) -> TemplateSnapshot:
         """Get template snapshot information.
 
         Args:
@@ -325,12 +320,12 @@ class Templates:
         Returns:
             TemplateSnapshot with snapshot metadata.
         """
-        response = self._make_agents_request(
+        response = await self._make_agents_request(
             "GET", f"templates/{template_id}/snapshot"
         )
         return self._parse_snapshot(response.json())
 
-    def delete(self, template_id: str) -> TemplateDeleteResponse:
+    async def delete(self, template_id: str) -> TemplateDeleteResponse:
         """Delete a template and its snapshot.
 
         Args:
@@ -339,6 +334,5 @@ class Templates:
         Returns:
             TemplateDeleteResponse confirming deletion.
         """
-        self._make_agents_request("DELETE", f"templates/{template_id}")
-        # Backend returns 204 No Content
+        await self._make_agents_request("DELETE", f"templates/{template_id}")
         return TemplateDeleteResponse(template_id=template_id, deleted=True)

@@ -133,9 +133,8 @@ class TemplateInfo:
     visibility: str
     created_at: str
     updated_at: str
-    base_image: Optional[str] = None
-    environment: Optional[Dict[str, str]] = None
-    tags: Optional[Dict[str, str]] = None
+    provider: Optional[str] = None
+    region: Optional[str] = None
 
 
 @dataclass
@@ -606,7 +605,17 @@ class TemplateBuilder:
     # -- Serialization ------------------------------------------------------
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize the builder state to the API request body."""
+        """Serialize the builder state to the API request body.
+
+        Raises:
+            ValueError: If both docker_image and dockerfile are set.
+        """
+        if self._docker_image and self._dockerfile:
+            raise ValueError(
+                "Cannot specify both docker_image and dockerfile in a template build. "
+                "Use from_image() for a pre-built image OR dockerfile() for a custom build, not both."
+            )
+
         data: Dict[str, Any] = {"name": self._name}
 
         if self._description:

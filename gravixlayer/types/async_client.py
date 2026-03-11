@@ -3,8 +3,20 @@ import httpx
 import logging
 import asyncio
 import json
+import random
 from urllib.parse import urlparse, urlunparse
 from typing import Optional, Dict, Any, List, Union, AsyncIterator
+
+
+def _get_sdk_version() -> str:
+    """Get the SDK version from the package module (cached at import time)."""
+    try:
+        from .. import __version__
+        return __version__
+    except Exception:
+        return "unknown"
+
+
 from ..types.chat import (
     ChatCompletion,
     ChatCompletionChoice,
@@ -26,6 +38,7 @@ from ..resources.async_embeddings import AsyncEmbeddings
 from ..resources.async_completions import AsyncCompletions
 from ..resources.vectors.async_main import AsyncVectorDatabase
 from ..resources.async_sandbox import AsyncSandboxResource
+from ..resources.async_templates import AsyncTemplates
 
 
 class AsyncChatResource:
@@ -267,14 +280,19 @@ class AsyncChatCompletions:
 
 
 class AsyncGravixLayer:
-    """
-    Async client for GravixLayer
+    """Async client for GravixLayer.
+
+    Reuses a single httpx.AsyncClient across all requests for
+    connection pooling and performance. Use as an async context manager
+    or call ``await client.aclose()`` when done.
     """
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
+        cloud: Optional[str] = None,
+        region: Optional[str] = None,
         timeout: float = 60.0,
         max_retries: int = 3,
         headers: Optional[Dict[str, str]] = None,
@@ -285,7 +303,7 @@ class AsyncGravixLayer:
         raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com")
 
         # Normalize base_url to just the origin (scheme + host)
-        _known = ("/v1/inference", "/v1/agents", "/v1/vectors", "/v1/files")
+        _known = ("/v1/inference", "/v1/agents", "/v1/vectors", "/v1/files", "/v1/deployments")
         parsed = urlparse(raw_url.rstrip("/"))
         path = parsed.path
         for prefix in _known:
@@ -294,26 +312,55 @@ class AsyncGravixLayer:
                 break
         self.base_url = urlunparse((parsed.scheme, parsed.netloc, path.rstrip("/"), "", "", ""))
 
-        # Validate URL scheme - support both HTTP and HTTPS
+        # Validate URL scheme
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
             raise ValueError("Base URL must start with http:// or https://")
+
+        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD", "azure")
+        self.region = region or os.environ.get("GRAVIXLAYER_REGION", "eastus2")
         self.timeout = timeout
         self.max_retries = max_retries
         self.custom_headers = headers or {}
         self.logger = logger or logging.getLogger("gravixlayer-async")
-        self.user_agent = user_agent or f"gravixlayer-python/0.0.22"
+        self.user_agent = user_agent or f"gravixlayer-python/{_get_sdk_version()}"
         if not self.api_key:
             raise ValueError("API key must be provided via argument or GRAVIXLAYER_API_KEY environment variable")
 
-        # Create the proper chat resource structure
+        # Pre-compute stripped base URL and service URL map for fast path construction
+        self._base_url_stripped = self.base_url.rstrip("/")
+        self._service_urls = {
+            svc: f"{self._base_url_stripped}/{svc}"
+            for svc in ("v1/inference", "v1/agents", "v1/vectors", "v1/files", "v1/deployments")
+        }
+
+        # Persistent HTTP client with default auth/UA headers for connection reuse
+        self._default_headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "User-Agent": self.user_agent,
+            **self.custom_headers,
+        }
+        self._http_client = httpx.AsyncClient(
+            timeout=self.timeout,
+            headers=self._default_headers,
+        )
+
+        # Create the proper resource structure
         self.chat = AsyncChatResource(self)
         self.embeddings = AsyncEmbeddings(self)
         self.completions = AsyncCompletions(self)
         self.vectors = AsyncVectorDatabase(self)
         self.sandbox = AsyncSandboxResource(self)
+        self.templates = AsyncTemplates(self)
 
-        # Memory is now a factory method - requires parameters
-        # Users must call await client.memory(...) with required parameters
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client and release connections."""
+        await self._http_client.aclose()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.aclose()
 
     async def memory(
         self,
@@ -361,52 +408,55 @@ class AsyncGravixLayer:
             url = endpoint
         else:
             if _service:
-                service_base = f"{self.base_url}/{_service}"
+                service_base = self._service_urls.get(_service) or f"{self._base_url_stripped}/{_service}"
             else:
-                service_base = self.base_url
+                service_base = self._base_url_stripped
             url = f"{service_base}/{endpoint.lstrip('/')}" if endpoint else service_base
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": self.user_agent,
-            **self.custom_headers,
-        }
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            for attempt in range(self.max_retries + 1):
-                try:
-                    resp = await client.request(
-                        method=method,
-                        url=url,
-                        headers=headers,
-                        json=data,
-                        **kwargs,
-                    )
+        # Only Content-Type varies per-request; auth/UA are on the session
+        has_files = "files" in kwargs
+        headers = {"Content-Type": "application/json"} if not has_files else {}
 
-                    # Accept both 200 (OK) and 201 (Created) as successful responses
-                    if resp.status_code in [200, 201]:
-                        return resp
-                    elif resp.status_code == 401:
-                        raise GravixLayerAuthenticationError("Authentication failed.")
-                    elif resp.status_code == 429:
-                        if attempt < self.max_retries:
-                            await asyncio.sleep(2**attempt)
-                            continue
-                        raise GravixLayerRateLimitError(resp.text)
-                    elif resp.status_code in [502, 503, 504] and attempt < self.max_retries:
-                        self.logger.warning(f"Server error: {resp.status_code}. Retrying...")
-                        await asyncio.sleep(2**attempt)
+        for attempt in range(self.max_retries + 1):
+            try:
+                # Build request kwargs — files use form data, others use JSON
+                request_kwargs: Dict[str, Any] = {
+                    "method": method,
+                    "url": url,
+                    "headers": headers,
+                    **kwargs,
+                }
+                if has_files:
+                    request_kwargs["data"] = data
+                else:
+                    request_kwargs["json"] = data
+
+                resp = await self._http_client.request(**request_kwargs)
+
+                # Accept all successful status codes (200-207)
+                if 200 <= resp.status_code <= 207:
+                    return resp
+                elif resp.status_code == 401:
+                    raise GravixLayerAuthenticationError("Authentication failed.")
+                elif resp.status_code == 429:
+                    if attempt < self.max_retries:
+                        await asyncio.sleep(2**attempt + random.uniform(0, 1))
                         continue
-                    elif 400 <= resp.status_code < 500:
-                        raise GravixLayerBadRequestError(resp.text)
-                    elif 500 <= resp.status_code < 600:
-                        raise GravixLayerServerError(resp.text)
-                    else:
-                        resp.raise_for_status()
+                    raise GravixLayerRateLimitError(resp.text)
+                elif resp.status_code in [502, 503, 504] and attempt < self.max_retries:
+                    self.logger.warning(f"Server error: {resp.status_code}. Retrying...")
+                    await asyncio.sleep(2**attempt + random.uniform(0, 1))
+                    continue
+                elif 400 <= resp.status_code < 500:
+                    raise GravixLayerBadRequestError(resp.text)
+                elif 500 <= resp.status_code < 600:
+                    raise GravixLayerServerError(resp.text)
+                else:
+                    resp.raise_for_status()
 
-                except httpx.RequestError as e:
-                    if attempt == self.max_retries:
-                        raise GravixLayerConnectionError(str(e)) from e
-                    await asyncio.sleep(2**attempt)
+            except httpx.RequestError as e:
+                if attempt == self.max_retries:
+                    raise GravixLayerConnectionError(str(e)) from e
+                await asyncio.sleep(2**attempt + random.uniform(0, 1))
 
         raise GravixLayerError("Failed async request")
