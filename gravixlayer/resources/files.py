@@ -188,14 +188,12 @@ class Files:
         if not file_id:
             raise GravixLayerBadRequestError("file ID required")
 
-        # Use raw request for binary content
-        import requests
-
+        # Use client's HTTP/2 connection pool for binary content
         headers = {"Authorization": f"Bearer {self.client.api_key}", "User-Agent": self.client.user_agent}
 
         files_base = f"{self.client.base_url.rstrip('/')}/v1/files"
 
-        response = requests.get(f"{files_base}/{file_id}/content", headers=headers, timeout=self.client.timeout)
+        response = self.client._http_client.get(f"{files_base}/{file_id}/content", headers=headers)
 
         if response.status_code != 200:
             self.client._handle_error_response(response)
@@ -219,14 +217,12 @@ class Files:
         if not file_id:
             raise GravixLayerBadRequestError("file ID required")
 
-        # Use raw request for binary content
-        import requests
-
+        # Use client's HTTP/2 connection pool for binary content
         headers = {"Authorization": f"Bearer {self.client.api_key}", "User-Agent": self.client.user_agent}
 
         files_base = f"{self.client.base_url.rstrip('/')}/v1/files"
 
-        response = requests.get(f"{files_base}/{file_id}/download", headers=headers, timeout=self.client.timeout)
+        response = self.client._http_client.get(f"{files_base}/{file_id}/download", headers=headers)
 
         if response.status_code != 200:
             self.client._handle_error_response(response)

@@ -5,9 +5,7 @@ import logging
 from typing import Optional, Dict, Any, Type
 from urllib.parse import urlparse, urlunparse
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import httpx
 
 from .resources.chat.completions import ChatCompletions
 from .resources.embeddings import Embeddings
@@ -30,7 +28,7 @@ from .types.exceptions import (
 # Known API service path prefixes — stripped during base_url normalization
 _KNOWN_SERVICE_PATHS = ("/v1/inference", "/v1/agents", "/v1/vectors", "/v1/files", "/v1/deployments")
 
-# Connection pool sizing — reuse TCP connections across requests
+# HTTP/2 connection pool sizing
 _POOL_CONNECTIONS = 10
 _POOL_MAXSIZE = 20
 
@@ -129,23 +127,20 @@ class GravixLayer:
             for svc in ("v1/inference", "v1/agents", "v1/vectors", "v1/files", "v1/deployments")
         }
 
-        # Persistent HTTP session with connection pooling and keep-alive
-        self._session = requests.Session()
-        adapter = HTTPAdapter(
-            pool_connections=_POOL_CONNECTIONS,
-            pool_maxsize=_POOL_MAXSIZE,
-            max_retries=Retry(total=0),  # We handle retries ourselves
+        # Persistent HTTP/2 client with connection pooling and keep-alive
+        self._http_client = httpx.Client(
+            http2=True,
+            timeout=self.timeout,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "User-Agent": self.user_agent,
+                **self.custom_headers,
+            },
+            limits=httpx.Limits(
+                max_connections=_POOL_MAXSIZE,
+                max_keepalive_connections=_POOL_CONNECTIONS,
+            ),
         )
-        self._session.mount("https://", adapter)
-        self._session.mount("http://", adapter)
-
-        # Set persistent headers on the session — avoids re-creating per request
-        self._session.headers.update({
-            "Authorization": f"Bearer {self.api_key}",
-            "User-Agent": self.user_agent,
-        })
-        if self.custom_headers:
-            self._session.headers.update(self.custom_headers)
 
         self.chat = ChatResource(self)
         self.embeddings = Embeddings(self)
@@ -159,7 +154,7 @@ class GravixLayer:
 
     def close(self) -> None:
         """Close the underlying HTTP session and release connections."""
-        self._session.close()
+        self._http_client.close()
 
     def __enter__(self):
         return self
@@ -213,7 +208,7 @@ class GravixLayer:
 
     def _make_request(
         self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, stream: bool = False, **kwargs
-    ) -> requests.Response:
+    ) -> httpx.Response:
         _service = kwargs.pop("_service", "v1/inference")
 
         # Handle full URLs (for legacy code that may still pass them)
@@ -226,22 +221,17 @@ class GravixLayer:
                 service_base = self._base_url_stripped
             url = f"{service_base}/{endpoint.lstrip('/')}" if endpoint else service_base
 
-        # Per-request headers — only Content-Type varies (session holds auth + UA)
+        # Per-request headers — only Content-Type varies (client holds auth + UA)
         has_files = "files" in kwargs
         headers = {"Content-Type": "application/json"} if not has_files else {}
 
         last_exc: Optional[Exception] = None
 
-        # Build request kwargs once — reused across retry attempts
+        # Build request kwargs — reused across retry attempts
         request_kwargs: Dict[str, Any] = {
-            "method": method,
-            "url": url,
             "headers": headers,
-            "timeout": self.timeout,
-            "stream": stream,
             **kwargs,
         }
-
         if has_files:
             request_kwargs["data"] = data
         else:
@@ -249,7 +239,11 @@ class GravixLayer:
 
         for attempt in range(self.max_retries + 1):
             try:
-                resp = self._session.request(**request_kwargs)
+                if stream:
+                    req = self._http_client.build_request(method, url, **request_kwargs)
+                    resp = self._http_client.send(req, stream=True)
+                else:
+                    resp = self._http_client.request(method, url, **request_kwargs)
 
                 if resp.status_code in (200, 201, 202, 204, 207):
                     return resp
@@ -279,7 +273,7 @@ class GravixLayer:
 
                 resp.raise_for_status()
 
-            except requests.RequestException as exc:
+            except httpx.RequestError as exc:
                 last_exc = exc
                 if attempt < self.max_retries:
                     delay = 2 ** attempt + random.uniform(0, 1)

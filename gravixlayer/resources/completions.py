@@ -105,7 +105,7 @@ class Completions:
         for line in resp.iter_lines():
             if not line:
                 continue
-            line = line.decode("utf-8").strip()
+            line = line.strip()
 
             # Handle SSE format
             if line.startswith("data: "):

@@ -340,8 +340,13 @@ class AsyncGravixLayer:
             **self.custom_headers,
         }
         self._http_client = httpx.AsyncClient(
+            http2=True,
             timeout=self.timeout,
             headers=self._default_headers,
+            limits=httpx.Limits(
+                max_connections=20,
+                max_keepalive_connections=10,
+            ),
         )
 
         # Create the proper resource structure
