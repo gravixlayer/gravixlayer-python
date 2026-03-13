@@ -34,14 +34,14 @@ client = GravixLayer(
 
 TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-base-v1")
 
-sandbox = client.sandbox.sandboxes.create(template=TEMPLATE, timeout=300)
+sandbox = client.sandbox.create(template=TEMPLATE, timeout=300)
 sid = sandbox.sandbox_id
 print(f"Sandbox    : {sid}\n")
 
 # ---------------------------------------------------------------------------
 # 1. Write a file
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.write_file(
+client.sandbox.write_file(
     sid,
     path="/home/user/hello.txt",
     content="Hello from GravixLayer SDK!\nThis is line two.",
@@ -51,13 +51,13 @@ print("Wrote      : /home/user/hello.txt")
 # ---------------------------------------------------------------------------
 # 2. Read the file back
 # ---------------------------------------------------------------------------
-read_result = client.sandbox.sandboxes.read_file(sid, path="/home/user/hello.txt")
+read_result = client.sandbox.read_file(sid, path="/home/user/hello.txt")
 print(f"Read       : {read_result.content}")
 
 # ---------------------------------------------------------------------------
 # 3. Create a directory
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.make_directory(sid, path="/home/user/project/src")
+client.sandbox.make_directory(sid, path="/home/user/project/src")
 print("Created    : /home/user/project/src/")
 
 # ---------------------------------------------------------------------------
@@ -69,13 +69,13 @@ import json
 data = {"name": "GravixLayer", "version": "1.0"}
 print(json.dumps(data))
 """
-client.sandbox.sandboxes.write_file(sid, path="/home/user/project/src/main.py", content=script)
+client.sandbox.write_file(sid, path="/home/user/project/src/main.py", content=script)
 print("Wrote      : /home/user/project/src/main.py")
 
 # ---------------------------------------------------------------------------
 # 5. List files
 # ---------------------------------------------------------------------------
-file_list = client.sandbox.sandboxes.list_files(sid, path="/home/user/project/src")
+file_list = client.sandbox.list_files(sid, path="/home/user/project/src")
 print(f"\nFiles in /home/user/project/src:")
 for f in file_list.files:
     kind = "[DIR] " if f.is_dir else "      "
@@ -85,7 +85,7 @@ for f in file_list.files:
 # 6. Write a config file using multipart upload
 # ---------------------------------------------------------------------------
 config_content = '{"debug": true, "port": 8080}'
-write_result = client.sandbox.sandboxes.write(
+write_result = client.sandbox.write(
     sid,
     path="/home/user/project/config.json",
     data=config_content,
@@ -101,13 +101,13 @@ entries = [
     WriteEntry(path="/home/user/project/README.md", data="# My Project\n\nA sample project."),
     WriteEntry(path="/home/user/project/run.sh", data="#!/bin/bash\npython src/main.py", mode=0o755),
 ]
-batch_result = client.sandbox.sandboxes.write_files(sid, entries=entries)
+batch_result = client.sandbox.write_files(sid, entries=entries)
 print(f"Batch write: {len(batch_result.files)} files written")
 
 # ---------------------------------------------------------------------------
 # 8. List the project directory
 # ---------------------------------------------------------------------------
-file_list = client.sandbox.sandboxes.list_files(sid, path="/home/user/project")
+file_list = client.sandbox.list_files(sid, path="/home/user/project")
 print(f"\nFiles in /home/user/project:")
 for f in file_list.files:
     kind = "[DIR] " if f.is_dir else "      "
@@ -116,18 +116,18 @@ for f in file_list.files:
 # ---------------------------------------------------------------------------
 # 9. Download a file from the sandbox
 # ---------------------------------------------------------------------------
-downloaded = client.sandbox.sandboxes.download_file(sid, path="/home/user/hello.txt")
+downloaded = client.sandbox.download_file(sid, path="/home/user/hello.txt")
 print(f"\nDownloaded : {len(downloaded)} bytes")
 print(f"Content    : {downloaded.decode('utf-8')}")
 
 # ---------------------------------------------------------------------------
 # 10. Delete a file
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.delete_file(sid, path="/home/user/hello.txt")
+client.sandbox.delete_file(sid, path="/home/user/hello.txt")
 print("\nDeleted    : /home/user/hello.txt")
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.kill(sid)
+client.sandbox.kill(sid)
 print("\nSandbox terminated.")

@@ -25,14 +25,14 @@ client = GravixLayer(
 
 TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "node-base-v1")
 
-sandbox = client.sandbox.sandboxes.create(template=TEMPLATE, timeout=300)
+sandbox = client.sandbox.create(template=TEMPLATE, timeout=300)
 sid = sandbox.sandbox_id
 print(f"Sandbox    : {sid}")
 
 # ---------------------------------------------------------------------------
 # 1. Simple JavaScript output
 # ---------------------------------------------------------------------------
-result = client.sandbox.sandboxes.run_code(
+result = client.sandbox.run_code(
     sid,
     code="console.log('Hello from Node.js')",
     language="javascript",
@@ -56,7 +56,7 @@ const info = {
 console.log(JSON.stringify(info, null, 2));
 """
 
-result = client.sandbox.sandboxes.run_code(sid, code=code, language="javascript")
+result = client.sandbox.run_code(sid, code=code, language="javascript")
 print(f"\n--- System info ---")
 print(f"Output     : {result.logs}")
 
@@ -76,12 +76,12 @@ async function fetchData() {
 fetchData().then(r => console.log(JSON.stringify(r)));
 """
 
-result = client.sandbox.sandboxes.run_code(sid, code=code, language="javascript")
+result = client.sandbox.run_code(sid, code=code, language="javascript")
 print(f"\n--- Async code ---")
 print(f"Output     : {result.logs}")
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.kill(sid)
+client.sandbox.kill(sid)
 print("\nSandbox terminated.")

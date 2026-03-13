@@ -28,7 +28,7 @@ TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "node-base-v1")
 # ---------------------------------------------------------------------------
 # Create a Node.js sandbox
 # ---------------------------------------------------------------------------
-sandbox = client.sandbox.sandboxes.create(
+sandbox = client.sandbox.create(
     template=TEMPLATE,
     timeout=300,
 )
@@ -40,7 +40,7 @@ print(f"Template   : {sandbox.template}")
 # ---------------------------------------------------------------------------
 # Quick verification — run a Node.js one-liner
 # ---------------------------------------------------------------------------
-result = client.sandbox.sandboxes.run_command(
+result = client.sandbox.run_command(
     sandbox.sandbox_id,
     command="node",
     args=["-e", "console.log('Node.js ' + process.version + ' is ready')"],
@@ -50,5 +50,5 @@ print(f"\nNode check : {result.stdout.strip()}")
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.kill(sandbox.sandbox_id)
+client.sandbox.kill(sandbox.sandbox_id)
 print("Sandbox terminated.")

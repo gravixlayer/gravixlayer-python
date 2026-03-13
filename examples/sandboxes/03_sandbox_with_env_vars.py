@@ -29,7 +29,7 @@ TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-base-v1")
 # ---------------------------------------------------------------------------
 # Create a sandbox with env vars and metadata
 # ---------------------------------------------------------------------------
-sandbox = client.sandbox.sandboxes.create(
+sandbox = client.sandbox.create(
     template=TEMPLATE,
     timeout=600,
     env_vars={
@@ -51,7 +51,7 @@ print(f"Metadata   : {sandbox.metadata}")
 # ---------------------------------------------------------------------------
 # Verify the environment variables are set inside the sandbox
 # ---------------------------------------------------------------------------
-result = client.sandbox.sandboxes.run_code(
+result = client.sandbox.run_code(
     sandbox.sandbox_id,
     code="import os; print(os.environ.get('APP_ENV', 'not set'))",
     language="python",
@@ -61,5 +61,5 @@ print(f"\nAPP_ENV    : {result.logs}")
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.kill(sandbox.sandbox_id)
+client.sandbox.kill(sandbox.sandbox_id)
 print("Sandbox terminated.")

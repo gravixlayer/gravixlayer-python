@@ -102,7 +102,7 @@ class Sandbox:
         if not self._alive:
             raise RuntimeError("Sandbox has been terminated")
         if self._client is None:
-            raise RuntimeError("Client not initialized. Use Sandbox.create() or client.sandbox.sandboxes.create() instead.")
+            raise RuntimeError("Client not initialized. Use Sandbox.create() or client.sandbox.create() instead.")
 
     def close(self) -> None:
         """Close the underlying HTTP client if this Sandbox owns it.
@@ -170,7 +170,7 @@ class Sandbox:
         else:
             owns_client = False
 
-        sandbox_response = client.sandbox.sandboxes.create(
+        sandbox_response = client.sandbox.create(
             template=template,
             timeout=timeout,
             metadata=metadata or {},
@@ -203,7 +203,7 @@ class Sandbox:
     def run_code(self, code: str, language: str = "python") -> "Execution":
         """Execute code in the sandbox."""
         self._require_alive()
-        response = self._client.sandbox.sandboxes.run_code(self.sandbox_id, code=code, language=language)
+        response = self._client.sandbox.run_code(self.sandbox_id, code=code, language=language)
         return Execution(response)
 
     def run_cmd(
@@ -222,7 +222,7 @@ class Sandbox:
             timeout: Maximum execution time in seconds.
         """
         self._require_alive()
-        response = self._client.sandbox.sandboxes.run_command(
+        response = self._client.sandbox.run_command(
             self.sandbox_id, command=command, args=args or [], working_dir=working_dir, timeout=timeout
         )
         return Execution(response)
@@ -245,12 +245,12 @@ class Sandbox:
     def write_file(self, path: str, content: str) -> None:
         """Write content to a file in the sandbox"""
         self._require_alive()
-        self._client.sandbox.sandboxes.write_file(self.sandbox_id, path=path, content=content)
+        self._client.sandbox.write_file(self.sandbox_id, path=path, content=content)
 
     def read_file(self, path: str) -> str:
         """Read content from a file in the sandbox"""
         self._require_alive()
-        response = self._client.sandbox.sandboxes.read_file(self.sandbox_id, path=path)
+        response = self._client.sandbox.read_file(self.sandbox_id, path=path)
         return response.content
 
     def list_files(self, path: str = "/home/user") -> "List[FileInfo]":
@@ -260,19 +260,19 @@ class Sandbox:
             List of FileInfo objects with name, size, is_dir, modified_at, mode.
         """
         self._require_alive()
-        response = self._client.sandbox.sandboxes.list_files(self.sandbox_id, path=path)
+        response = self._client.sandbox.list_files(self.sandbox_id, path=path)
         return response.files
 
     def delete_file(self, path: str) -> None:
         """Delete a file in the sandbox"""
         self._require_alive()
-        self._client.sandbox.sandboxes.delete_file(self.sandbox_id, path=path)
+        self._client.sandbox.delete_file(self.sandbox_id, path=path)
 
     def upload_file(self, local_path: str, remote_path: str) -> None:
         """Upload a local file to the sandbox"""
         self._require_alive()
         with open(local_path, "rb") as f:
-            self._client.sandbox.sandboxes.upload_file(self.sandbox_id, file=f, path=remote_path)
+            self._client.sandbox.upload_file(self.sandbox_id, file=f, path=remote_path)
 
     def write(
         self,
@@ -296,7 +296,7 @@ class Sandbox:
             ...     sandbox.write("/tmp/remote.txt", f)
         """
         self._require_alive()
-        return self._client.sandbox.sandboxes.write(
+        return self._client.sandbox.write(
             self.sandbox_id, path=path, data=data, user=user, mode=mode
         )
 
@@ -320,7 +320,7 @@ class Sandbox:
             ... ])
         """
         self._require_alive()
-        return self._client.sandbox.sandboxes.write_files(
+        return self._client.sandbox.write_files(
             self.sandbox_id, entries=entries, user=user
         )
 
@@ -328,7 +328,7 @@ class Sandbox:
         """Terminate the sandbox and clean up resources."""
         if self._alive and self._client is not None:
             try:
-                self._client.sandbox.sandboxes.kill(self.sandbox_id)
+                self._client.sandbox.kill(self.sandbox_id)
             except Exception:
                 pass
             self._alive = False
@@ -338,7 +338,7 @@ class Sandbox:
         if not self._alive or self._client is None:
             return False
         try:
-            info = self._client.sandbox.sandboxes.get(self.sandbox_id)
+            info = self._client.sandbox.get(self.sandbox_id)
             return info.status == "running"
         except Exception:
             self._alive = False
@@ -356,31 +356,31 @@ class Sandbox:
             SSHInfo with connection details.
         """
         self._require_alive()
-        return self._client.sandbox.sandboxes.enable_ssh(
+        return self._client.sandbox.enable_ssh(
             self.sandbox_id, regenerate_keys=regenerate_keys
         )
 
     def disable_ssh(self) -> None:
         """Disable SSH access on the sandbox."""
         self._require_alive()
-        self._client.sandbox.sandboxes.disable_ssh(self.sandbox_id)
+        self._client.sandbox.disable_ssh(self.sandbox_id)
 
     def ssh_status(self) -> "SSHStatus":
         """Get current SSH status for the sandbox."""
         self._require_alive()
-        return self._client.sandbox.sandboxes.ssh_status(self.sandbox_id)
+        return self._client.sandbox.ssh_status(self.sandbox_id)
 
     # -- State management --------------------------------------------------
 
     def pause(self) -> None:
         """Pause the running sandbox."""
         self._require_alive()
-        self._client.sandbox.sandboxes.pause(self.sandbox_id)
+        self._client.sandbox.pause(self.sandbox_id)
 
     def resume(self) -> None:
         """Resume a paused sandbox."""
         self._require_alive()
-        self._client.sandbox.sandboxes.resume(self.sandbox_id)
+        self._client.sandbox.resume(self.sandbox_id)
 
     def show_info(self) -> None:
         """Display sandbox information"""

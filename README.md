@@ -55,7 +55,7 @@ Launch a sandbox instance from your template:
 
 ```python
 # Create a sandbox
-sandbox = client.sandbox.sandboxes.create(
+sandbox = client.sandbox.create(
     ,  # or use template ID
 )
 
@@ -63,7 +63,7 @@ print(f"Sandbox ID: {sandbox.sandbox_id}")
 print(f"Status: {sandbox.status}")
 
 # Run code in the sandbox
-result = client.sandbox.sandboxes.run_code(
+result = client.sandbox.run_code(
     sandbox.sandbox_id,
     code="print('Hello from sandbox!')",
     language="python"
@@ -72,7 +72,7 @@ result = client.sandbox.sandboxes.run_code(
 print(f"Output: {result.logs}")
 
 # Clean up
-client.sandbox.sandboxes.kill(sandbox.sandbox_id)
+client.sandbox.kill(sandbox.sandbox_id)
 ```
 
 ## Quick Examples

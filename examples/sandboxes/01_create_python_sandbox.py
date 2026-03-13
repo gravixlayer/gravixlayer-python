@@ -36,7 +36,7 @@ TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-base-v1")
 # Create a sandbox from a Python template
 # ---------------------------------------------------------------------------
 # No need to pass provider/region — the client already knows them.
-sandbox = client.sandbox.sandboxes.create(
+sandbox = client.sandbox.create(
     template=TEMPLATE,
     timeout=300,  # 5 minutes (default)
 )
@@ -50,11 +50,11 @@ print(f"Memory     : {sandbox.memory_mb} MB")
 # ---------------------------------------------------------------------------
 # Retrieve sandbox details
 # ---------------------------------------------------------------------------
-info = client.sandbox.sandboxes.get(sandbox.sandbox_id)
+info = client.sandbox.get(sandbox.sandbox_id)
 print(f"\nFull info  : status={info.status}, started_at={info.started_at}")
 
 # ---------------------------------------------------------------------------
 # Terminate the sandbox
 # ---------------------------------------------------------------------------
-result = client.sandbox.sandboxes.kill(sandbox.sandbox_id)
+result = client.sandbox.kill(sandbox.sandbox_id)
 print(f"\nKilled     : {result.message}")

@@ -59,7 +59,7 @@ class GravixLayer:
         ...     region="eastus2",
         ... )
         >>> # cloud and region are used as defaults for sandbox/template calls
-        >>> sandbox = client.sandbox.sandboxes.create(template="python-base-v1")
+        >>> sandbox = client.sandbox.create(template="python-base-v1")
     """
 
     def __init__(
@@ -88,7 +88,7 @@ class GravixLayer:
         # Normalize base_url to just the origin (scheme + host).
         # This allows users to pass any variant:
         #   https://api.gravixlayer.com
-        #   https://api.gravixlayer.com/v1/inference   (legacy default)
+        #   https://api.gravixlayer.com/v1/inference
         #   https://api.gravixlayer.com/v1/agents
         # All are normalised to https://api.gravixlayer.com
         parsed = urlparse(raw_url.rstrip("/"))
@@ -211,7 +211,7 @@ class GravixLayer:
     ) -> httpx.Response:
         _service = kwargs.pop("_service", "v1/inference")
 
-        # Handle full URLs (for legacy code that may still pass them)
+        # Handle full URLs passed as endpoints
         if endpoint and (endpoint.startswith("http://") or endpoint.startswith("https://")):
             url = endpoint
         else:

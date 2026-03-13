@@ -622,33 +622,22 @@ class SandboxTemplates:
 
 
 class SandboxResource:
-    """Main Sandbox resource that contains sandboxes and templates.
+    """Main Sandbox resource — the public API surface at ``client.sandbox``.
 
-    Provides shortcut methods that delegate to ``self.sandboxes`` for
-    the most common operations, allowing both:
-        - ``client.sandbox.create(...)``  (ergonomic)
-        - ``client.sandbox.sandboxes.create(...)``  (explicit)
+    All sandbox operations are available directly::
+
+        client.sandbox.create(template="python-base-v1")
+        client.sandbox.run_code(sandbox_id, "print('hi')")
+        client.sandbox.kill(sandbox_id)
+
+    Template listing is available via ``client.sandbox.templates.list()``.
     """
 
     def __init__(self, client):
         self.client = client
-        self.sandboxes = Sandboxes(client)
+        self._sandboxes = Sandboxes(client)
         self.templates = SandboxTemplates(client)
 
-    # -- Shortcut delegation methods ----------------------------------------
-
-    def create(self, **kwargs) -> Sandbox:
-        """Shortcut for ``self.sandboxes.create(...)``."""
-        return self.sandboxes.create(**kwargs)
-
-    def list(self, **kwargs) -> SandboxList:
-        """Shortcut for ``self.sandboxes.list(...)``."""
-        return self.sandboxes.list(**kwargs)
-
-    def get(self, sandbox_id: str) -> Sandbox:
-        """Shortcut for ``self.sandboxes.get(...)``."""
-        return self.sandboxes.get(sandbox_id)
-
-    def kill(self, sandbox_id: str) -> SandboxKillResponse:
-        """Shortcut for ``self.sandboxes.kill(...)``."""
-        return self.sandboxes.kill(sandbox_id)
+    def __getattr__(self, name: str):
+        """Delegate any attribute not on this class to the underlying Sandboxes instance."""
+        return getattr(self._sandboxes, name)

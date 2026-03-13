@@ -26,14 +26,14 @@ client = GravixLayer(
 
 TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-base-v1")
 
-sandbox = client.sandbox.sandboxes.create(template=TEMPLATE, timeout=300)
+sandbox = client.sandbox.create(template=TEMPLATE, timeout=300)
 sid = sandbox.sandbox_id
 print(f"Sandbox    : {sid}\n")
 
 # ---------------------------------------------------------------------------
 # 1. Baseline metrics (idle sandbox)
 # ---------------------------------------------------------------------------
-metrics = client.sandbox.sandboxes.get_metrics(sid)
+metrics = client.sandbox.get_metrics(sid)
 
 print("--- Baseline metrics ---")
 print(f"CPU Usage  : {metrics.cpu_usage:.1f}%")
@@ -47,7 +47,7 @@ print(f"Timestamp  : {metrics.timestamp}")
 # ---------------------------------------------------------------------------
 # 2. Generate some CPU load, then check metrics again
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.run_code(
+client.sandbox.run_code(
     sid,
     code="sum(i * i for i in range(10_000_000))",
     language="python",
@@ -56,7 +56,7 @@ client.sandbox.sandboxes.run_code(
 # Small delay so metrics reflect the workload
 time.sleep(1)
 
-metrics = client.sandbox.sandboxes.get_metrics(sid)
+metrics = client.sandbox.get_metrics(sid)
 
 print("\n--- After CPU workload ---")
 print(f"CPU Usage  : {metrics.cpu_usage:.1f}%")
@@ -67,5 +67,5 @@ print(f"Disk Write : {metrics.disk_write} bytes")
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.kill(sid)
+client.sandbox.kill(sid)
 print("\nSandbox terminated.")

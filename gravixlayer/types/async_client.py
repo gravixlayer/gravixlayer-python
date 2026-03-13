@@ -408,7 +408,7 @@ class AsyncGravixLayer:
         # Pop the service path from kwargs (default: inference)
         _service = kwargs.pop("_service", "v1/inference")
 
-        # Handle full URLs (for legacy code)
+        # Handle full URLs passed as endpoints
         if endpoint and (endpoint.startswith("http://") or endpoint.startswith("https://")):
             url = endpoint
         else:

@@ -595,33 +595,22 @@ class AsyncSandboxTemplates:
 
 
 class AsyncSandboxResource:
-    """Main Sandbox resource that contains sandboxes and templates.
+    """Main Sandbox resource — the public API surface at ``client.sandbox``.
 
-    Provides shortcut methods that delegate to ``self.sandboxes`` for
-    the most common operations, allowing both:
-        - ``await client.sandbox.create(...)``  (ergonomic)
-        - ``await client.sandbox.sandboxes.create(...)``  (explicit)
+    All sandbox operations are available directly::
+
+        await client.sandbox.create(template="python-base-v1")
+        await client.sandbox.run_code(sandbox_id, "print('hi')")
+        await client.sandbox.kill(sandbox_id)
+
+    Template listing is available via ``await client.sandbox.templates.list()``.
     """
 
     def __init__(self, client):
         self.client = client
-        self.sandboxes = AsyncSandboxes(client)
+        self._sandboxes = AsyncSandboxes(client)
         self.templates = AsyncSandboxTemplates(client)
 
-    # -- Shortcut delegation methods ----------------------------------------
-
-    async def create(self, **kwargs) -> Sandbox:
-        """Shortcut for ``self.sandboxes.create(...)``."""
-        return await self.sandboxes.create(**kwargs)
-
-    async def list(self, **kwargs) -> SandboxList:
-        """Shortcut for ``self.sandboxes.list(...)``."""
-        return await self.sandboxes.list(**kwargs)
-
-    async def get(self, sandbox_id: str) -> Sandbox:
-        """Shortcut for ``self.sandboxes.get(...)``."""
-        return await self.sandboxes.get(sandbox_id)
-
-    async def kill(self, sandbox_id: str) -> SandboxKillResponse:
-        """Shortcut for ``self.sandboxes.kill(...)``."""
-        return await self.sandboxes.kill(sandbox_id)
+    def __getattr__(self, name: str):
+        """Delegate any attribute not on this class to the underlying AsyncSandboxes instance."""
+        return getattr(self._sandboxes, name)

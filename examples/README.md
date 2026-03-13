@@ -125,28 +125,28 @@ from gravixlayer import GravixLayer
 client = GravixLayer()
 
 # Create
-sandbox = client.sandbox.sandboxes.create(template="python-base-v1")
+sandbox = client.sandbox.create(template="python-base-v1")
 
 # Execute code
-result = client.sandbox.sandboxes.run_code(sandbox.sandbox_id, code="print('hello')")
+result = client.sandbox.run_code(sandbox.sandbox_id, code="print('hello')")
 
 # Run command
-result = client.sandbox.sandboxes.run_command(sandbox.sandbox_id, command="ls", args=["-la"])
+result = client.sandbox.run_command(sandbox.sandbox_id, command="ls", args=["-la"])
 
 # File operations
-client.sandbox.sandboxes.write_file(sandbox.sandbox_id, path="/tmp/test.txt", content="hello")
-result = client.sandbox.sandboxes.read_file(sandbox.sandbox_id, path="/tmp/test.txt")
+client.sandbox.write_file(sandbox.sandbox_id, path="/tmp/test.txt", content="hello")
+result = client.sandbox.read_file(sandbox.sandbox_id, path="/tmp/test.txt")
 
 # Metrics
-metrics = client.sandbox.sandboxes.get_metrics(sandbox.sandbox_id)
+metrics = client.sandbox.get_metrics(sandbox.sandbox_id)
 print(f"CPU: {metrics.cpu_usage}%, Memory: {metrics.memory_usage} MB")
 
 # List and get
-sandboxes = client.sandbox.sandboxes.list()
-info = client.sandbox.sandboxes.get(sandbox.sandbox_id)
+sandboxes = client.sandbox.list()
+info = client.sandbox.get(sandbox.sandbox_id)
 
 # Kill
-client.sandbox.sandboxes.kill(sandbox.sandbox_id)
+client.sandbox.kill(sandbox.sandbox_id)
 ```
 
 ## Context Manager (Auto-Cleanup)

@@ -39,7 +39,7 @@ for t in templates.templates:
 # 2. List all running sandboxes
 # ---------------------------------------------------------------------------
 print("\n--- Active Sandboxes ---")
-result = client.sandbox.sandboxes.list(limit=50, offset=0)
+result = client.sandbox.list(limit=50, offset=0)
 print(f"Total      : {result.total}")
 
 if not result.sandboxes:
@@ -52,7 +52,7 @@ else:
     # 3. Get details of the first sandbox
     # -------------------------------------------------------------------
     first = result.sandboxes[0]
-    info = client.sandbox.sandboxes.get(first.sandbox_id)
+    info = client.sandbox.get(first.sandbox_id)
     print(f"\n--- Sandbox Details ({first.sandbox_id}) ---")
     print(f"Status     : {info.status}")
     print(f"Template   : {info.template}")

@@ -457,7 +457,7 @@ templates = client.sandbox.templates.list()
 #### Create
 
 ```python
-sandbox = client.sandbox.sandboxes.create(
+sandbox = client.sandbox.create(
     provider="aws",
     region="us-east-1",
     template="python-base-v1",
@@ -469,19 +469,19 @@ sandbox = client.sandbox.sandboxes.create(
 #### List
 
 ```python
-sandboxes = client.sandbox.sandboxes.list()
+sandboxes = client.sandbox.list()
 ```
 
 #### Get
 
 ```python
-sb = client.sandbox.sandboxes.get("sandbox-id")
+sb = client.sandbox.get("sandbox-id")
 ```
 
 #### Kill
 
 ```python
-client.sandbox.sandboxes.kill("sandbox-id")
+client.sandbox.kill("sandbox-id")
 ```
 
 ### Sandbox Instance Operations

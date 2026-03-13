@@ -1569,7 +1569,7 @@ def handle_sandbox_operations(args, client):
                 metadata = safe_json_parse(args.metadata, "metadata")
 
             # Create sandbox
-            sandbox = client.sandbox.sandboxes.create(
+            sandbox = client.sandbox.create(
                 provider=args.provider,
                 region=args.region,
                 template=args.template,
@@ -1590,7 +1590,7 @@ def handle_sandbox_operations(args, client):
             print(f"   Timeout: {sandbox.timeout_at}")
 
         elif args.sandbox_action == "list":
-            sandboxes = client.sandbox.sandboxes.list(limit=args.limit, offset=args.offset)
+            sandboxes = client.sandbox.list(limit=args.limit, offset=args.offset)
 
             if args.json:
                 import json
@@ -1637,7 +1637,7 @@ def handle_sandbox_operations(args, client):
                     print()
 
         elif args.sandbox_action == "get":
-            sandbox = client.sandbox.sandboxes.get(args.sandbox_id)
+            sandbox = client.sandbox.get(args.sandbox_id)
 
             if args.json:
                 import json
@@ -1678,14 +1678,14 @@ def handle_sandbox_operations(args, client):
                     print(f"   Metadata: {sandbox.metadata}")
 
         elif args.sandbox_action == "kill":
-            result = client.sandbox.sandboxes.kill(args.sandbox_id)
+            result = client.sandbox.kill(args.sandbox_id)
             print(f"{result.message}")
 
         elif args.sandbox_action == "run":
             # Use --args parameter for command arguments
             command_args = args.args if hasattr(args, "args") and args.args else []
 
-            result = client.sandbox.sandboxes.run_command(
+            result = client.sandbox.run_command(
                 sandbox_id=args.sandbox_id,
                 command=args.exec_command,
                 args=command_args,
@@ -1709,7 +1709,7 @@ def handle_sandbox_operations(args, client):
                 print(f"\nERROR: {result.error}")
 
         elif args.sandbox_action == "code":
-            result = client.sandbox.sandboxes.run_code(
+            result = client.sandbox.run_code(
                 sandbox_id=args.sandbox_id, code=args.code, language=args.language, context_id=args.context_id
             )
 
@@ -1732,13 +1732,13 @@ def handle_sandbox_operations(args, client):
             handle_sandbox_file_commands(args, client)
 
         elif args.sandbox_action == "timeout":
-            result = client.sandbox.sandboxes.set_timeout(args.sandbox_id, args.timeout)
+            result = client.sandbox.set_timeout(args.sandbox_id, args.timeout)
             print(f"{result.message}")
             print(f"   New timeout: {result.timeout}s")
             print(f"   Timeout at: {result.timeout_at}")
 
         elif args.sandbox_action == "metrics":
-            metrics = client.sandbox.sandboxes.get_metrics(args.sandbox_id)
+            metrics = client.sandbox.get_metrics(args.sandbox_id)
 
             if args.json:
                 import json
@@ -1768,7 +1768,7 @@ def handle_sandbox_operations(args, client):
                 print(f"   Network TX: {metrics.network_tx} bytes")
 
         elif args.sandbox_action == "host":
-            host_url = client.sandbox.sandboxes.get_host_url(args.sandbox_id, args.port)
+            host_url = client.sandbox.get_host_url(args.sandbox_id, args.port)
             print(f"Host URL for port {args.port}:")
             print(f"   {host_url.url}")
 
@@ -1783,7 +1783,7 @@ def handle_sandbox_file_commands(args, client):
     """Handle sandbox file operations"""
     try:
         if args.file_action == "read":
-            result = client.sandbox.sandboxes.read_file(args.sandbox_id, args.path)
+            result = client.sandbox.read_file(args.sandbox_id, args.path)
             file_path = result.path or args.path
             file_size = result.size or len(result.content) if result.content else 0
             print(f"File: {file_path} ({file_size} bytes)")
@@ -1791,7 +1791,7 @@ def handle_sandbox_file_commands(args, client):
             print(result.content)
 
         elif args.file_action == "write":
-            result = client.sandbox.sandboxes.write_file(args.sandbox_id, args.path, args.content)
+            result = client.sandbox.write_file(args.sandbox_id, args.path, args.content)
             print(f"{result.message}")
             file_path = result.path or args.path
             bytes_written = result.bytes_written or len(args.content)
@@ -1799,7 +1799,7 @@ def handle_sandbox_file_commands(args, client):
             print(f"Bytes written: {bytes_written}")
 
         elif args.file_action == "list":
-            result = client.sandbox.sandboxes.list_files(args.sandbox_id, args.path)
+            result = client.sandbox.list_files(args.sandbox_id, args.path)
             print(f"Files in {args.path}:")
             print()
 
@@ -1812,20 +1812,20 @@ def handle_sandbox_file_commands(args, client):
                 print()
 
         elif args.file_action == "delete":
-            result = client.sandbox.sandboxes.delete_file(args.sandbox_id, args.path)
+            result = client.sandbox.delete_file(args.sandbox_id, args.path)
             print(f"{result.message}")
             file_path = result.path or args.path
             print(f"Path: {file_path}")
 
         elif args.file_action == "mkdir":
-            result = client.sandbox.sandboxes.make_directory(args.sandbox_id, args.path)
+            result = client.sandbox.make_directory(args.sandbox_id, args.path)
             print(f"{result.message}")
             dir_path = result.path or args.path
             print(f"Path: {dir_path}")
 
         elif args.file_action == "upload":
             with open(args.local_path, "rb") as f:
-                result = client.sandbox.sandboxes.upload_file(args.sandbox_id, f, args.remote_path)
+                result = client.sandbox.upload_file(args.sandbox_id, f, args.remote_path)
             print(f"{result.message}")
             remote_path = result.path or args.remote_path
             file_size = result.size or 0
@@ -1833,7 +1833,7 @@ def handle_sandbox_file_commands(args, client):
             print(f"Size: {file_size} bytes")
 
         elif args.file_action == "download":
-            file_data = client.sandbox.sandboxes.download_file(args.sandbox_id, args.remote_path)
+            file_data = client.sandbox.download_file(args.sandbox_id, args.remote_path)
             with open(args.local_path, "wb") as f:
                 f.write(file_data)
             print(f"Downloaded file")
@@ -1849,7 +1849,7 @@ def handle_context_commands(args, client):
     """Handle code context commands"""
     try:
         if args.context_action == "create":
-            context = client.sandbox.sandboxes.create_code_context(
+            context = client.sandbox.create_code_context(
                 args.sandbox_id, language=args.language, cwd=args.cwd
             )
             print(f"Created code context: {context.context_id}")
@@ -1859,7 +1859,7 @@ def handle_context_commands(args, client):
             print(f"   Expires: {context.expires_at}")
 
         elif args.context_action == "get":
-            context = client.sandbox.sandboxes.get_code_context(args.sandbox_id, args.context_id)
+            context = client.sandbox.get_code_context(args.sandbox_id, args.context_id)
             print(f"Code Context: {context.context_id}")
             print(f"   Language: {context.language}")
             print(f"   Working directory: {context.cwd}")
@@ -1870,7 +1870,7 @@ def handle_context_commands(args, client):
                 print(f"   Last used: {context.last_used}")
 
         elif args.context_action == "delete":
-            result = client.sandbox.sandboxes.delete_code_context(args.sandbox_id, args.context_id)
+            result = client.sandbox.delete_code_context(args.sandbox_id, args.context_id)
             print(f"{result.message}")
             print(f"   Context ID: {result.context_id}")
 

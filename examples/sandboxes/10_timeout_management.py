@@ -31,31 +31,31 @@ TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-base-v1")
 # ---------------------------------------------------------------------------
 # Create a sandbox with a short timeout
 # ---------------------------------------------------------------------------
-sandbox = client.sandbox.sandboxes.create(
+sandbox = client.sandbox.create(
     template=TEMPLATE,
     timeout=120,  # 2 minutes
 )
 sid = sandbox.sandbox_id
 
-info = client.sandbox.sandboxes.get(sid)
+info = client.sandbox.get(sid)
 print(f"Sandbox    : {sid}")
 print(f"Timeout at : {info.timeout_at}")
 
 # ---------------------------------------------------------------------------
 # Extend the timeout while the sandbox is running
 # ---------------------------------------------------------------------------
-response = client.sandbox.sandboxes.set_timeout(sid, timeout=600)
+response = client.sandbox.set_timeout(sid, timeout=600)
 print(f"\nExtended   : {response.message}")
 print(f"New timeout: {response.timeout_at}")
 
 # ---------------------------------------------------------------------------
 # Verify by fetching sandbox info again
 # ---------------------------------------------------------------------------
-info = client.sandbox.sandboxes.get(sid)
+info = client.sandbox.get(sid)
 print(f"Confirmed  : timeout_at={info.timeout_at}")
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.kill(sid)
+client.sandbox.kill(sid)
 print("\nSandbox terminated.")

@@ -31,21 +31,21 @@ client = GravixLayer(
 
 TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-base-v1")
 
-sandbox = client.sandbox.sandboxes.create(template=TEMPLATE, timeout=300)
+sandbox = client.sandbox.create(template=TEMPLATE, timeout=300)
 sid = sandbox.sandbox_id
 print(f"Sandbox    : {sid}\n")
 
 # ---------------------------------------------------------------------------
 # 1. Create a persistent code context
 # ---------------------------------------------------------------------------
-ctx = client.sandbox.sandboxes.create_code_context(sid, language="python")
+ctx = client.sandbox.create_code_context(sid, language="python")
 print(f"Context ID : {ctx.context_id}")
 print(f"Language   : {ctx.language}")
 
 # ---------------------------------------------------------------------------
 # 2. Define variables — they persist across calls
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.run_code(
+client.sandbox.run_code(
     sid,
     code="data = [10, 20, 30, 40, 50]",
     context_id=ctx.context_id,
@@ -55,7 +55,7 @@ print("\nDefined    : data = [10, 20, 30, 40, 50]")
 # ---------------------------------------------------------------------------
 # 3. Use the variables in a subsequent call
 # ---------------------------------------------------------------------------
-result = client.sandbox.sandboxes.run_code(
+result = client.sandbox.run_code(
     sid,
     code="total = sum(data)\navg = total / len(data)\nprint(f'Total: {total}, Average: {avg}')",
     context_id=ctx.context_id,
@@ -65,7 +65,7 @@ print(f"Computed   : {result.logs}")
 # ---------------------------------------------------------------------------
 # 4. Define a function, then call it later
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.run_code(
+client.sandbox.run_code(
     sid,
     code="""\
 def describe(values):
@@ -80,7 +80,7 @@ def describe(values):
     context_id=ctx.context_id,
 )
 
-result = client.sandbox.sandboxes.run_code(
+result = client.sandbox.run_code(
     sid,
     code="import json; print(json.dumps(describe(data), indent=2))",
     context_id=ctx.context_id,
@@ -90,17 +90,17 @@ print(f"\nDescribe   : {result.logs}")
 # ---------------------------------------------------------------------------
 # 5. Inspect the context
 # ---------------------------------------------------------------------------
-ctx_info = client.sandbox.sandboxes.get_code_context(sid, ctx.context_id)
+ctx_info = client.sandbox.get_code_context(sid, ctx.context_id)
 print(f"\nContext    : status={ctx_info.status}, cwd={ctx_info.cwd}")
 
 # ---------------------------------------------------------------------------
 # 6. Delete the context (kernel resources are freed)
 # ---------------------------------------------------------------------------
-delete_result = client.sandbox.sandboxes.delete_code_context(sid, ctx.context_id)
+delete_result = client.sandbox.delete_code_context(sid, ctx.context_id)
 print(f"Deleted    : {delete_result.message}")
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.kill(sid)
+client.sandbox.kill(sid)
 print("\nSandbox terminated.")

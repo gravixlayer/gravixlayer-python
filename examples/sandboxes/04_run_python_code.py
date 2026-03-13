@@ -26,14 +26,14 @@ client = GravixLayer(
 
 TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-base-v1")
 
-sandbox = client.sandbox.sandboxes.create(template=TEMPLATE, timeout=300)
+sandbox = client.sandbox.create(template=TEMPLATE, timeout=300)
 sid = sandbox.sandbox_id
 print(f"Sandbox    : {sid}")
 
 # ---------------------------------------------------------------------------
 # 1. Simple expression
 # ---------------------------------------------------------------------------
-result = client.sandbox.sandboxes.run_code(sid, code="print(2 + 2)")
+result = client.sandbox.run_code(sid, code="print(2 + 2)")
 print(f"\n--- Simple expression ---")
 print(f"Output     : {result.logs}")
 
@@ -53,7 +53,7 @@ info = {
 print(json.dumps(info, indent=2))
 """
 
-result = client.sandbox.sandboxes.run_code(sid, code=code, language="python")
+result = client.sandbox.run_code(sid, code=code, language="python")
 print(f"\n--- System info ---")
 print(f"Output     : {result.logs}")
 
@@ -75,12 +75,12 @@ print(f"First 15 Fibonacci numbers: {result}")
 print(f"Sum: {sum(result)}")
 """
 
-result = client.sandbox.sandboxes.run_code(sid, code=code, language="python")
+result = client.sandbox.run_code(sid, code=code, language="python")
 print(f"\n--- Fibonacci ---")
 print(f"Output     : {result.logs}")
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.sandbox.sandboxes.kill(sid)
+client.sandbox.kill(sid)
 print("\nSandbox terminated.")
