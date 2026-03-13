@@ -222,7 +222,7 @@ class Sandbox:
             timeout: Maximum execution time in seconds.
         """
         self._require_alive()
-        response = self._client.sandbox.run_command(
+        response = self._client.sandbox.run_cmd(
             self.sandbox_id, command=command, args=args or [], working_dir=working_dir, timeout=timeout
         )
         return Execution(response)

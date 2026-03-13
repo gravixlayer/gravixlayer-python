@@ -399,7 +399,7 @@ class AsyncSandboxes:
 
     # Command Execution Methods
 
-    async def run_command(
+    async def run_cmd(
         self,
         sandbox_id: str,
         command: str,

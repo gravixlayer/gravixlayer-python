@@ -420,7 +420,7 @@ class Sandboxes:
 
     # Command Execution Methods
 
-    def run_command(
+    def run_cmd(
         self,
         sandbox_id: str,
         command: str,

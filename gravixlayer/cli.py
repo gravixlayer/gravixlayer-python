@@ -1685,7 +1685,7 @@ def handle_sandbox_operations(args, client):
             # Use --args parameter for command arguments
             command_args = args.args if hasattr(args, "args") and args.args else []
 
-            result = client.sandbox.run_command(
+            result = client.sandbox.run_cmd(
                 sandbox_id=args.sandbox_id,
                 command=args.exec_command,
                 args=command_args,
