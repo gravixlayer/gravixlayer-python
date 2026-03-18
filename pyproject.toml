@@ -4,13 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gravixlayer"
-<<<<<<< Updated upstream
-version = "0.1.1"
-description = "GravixLayer Python SDK - Official Python client for GravixLayer API"
-=======
 version = "0.1.1"
 description = "GravixLayer Python SDK - Cloud runtime environments and template management for AI workloads"
->>>>>>> Stashed changes
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "Apache-2.0"}
