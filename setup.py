@@ -11,7 +11,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="gravixlayer",
-    version="0.1.1",
+    version="0.1.3",
     author="Team Gravix",
     author_email="info@gravixlayer.com",
     description="GravixLayer Python SDK - Official Python client for GravixLayer API",
