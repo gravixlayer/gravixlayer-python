@@ -1,4 +1,0 @@
-include README.md
-include requirements.txt
-include version.py
-recursive-include gravixlayer *.py

@@ -8,14 +8,8 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-downloads/
 eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 wheels/
 *.egg-info/
 .installed.cfg
@@ -30,71 +24,26 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
+
 .pytest_cache/
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
 *.log
-local_settings.py
-db.sqlite3
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
 
 # Sphinx documentation
-docs/_build/
+docs/
 
 # PyBuilder
 target/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# celery beat schedule file
-celerybeat-schedule
-
-# SageMath parsed files
-*.sage.py
 
 # Environments
 .env
 .venv
-env/
-venv/
-ENV/
-sdk/
-env.bak/
-venv.bak/
+.envrc
 
-# Spyder project settings
-.spyderproject
-.spyproject
 
 # Rope project settings
 .ropeproject
-
-# mkdocs documentation
-/site
 
 # mypy
 .mypy_cache/
@@ -115,4 +64,3 @@ comparison.py
 
 # Internal review docs
 SDK_PRODUCTION_READINESS*.md
-/tests/

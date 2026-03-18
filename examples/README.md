@@ -1,6 +1,6 @@
 # GravixLayer SDK Examples
 
-Example scripts demonstrating the GravixLayer Python SDK for managing templates, sandboxes, and sample apps.
+Example scripts demonstrating the GravixLayer Python SDK for managing templates, runtimes, and sample apps.
 
 ## Prerequisites
 
@@ -35,7 +35,7 @@ client = GravixLayer(cloud="azure", region="eastus2")  # explicit
 | Directory | Description |
 |---|---|
 | [`templates/`](templates/) | 8 standalone examples for creating templates (Docker image, local dir, Git, Dockerfile). See [templates/README.md](templates/README.md). |
-| [`sandboxes/`](sandboxes/) | 12 standalone examples covering sandbox lifecycle, code execution, file ops, metrics, and more. See [sandboxes/README.md](sandboxes/README.md). |
+| [`runtimes/`](runtimes/) | 12 standalone examples covering runtime lifecycle, code execution, file ops, metrics, and more. See [runtimes/README.md](runtimes/README.md). |
 | [`apps/`](apps/) | Sample applications used by template examples (Python FastAPI, Node.js Next.js). |
 
 ## Quick Start
@@ -49,12 +49,12 @@ python examples/templates/01_python_docker_image.py
 python examples/templates/03_python_local_dir.py
 python examples/templates/07_dockerfile.py
 
-# Sandboxes — each file is a standalone example
-python examples/sandboxes/01_create_python_sandbox.py
-python examples/sandboxes/04_run_python_code.py
-python examples/sandboxes/07_file_operations.py
-python examples/sandboxes/09_sandbox_metrics.py
-python examples/sandboxes/12_context_manager.py
+# Runtimees — each file is a standalone example
+python examples/runtimes/01_create_python_runtime.py
+python examples/runtimes/04_run_python_code.py
+python examples/runtimes/07_file_operations.py
+python examples/runtimes/09_runtime_metrics.py
+python examples/runtimes/12_context_manager.py
 ```
 
 ## Sample Apps
@@ -116,7 +116,7 @@ builder = (
 status = client.templates.build_and_wait(builder)
 ```
 
-## Sandbox Quick Reference
+## Runtime Quick Reference
 
 ```python
 from gravixlayer import GravixLayer
@@ -125,37 +125,37 @@ from gravixlayer import GravixLayer
 client = GravixLayer()
 
 # Create
-sandbox = client.sandbox.create(template="python-base-v1")
+runtime = client.runtime.create(template="python-base-v1")
 
 # Execute code
-result = client.sandbox.run_code(sandbox.sandbox_id, code="print('hello')")
+result = client.runtime.run_code(runtime.runtime_id, code="print('hello')")
 
 # Run command
-result = client.sandbox.run_command(sandbox.sandbox_id, command="ls", args=["-la"])
+result = client.runtime.run_command(runtime.runtime_id, command="ls", args=["-la"])
 
 # File operations
-client.sandbox.write_file(sandbox.sandbox_id, path="/tmp/test.txt", content="hello")
-result = client.sandbox.read_file(sandbox.sandbox_id, path="/tmp/test.txt")
+client.runtime.write_file(runtime.runtime_id, path="/tmp/test.txt", content="hello")
+result = client.runtime.read_file(runtime.runtime_id, path="/tmp/test.txt")
 
 # Metrics
-metrics = client.sandbox.get_metrics(sandbox.sandbox_id)
+metrics = client.runtime.get_metrics(runtime.runtime_id)
 print(f"CPU: {metrics.cpu_usage}%, Memory: {metrics.memory_usage} MB")
 
 # List and get
-sandboxes = client.sandbox.list()
-info = client.sandbox.get(sandbox.sandbox_id)
+runtimes = client.runtime.list()
+info = client.runtime.get(runtime.runtime_id)
 
 # Kill
-client.sandbox.kill(sandbox.sandbox_id)
+client.runtime.kill(runtime.runtime_id)
 ```
 
 ## Context Manager (Auto-Cleanup)
 
 ```python
-from gravixlayer.types.sandbox import Sandbox
+from gravixlayer.types.runtime import Runtime
 
-with Sandbox.create(template="python-base-v1") as sbx:
-    execution = sbx.run_code("print('hello')")
+with Runtime.create(template="python-base-v1") as rt:
+    execution = rt.run_code("print('hello')")
     print(execution.stdout)
-# sandbox is automatically killed on exit
+# runtime is automatically killed on exit
 ```

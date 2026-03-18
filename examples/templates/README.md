@@ -1,6 +1,6 @@
 # Template Examples
 
-Step-by-step examples for creating custom sandbox templates with the GravixLayer SDK.
+Step-by-step examples for creating custom runtime templates with the GravixLayer SDK.
 
 Each file is a **complete, standalone script** you can copy and run directly.
 
@@ -47,7 +47,7 @@ client = GravixLayer(api_key="tg_api_key_xxxxx")                                
 client = GravixLayer(api_key="tg_api_key_xxxxx", cloud="azure", region="eastus2")  # explicit
 ```
 
-Templates built in a specific provider/region are used to create sandboxes in that same environment.
+Templates built in a specific provider/region are used to create runtimes in that same environment.
 
 ## Examples
 
