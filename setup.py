@@ -9,11 +9,6 @@ from setuptools import setup, find_packages
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-# Read requirements
-with open("requirements.txt", "r", encoding="utf-8") as fh:
-    requirements = [line.strip() for line in fh if line.strip()
-                    and not line.startswith("#")]
-
 setup(
     name="gravixlayer",
     version="0.1.1",
@@ -38,7 +33,10 @@ setup(
         "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
     ],
     python_requires=">=3.9",
-    install_requires=requirements,
+    install_requires=[
+        "python-dotenv>=0.19.0",
+        "httpx[http2]>=0.24.0",
+    ],
     entry_points={
         'console_scripts': [
             'gravixlayer=gravixlayer.cli:main',
