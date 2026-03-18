@@ -4,15 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gravixlayer"
+<<<<<<< HEAD
 version = "0.1.3"
 description = "GravixLayer Python SDK - Cloud runtime environments and template management for AI workloads"
+=======
+version = "0.0.63"
+description = "GravixLayer Python SDK - Official Python client for GravixLayer API"
+>>>>>>> 1ad3985 (patch: updated routes)
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "Team Gravix", email = "info@gravixlayer.com"},
 ]
-keywords = ["gravixlayer", "ai", "cloud", "runtime", "sdk", "templates"]
+keywords = ["gravixlayer", "llm", "ai", "api", "sdk", "compatible"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -52,7 +57,7 @@ Issues = "https://github.com/gravixlayer/gravixlayer-python/issues"
 
 [tool.black]
 line-length = 120
-target-version = ['py39', 'py310', 'py311']
+target-version = ['py38', 'py39', 'py310', 'py311']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -70,7 +75,7 @@ extend-exclude = '''
 '''
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.8"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

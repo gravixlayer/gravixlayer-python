@@ -51,12 +51,12 @@ class Templates:
     """Template Build Pipeline resource.
 
     Exposes methods aligned with the backend template API:
-        POST   /v1/agents/templates/build
-        GET    /v1/agents/templates/builds/:build_id/status
-        GET    /v1/agents/templates
-        GET    /v1/agents/templates/:id
-        GET    /v1/agents/templates/:id/snapshot
-        DELETE /v1/agents/templates/:id
+        POST   /v1/agents/template/build
+        GET    /v1/agents/template/builds/:build_id/status
+        GET    /v1/agents/template
+        GET    /v1/agents/template/:id
+        GET    /v1/agents/template/:id/snapshot
+        DELETE /v1/agents/template/:id
 
     Example:
         >>> from gravixlayer import GravixLayer
@@ -165,7 +165,7 @@ class Templates:
         else:
             payload = builder
 
-        response = self._make_agents_request("POST", "templates/build", payload)
+        response = self._make_agents_request("POST", "template/build", payload)
         return self._parse_build_response(response.json())
 
     def get_build_status(self, build_id: str) -> TemplateBuildStatus:
@@ -178,7 +178,7 @@ class Templates:
             TemplateBuildStatus with current phase and progress.
         """
         response = self._make_agents_request(
-            "GET", f"templates/builds/{build_id}/status"
+            "GET", f"template/builds/{build_id}/status"
         )
         return self._parse_build_status(response.json())
 
@@ -293,7 +293,7 @@ class Templates:
         params: Dict[str, Any] = {"limit": limit, "offset": offset}
         if project_id:
             params["project_id"] = project_id
-        endpoint = f"templates?{urlencode(params)}"
+        endpoint = f"template?{urlencode(params)}"
 
         response = self._make_agents_request("GET", endpoint)
         data = response.json()
@@ -313,7 +313,7 @@ class Templates:
         Returns:
             TemplateInfo with full template metadata.
         """
-        response = self._make_agents_request("GET", f"templates/{template_id}")
+        response = self._make_agents_request("GET", f"template/{template_id}")
         return self._parse_template_info(response.json())
 
     def get_snapshot(self, template_id: str) -> TemplateSnapshot:
@@ -326,7 +326,7 @@ class Templates:
             TemplateSnapshot with snapshot metadata.
         """
         response = self._make_agents_request(
-            "GET", f"templates/{template_id}/snapshot"
+            "GET", f"template/{template_id}/snapshot"
         )
         return self._parse_snapshot(response.json())
 
@@ -339,6 +339,6 @@ class Templates:
         Returns:
             TemplateDeleteResponse confirming deletion.
         """
-        self._make_agents_request("DELETE", f"templates/{template_id}")
+        self._make_agents_request("DELETE", f"template/{template_id}")
         # Backend returns 204 No Content
         return TemplateDeleteResponse(template_id=template_id, deleted=True)

@@ -124,7 +124,7 @@ class AsyncRuntimes:
         if agent_id is not None:
             data["agent_id"] = agent_id
 
-        response = await self._make_agents_request("POST", "runtimes", data)
+        response = await self._make_agents_request("POST", "runtime", data)
         result = self._apply_defaults(response.json(), template=template)
         rt = Runtime.from_api(result)
         rt._client = self.client
@@ -138,7 +138,7 @@ class AsyncRuntimes:
         if offset is not None:
             params["offset"] = offset
 
-        endpoint = f"runtimes?{urlencode(params)}" if params else "runtimes"
+        endpoint = f"runtime?{urlencode(params)}" if params else "runtime"
         response = await self._make_agents_request("GET", endpoint)
         result = response.json()
 
@@ -152,7 +152,7 @@ class AsyncRuntimes:
     async def get(self, runtime_id: str) -> Runtime:
         """Get detailed information about a specific runtime."""
         _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("GET", f"runtimes/{runtime_id}")
+        response = await self._make_agents_request("GET", f"runtime/{runtime_id}")
         result = self._apply_defaults(response.json())
         rt = Runtime.from_api(result)
         rt._client = self.client
@@ -161,7 +161,7 @@ class AsyncRuntimes:
     async def kill(self, runtime_id: str) -> RuntimeKillResponse:
         """Terminate a running runtime immediately."""
         _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("DELETE", f"runtimes/{runtime_id}")
+        response = await self._make_agents_request("DELETE", f"runtime/{runtime_id}")
         result = response.json()
         return RuntimeKillResponse(**result)
 
@@ -175,7 +175,7 @@ class AsyncRuntimes:
             Dict with runtime_id, status, domain, and message.
         """
         _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/connect")
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/connect")
         return response.json()
 
     # Runtime Configuration Methods
@@ -184,14 +184,14 @@ class AsyncRuntimes:
         """Update the timeout for a running runtime."""
         _validate_runtime_id(runtime_id)
         data = {"timeout": timeout}
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/timeout", data)
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/timeout", data)
         result = response.json()
         return RuntimeTimeoutResponse(**result)
 
     async def get_metrics(self, runtime_id: str) -> RuntimeMetrics:
         """Get current resource usage metrics for a runtime."""
         _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("GET", f"runtimes/{runtime_id}/metrics")
+        response = await self._make_agents_request("GET", f"runtime/{runtime_id}/metrics")
         result = response.json()
         filtered = {k: v for k, v in result.items() if k in _METRICS_FIELDS}
         return RuntimeMetrics(**filtered)
@@ -199,7 +199,7 @@ class AsyncRuntimes:
     async def get_host_url(self, runtime_id: str, port: int) -> RuntimeHostURL:
         """Get the public URL for accessing a specific port on the runtime."""
         _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("GET", f"runtimes/{runtime_id}/host/{port}")
+        response = await self._make_agents_request("GET", f"runtime/{runtime_id}/host/{port}")
         result = response.json()
         return RuntimeHostURL(**result)
 
@@ -210,7 +210,7 @@ class AsyncRuntimes:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         data = {"path": path}
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/files/read", data)
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/files/read", data)
         result = response.json()
         return FileReadResponse(**result)
 
@@ -219,7 +219,7 @@ class AsyncRuntimes:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         data = {"path": path, "content": content}
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/files/write", data)
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/files/write", data)
         result = response.json()
         return FileWriteResponse(**result)
 
@@ -228,7 +228,7 @@ class AsyncRuntimes:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         data = {"path": path}
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/files/list", data)
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/files/list", data)
         result = response.json()
 
         files = []
@@ -249,7 +249,7 @@ class AsyncRuntimes:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         data = {"path": path}
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/files/delete", data)
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/files/delete", data)
         result = response.json()
         return FileDeleteResponse(**result)
 
@@ -258,7 +258,7 @@ class AsyncRuntimes:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         data = {"path": path}
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/files/mkdir", data)
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/files/mkdir", data)
         result = response.json()
         return DirectoryCreateResponse(**result)
 
@@ -271,7 +271,7 @@ class AsyncRuntimes:
 
         files = {"file": file}
         response = await self._make_agents_request(
-            "POST", f"runtimes/{runtime_id}/upload", data=data, files=files
+            "POST", f"runtime/{runtime_id}/upload", data=data, files=files
         )
         result = response.json()
         return FileUploadResponse(**result)
@@ -280,7 +280,7 @@ class AsyncRuntimes:
         """Download a file from the runtime filesystem."""
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        endpoint = f"runtimes/{runtime_id}/download?{urlencode({'path': path})}"
+        endpoint = f"runtime/{runtime_id}/download?{urlencode({'path': path})}"
         response = await self._make_agents_request("GET", endpoint)
         return response.content
 
@@ -327,7 +327,7 @@ class AsyncRuntimes:
         if mode is not None:
             params["mode"] = oct(mode)
 
-        endpoint = f"runtimes/{runtime_id}/files?{urlencode(params)}"
+        endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
         files = {"file": (filename, content, "application/octet-stream")}
         response = await self._make_agents_request("POST", endpoint, files=files)
         result = response.json()
@@ -372,7 +372,7 @@ class AsyncRuntimes:
             params["username"] = user
         query = f"?{urlencode(params)}" if params else ""
 
-        endpoint = f"runtimes/{runtime_id}/files{query}"
+        endpoint = f"runtime/{runtime_id}/files{query}"
         response = await self._make_agents_request("POST", endpoint, files=multipart_files)
         result = response.json()
         partial_failure = response.status_code == 207
@@ -429,7 +429,7 @@ class AsyncRuntimes:
         if timeout is not None:
             data["timeout"] = timeout * 1000
 
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/commands/run", data)
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/commands/run", data)
         result = response.json()
         return CommandRunResponse(**result)
 
@@ -465,7 +465,7 @@ class AsyncRuntimes:
         if timeout is not None:
             data["timeout"] = timeout
 
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/code/run", data)
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/code/run", data)
         return CodeRunResponse.from_api(response.json())
 
     async def create_code_context(
@@ -479,7 +479,7 @@ class AsyncRuntimes:
         if cwd:
             data["cwd"] = cwd
 
-        response = await self._make_agents_request("POST", f"runtimes/{runtime_id}/code/contexts", data)
+        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/code/contexts", data)
         result = response.json()
 
         mapped_result = {
@@ -493,7 +493,7 @@ class AsyncRuntimes:
     async def get_code_context(self, runtime_id: str, context_id: str) -> CodeContext:
         """Get information about a code execution context."""
         _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("GET", f"runtimes/{runtime_id}/code/contexts/{context_id}")
+        response = await self._make_agents_request("GET", f"runtime/{runtime_id}/code/contexts/{context_id}")
         result = response.json()
 
         mapped_result = {
@@ -507,7 +507,7 @@ class AsyncRuntimes:
     async def delete_code_context(self, runtime_id: str, context_id: str) -> CodeContextDeleteResponse:
         """Delete a code execution context."""
         _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("DELETE", f"runtimes/{runtime_id}/code/contexts/{context_id}")
+        response = await self._make_agents_request("DELETE", f"runtime/{runtime_id}/code/contexts/{context_id}")
         result = response.json()
         return CodeContextDeleteResponse(**result)
 
@@ -516,7 +516,7 @@ class AsyncRuntimes:
     async def enable_ssh(self, runtime_id: str, regenerate_keys: bool = False) -> SSHInfo:
         """Enable SSH access on a runtime."""
         _validate_runtime_id(runtime_id)
-        endpoint = f"runtimes/{runtime_id}/ssh/enable"
+        endpoint = f"runtime/{runtime_id}/ssh/enable"
         if regenerate_keys:
             endpoint += "?regenerate_keys=true"
         response = await self._make_agents_request("POST", endpoint)
@@ -537,12 +537,12 @@ class AsyncRuntimes:
     async def disable_ssh(self, runtime_id: str) -> None:
         """Disable SSH access on a runtime."""
         _validate_runtime_id(runtime_id)
-        await self._make_agents_request("POST", f"runtimes/{runtime_id}/ssh/disable")
+        await self._make_agents_request("POST", f"runtime/{runtime_id}/ssh/disable")
 
     async def ssh_status(self, runtime_id: str) -> SSHStatus:
         """Get current SSH status for a runtime."""
         _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("GET", f"runtimes/{runtime_id}/ssh/status")
+        response = await self._make_agents_request("GET", f"runtime/{runtime_id}/ssh/status")
         result = response.json()
         return SSHStatus(
             runtime_id=result.get("runtime_id", runtime_id),
@@ -557,12 +557,12 @@ class AsyncRuntimes:
     async def pause(self, runtime_id: str) -> None:
         """Pause a running runtime."""
         _validate_runtime_id(runtime_id)
-        await self._make_agents_request("POST", f"runtimes/{runtime_id}/pause")
+        await self._make_agents_request("POST", f"runtime/{runtime_id}/pause")
 
     async def resume(self, runtime_id: str) -> None:
         """Resume a paused runtime."""
         _validate_runtime_id(runtime_id)
-        await self._make_agents_request("POST", f"runtimes/{runtime_id}/resume")
+        await self._make_agents_request("POST", f"runtime/{runtime_id}/resume")
 
 
 class AsyncRuntimeTemplates:
@@ -583,9 +583,9 @@ class AsyncRuntimeTemplates:
         if offset is not None:
             params["offset"] = offset
 
-        endpoint = "templates"
+        endpoint = "template"
         if params:
-            endpoint = f"templates?{urlencode(params)}"
+            endpoint = f"template?{urlencode(params)}"
 
         response = await self._make_agents_request("GET", endpoint)
         result = response.json()
