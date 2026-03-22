@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gravixlayer"
-version = "0.1.13"
+version = "0.1.14"
 description = "GravixLayer Python SDK - Cloud runtime environments and template management for AI workloads"
 readme = "README.md"
 requires-python = ">=3.9"
