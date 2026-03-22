@@ -6,7 +6,7 @@ import sys
 from typing import List
 
 from .client_factory import make_client
-from .formatters import print_json, print_table, print_error, print_kv
+from .formatters import print_json, print_error
 
 
 # ---------------------------------------------------------------------------
@@ -35,16 +35,7 @@ def _cmd_create(args: argparse.Namespace) -> None:
         if args.json:
             print_json(rt)
         else:
-            print_kv({
-                "runtime_id": rt.runtime_id,
-                "status": rt.status,
-                "template": rt.template,
-                "provider": rt.provider,
-                "region": rt.region,
-                "cpu": rt.cpu_count,
-                "memory_mb": rt.memory_mb,
-                "started_at": rt.started_at,
-            })
+            print_json(rt)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -58,18 +49,7 @@ def _cmd_list(args: argparse.Namespace) -> None:
         if args.json:
             print_json({"runtimes": result.runtimes, "total": result.total})
         else:
-            rows = []
-            for rt in result.runtimes:
-                rows.append({
-                    "runtime_id": rt.runtime_id,
-                    "status": rt.status,
-                    "template": rt.template or "",
-                    "provider": rt.provider or "",
-                    "region": rt.region or "",
-                    "started_at": rt.started_at or "",
-                })
-            print_table(rows, ["runtime_id", "status", "template", "provider", "region", "started_at"])
-            print(f"\nTotal: {result.total}")
+            print_json({"runtimes": result.runtimes, "total": result.total})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -83,23 +63,7 @@ def _cmd_get(args: argparse.Namespace) -> None:
         if args.json:
             print_json(rt)
         else:
-            print_kv({
-                "runtime_id": rt.runtime_id,
-                "status": rt.status,
-                "template": rt.template,
-                "template_id": rt.template_id,
-                "provider": rt.provider,
-                "region": rt.region,
-                "cpu": rt.cpu_count,
-                "memory_mb": rt.memory_mb,
-                "disk_size_mb": rt.disk_size_mb,
-                "started_at": rt.started_at,
-                "timeout_at": rt.timeout_at,
-                "ended_at": rt.ended_at,
-                "ip_address": rt.ip_address,
-                "ssh_enabled": rt.ssh_enabled,
-                "metadata": rt.metadata,
-            })
+            print_json(rt)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -113,7 +77,7 @@ def _cmd_kill(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(f"Runtime {args.runtime_id} terminated.")
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -127,7 +91,7 @@ def _cmd_connect(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv(result)
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -143,11 +107,7 @@ def _cmd_set_timeout(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "message": result.message,
-                "timeout": result.timeout,
-                "timeout_at": result.timeout_at,
-            })
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -161,16 +121,7 @@ def _cmd_metrics(args: argparse.Namespace) -> None:
         if args.json:
             print_json(m)
         else:
-            print_kv({
-                "timestamp": m.timestamp,
-                "cpu_usage": f"{m.cpu_usage:.2f}%",
-                "memory_usage": f"{m.memory_usage:.1f} MB",
-                "memory_total": f"{m.memory_total:.1f} MB",
-                "disk_read": m.disk_read,
-                "disk_write": m.disk_write,
-                "network_rx": m.network_rx,
-                "network_tx": m.network_tx,
-            })
+            print_json(m)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -184,7 +135,7 @@ def _cmd_host_url(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(result.url)
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -200,7 +151,7 @@ def _cmd_read_file(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(result.content)
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -223,7 +174,7 @@ def _cmd_write_file(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(f"Written: {args.path}")
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -237,17 +188,7 @@ def _cmd_list_files(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            rows = []
-            for f in result.files:
-                ftype = "dir" if f.is_dir else "file"
-                rows.append({
-                    "name": f.name,
-                    "type": ftype,
-                    "size": str(f.size),
-                    "mode": f.mode or "",
-                    "modified_at": f.modified_at or "",
-                })
-            print_table(rows, ["name", "type", "size", "mode", "modified_at"])
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -261,7 +202,7 @@ def _cmd_delete_file(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(f"Deleted: {args.path}")
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -275,7 +216,7 @@ def _cmd_mkdir(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(f"Created directory: {args.path}")
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -290,7 +231,7 @@ def _cmd_upload(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(f"Uploaded: {args.local_path} -> {args.remote_path or '/'}")
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -335,7 +276,7 @@ def _cmd_write(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(f"Written: {result.path} ({result.size} bytes)")
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -359,12 +300,7 @@ def _cmd_run_cmd(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            if result.stdout:
-                sys.stdout.write(result.stdout)
-            if result.stderr:
-                sys.stderr.write(result.stderr)
-            if not result.success:
-                sys.exit(result.exit_code or 1)
+            print_json(result)
     except SystemExit:
         raise
     except Exception as exc:
@@ -401,15 +337,7 @@ def _cmd_run_code(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            if hasattr(result, "text") and result.text:
-                print(result.text)
-            if hasattr(result, "stdout_text") and result.stdout_text:
-                sys.stdout.write(result.stdout_text)
-            if hasattr(result, "stderr_text") and result.stderr_text:
-                sys.stderr.write(result.stderr_text)
-            if result.error:
-                sys.stderr.write(f"Error: {result.error}\n")
-                sys.exit(1)
+            print_json(result)
     except SystemExit:
         raise
     except Exception as exc:
@@ -427,11 +355,7 @@ def _cmd_create_context(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "context_id": result.context_id,
-                "language": result.language,
-                "cwd": result.cwd,
-            })
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -445,11 +369,7 @@ def _cmd_get_context(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "context_id": result.context_id,
-                "language": result.language,
-                "cwd": result.cwd,
-            })
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -463,7 +383,7 @@ def _cmd_delete_context(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(f"Context {args.context_id} deleted.")
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -479,16 +399,7 @@ def _cmd_ssh_enable(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "runtime_id": result.runtime_id,
-                "enabled": result.enabled,
-                "port": result.port,
-                "username": result.username,
-                "connect_cmd": result.connect_cmd,
-                "key_fingerprint": result.key_fingerprint,
-            })
-            if result.private_key:
-                print(f"\nPrivate Key:\n{result.private_key}")
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -502,7 +413,7 @@ def _cmd_ssh_disable(args: argparse.Namespace) -> None:
         if args.json:
             print_json({"runtime_id": args.runtime_id, "ssh_disabled": True})
         else:
-            print(f"SSH disabled for {args.runtime_id}.")
+            print_json({"runtime_id": args.runtime_id, "ssh_disabled": True})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -516,13 +427,7 @@ def _cmd_ssh_status(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "runtime_id": result.runtime_id,
-                "enabled": result.enabled,
-                "port": result.port,
-                "username": result.username,
-                "daemon_running": result.daemon_running,
-            })
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -538,7 +443,7 @@ def _cmd_pause(args: argparse.Namespace) -> None:
         if args.json:
             print_json({"runtime_id": args.runtime_id, "paused": True})
         else:
-            print(f"Runtime {args.runtime_id} paused.")
+            print_json({"runtime_id": args.runtime_id, "paused": True})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -552,7 +457,7 @@ def _cmd_resume(args: argparse.Namespace) -> None:
         if args.json:
             print_json({"runtime_id": args.runtime_id, "resumed": True})
         else:
-            print(f"Runtime {args.runtime_id} resumed.")
+            print_json({"runtime_id": args.runtime_id, "resumed": True})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -568,13 +473,7 @@ def _cmd_templates_list(args: argparse.Namespace) -> None:
         if args.json:
             print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
         else:
-            rows = []
-            for t in result.templates:
-                rows.append({
-                    "name": t.name,
-                    "id": t.id if hasattr(t, "id") else "",
-                })
-            print_table(rows, ["name", "id"])
+            print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -693,7 +592,7 @@ def register_runtime_parser(subparsers: argparse._SubParsersAction) -> None:
     p = rt_sub.add_parser("run-cmd", help="Execute a shell command")
     p.add_argument("runtime_id", help="Runtime UUID")
     p.add_argument("command", help="Command to execute")
-    p.add_argument("cmd_args", nargs="*", help="Additional command arguments")
+    p.add_argument("cmd_args", nargs=argparse.REMAINDER, help="Additional command arguments")
     p.add_argument("--working-dir", "-w", help="Working directory")
     p.add_argument("--env", help="Environment variables as JSON object")
     p.add_argument("--cmd-timeout", type=int, help="Timeout in seconds")

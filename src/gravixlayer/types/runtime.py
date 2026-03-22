@@ -658,12 +658,12 @@ class CodeRunResponse:
     @property
     def stdout_text(self) -> str:
         """Get stdout as a single string."""
-        return "\n".join(self.logs.stdout)
+        return "\n".join(self.logs.stdout or [])
 
     @property
     def stderr_text(self) -> str:
         """Get stderr as a single string."""
-        return "\n".join(self.logs.stderr)
+        return "\n".join(self.logs.stderr or [])
 
     @property
     def success(self) -> bool:
@@ -693,8 +693,8 @@ class CodeRunResponse:
         # Parse logs
         raw_logs = data.get("logs") or {}
         logs = ExecutionLogs(
-            stdout=raw_logs.get("stdout", []) if isinstance(raw_logs, dict) else [],
-            stderr=raw_logs.get("stderr", []) if isinstance(raw_logs, dict) else [],
+            stdout=(raw_logs.get("stdout") or []) if isinstance(raw_logs, dict) else [],
+            stderr=(raw_logs.get("stderr") or []) if isinstance(raw_logs, dict) else [],
         )
 
         # Parse error

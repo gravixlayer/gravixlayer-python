@@ -7,7 +7,7 @@ import time
 from typing import Optional
 
 from .client_factory import make_client
-from .formatters import print_json, print_table, print_error, print_kv
+from .formatters import print_json, print_error
 
 
 # ---------------------------------------------------------------------------
@@ -97,12 +97,7 @@ def _cmd_build(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "build_id": result.build_id,
-                "template_id": result.template_id,
-                "status": result.status,
-                "message": result.message,
-            })
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -128,15 +123,7 @@ def _cmd_build_wait(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "build_id": result.build_id,
-                "template_id": result.template_id,
-                "status": result.status,
-                "phase": result.phase,
-                "progress": f"{result.progress_percent}%",
-                "started_at": result.started_at,
-                "completed_at": result.completed_at,
-            })
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -151,16 +138,7 @@ def _cmd_build_status(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "build_id": result.build_id,
-                "template_id": result.template_id,
-                "status": result.status,
-                "phase": result.phase,
-                "progress": f"{result.progress_percent}%",
-                "error": result.error,
-                "started_at": result.started_at,
-                "completed_at": result.completed_at,
-            })
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -177,18 +155,7 @@ def _cmd_list(args: argparse.Namespace) -> None:
         if args.json:
             print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
         else:
-            rows = []
-            for t in result.templates:
-                rows.append({
-                    "id": t.id,
-                    "name": t.name,
-                    "vcpu": str(t.vcpu_count),
-                    "memory_mb": str(t.memory_mb),
-                    "disk_mb": str(t.disk_size_mb),
-                    "visibility": t.visibility,
-                    "created_at": t.created_at,
-                })
-            print_table(rows, ["id", "name", "vcpu", "memory_mb", "disk_mb", "visibility", "created_at"])
+            print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -203,19 +170,7 @@ def _cmd_get(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "id": result.id,
-                "name": result.name,
-                "description": result.description,
-                "vcpu_count": result.vcpu_count,
-                "memory_mb": result.memory_mb,
-                "disk_size_mb": result.disk_size_mb,
-                "visibility": result.visibility,
-                "provider": result.provider,
-                "region": result.region,
-                "created_at": result.created_at,
-                "updated_at": result.updated_at,
-            })
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -230,17 +185,7 @@ def _cmd_snapshot(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print_kv({
-                "template_id": result.template_id,
-                "name": result.name,
-                "description": result.description,
-                "has_snapshot": result.has_snapshot,
-                "vcpu_count": result.vcpu_count,
-                "memory_mb": result.memory_mb,
-                "created_at": result.created_at,
-                "envd_version": result.envd_version,
-                "snapshot_size_bytes": result.snapshot_size_bytes,
-            })
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -255,7 +200,7 @@ def _cmd_delete(args: argparse.Namespace) -> None:
         if args.json:
             print_json(result)
         else:
-            print(f"Template {args.template_id} deleted.")
+            print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
