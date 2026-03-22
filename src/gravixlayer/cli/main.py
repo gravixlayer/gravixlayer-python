@@ -32,7 +32,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cloud", help="Default cloud provider (or set GRAVIXLAYER_CLOUD)")
     parser.add_argument("--region", help="Default region (or set GRAVIXLAYER_REGION)")
     parser.add_argument("--timeout", type=float, default=60.0, help="HTTP request timeout in seconds (default: 60)")
-    parser.add_argument("--json", action="store_true", default=False, help="Output as JSON")
 
     subparsers = parser.add_subparsers(dest="command")
     register_runtime_parser(subparsers)

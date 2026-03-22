@@ -94,10 +94,7 @@ def _cmd_build(args: argparse.Namespace) -> None:
     try:
         builder = _build_template_builder(args)
         result = client.templates.build(builder)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -111,8 +108,7 @@ def _cmd_build_wait(args: argparse.Namespace) -> None:
         builder = _build_template_builder(args)
 
         def _on_status(entry):
-            if not args.json:
-                sys.stderr.write(f"[build] {entry.message}\n")
+            sys.stderr.write(f"[build] {entry.message}\n")
 
         result = client.templates.build_and_wait(
             builder,
@@ -120,10 +116,7 @@ def _cmd_build_wait(args: argparse.Namespace) -> None:
             timeout_secs=args.build_timeout,
             on_status=_on_status,
         )
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -135,10 +128,7 @@ def _cmd_build_status(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.templates.get_build_status(args.build_id)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -152,10 +142,7 @@ def _cmd_list(args: argparse.Namespace) -> None:
         result = client.templates.list(
             limit=args.limit, offset=args.offset, project_id=args.project_id,
         )
-        if args.json:
-            print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
-        else:
-            print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
+        print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -167,10 +154,7 @@ def _cmd_get(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.templates.get(args.template_id)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -182,10 +166,7 @@ def _cmd_snapshot(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.templates.get_snapshot(args.template_id)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -197,10 +178,7 @@ def _cmd_delete(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.templates.delete(args.template_id)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:

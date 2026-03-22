@@ -32,10 +32,7 @@ def _cmd_create(args: argparse.Namespace) -> None:
             internet_access=internet,
             agent_id=args.agent_id,
         )
-        if args.json:
-            print_json(rt)
-        else:
-            print_json(rt)
+        print_json(rt)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -46,10 +43,7 @@ def _cmd_list(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.list(limit=args.limit, offset=args.offset)
-        if args.json:
-            print_json({"runtimes": result.runtimes, "total": result.total})
-        else:
-            print_json({"runtimes": result.runtimes, "total": result.total})
+        print_json({"runtimes": result.runtimes, "total": result.total})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -60,10 +54,7 @@ def _cmd_get(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         rt = client.runtime.get(args.runtime_id)
-        if args.json:
-            print_json(rt)
-        else:
-            print_json(rt)
+        print_json(rt)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -74,10 +65,7 @@ def _cmd_kill(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.kill(args.runtime_id)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -88,10 +76,7 @@ def _cmd_connect(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.connect(args.runtime_id)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -104,10 +89,7 @@ def _cmd_set_timeout(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.set_timeout(args.runtime_id, args.seconds)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -118,10 +100,7 @@ def _cmd_metrics(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         m = client.runtime.get_metrics(args.runtime_id)
-        if args.json:
-            print_json(m)
-        else:
-            print_json(m)
+        print_json(m)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -132,10 +111,7 @@ def _cmd_host_url(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.get_host_url(args.runtime_id, args.port)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -148,10 +124,7 @@ def _cmd_read_file(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.read_file(args.runtime_id, args.path)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -171,10 +144,7 @@ def _cmd_write_file(args: argparse.Namespace) -> None:
             else:
                 print_error("Content required via --content, --from-file, or stdin pipe.")
         result = client.runtime.write_file(args.runtime_id, args.path, content)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -185,10 +155,7 @@ def _cmd_list_files(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.list_files(args.runtime_id, args.path)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -199,10 +166,7 @@ def _cmd_delete_file(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.delete_file(args.runtime_id, args.path)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -213,10 +177,7 @@ def _cmd_mkdir(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.make_directory(args.runtime_id, args.path)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -228,10 +189,7 @@ def _cmd_upload(args: argparse.Namespace) -> None:
     try:
         with open(args.local_path, "rb") as f:
             result = client.runtime.upload_file(args.runtime_id, file=f, path=args.remote_path)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -273,10 +231,7 @@ def _cmd_write(args: argparse.Namespace) -> None:
         result = client.runtime.write(
             args.runtime_id, args.path, data, user=args.user, mode=mode,
         )
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -297,10 +252,7 @@ def _cmd_run_cmd(args: argparse.Namespace) -> None:
             environment=env,
             timeout=args.cmd_timeout,
         )
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except SystemExit:
         raise
     except Exception as exc:
@@ -334,10 +286,7 @@ def _cmd_run_code(args: argparse.Namespace) -> None:
             environment=env,
             timeout=args.code_timeout,
         )
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except SystemExit:
         raise
     except Exception as exc:
@@ -352,10 +301,7 @@ def _cmd_create_context(args: argparse.Namespace) -> None:
         result = client.runtime.create_code_context(
             args.runtime_id, language=args.language, cwd=args.cwd,
         )
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -366,10 +312,7 @@ def _cmd_get_context(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.get_code_context(args.runtime_id, args.context_id)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -380,10 +323,7 @@ def _cmd_delete_context(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.delete_code_context(args.runtime_id, args.context_id)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -396,10 +336,7 @@ def _cmd_ssh_enable(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.enable_ssh(args.runtime_id, regenerate_keys=args.regenerate_keys)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -410,10 +347,7 @@ def _cmd_ssh_disable(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         client.runtime.disable_ssh(args.runtime_id)
-        if args.json:
-            print_json({"runtime_id": args.runtime_id, "ssh_disabled": True})
-        else:
-            print_json({"runtime_id": args.runtime_id, "ssh_disabled": True})
+        print_json({"runtime_id": args.runtime_id, "ssh_disabled": True})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -424,10 +358,7 @@ def _cmd_ssh_status(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.ssh_status(args.runtime_id)
-        if args.json:
-            print_json(result)
-        else:
-            print_json(result)
+        print_json(result)
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -440,10 +371,7 @@ def _cmd_pause(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         client.runtime.pause(args.runtime_id)
-        if args.json:
-            print_json({"runtime_id": args.runtime_id, "paused": True})
-        else:
-            print_json({"runtime_id": args.runtime_id, "paused": True})
+        print_json({"runtime_id": args.runtime_id, "paused": True})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -454,10 +382,7 @@ def _cmd_resume(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         client.runtime.resume(args.runtime_id)
-        if args.json:
-            print_json({"runtime_id": args.runtime_id, "resumed": True})
-        else:
-            print_json({"runtime_id": args.runtime_id, "resumed": True})
+        print_json({"runtime_id": args.runtime_id, "resumed": True})
     except Exception as exc:
         print_error(str(exc))
     finally:
@@ -470,10 +395,7 @@ def _cmd_templates_list(args: argparse.Namespace) -> None:
     client = make_client(args.api_key, args.base_url, args.cloud, args.region, args.timeout)
     try:
         result = client.runtime.templates.list(limit=args.limit, offset=args.offset)
-        if args.json:
-            print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
-        else:
-            print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
+        print_json({"templates": result.templates, "limit": result.limit, "offset": result.offset})
     except Exception as exc:
         print_error(str(exc))
     finally:
