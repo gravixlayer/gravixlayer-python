@@ -9,8 +9,8 @@ import asyncio
 import logging
 import time as _time
 from typing import Dict, Any, Optional, Union
-from urllib.parse import urlencode
 
+from .._resource_utils import build_list_endpoint, parse_paginated_items
 from ..types.templates import (
     TemplateBuilder,
     TemplateBuildResponse,
@@ -237,18 +237,26 @@ class AsyncTemplates:
         Returns:
             TemplateListResponse containing template list and pagination info.
         """
-        params: Dict[str, Any] = {"limit": limit, "offset": offset}
-        if project_id:
-            params["project_id"] = project_id
-        endpoint = f"template?{urlencode(params)}"
+        endpoint = build_list_endpoint(
+            "template",
+            limit=limit,
+            offset=offset,
+            extra_params={"project_id": project_id},
+        )
 
         response = await self._make_agents_request("GET", endpoint)
         data = response.json()
-        templates = [_parse_template_info(t) for t in data.get("templates", [])]
+        templates, page_limit, page_offset = parse_paginated_items(
+            data,
+            "templates",
+            _parse_template_info,
+            default_limit=limit,
+            default_offset=offset,
+        )
         return TemplateListResponse(
             templates=templates,
-            limit=data.get("limit", limit),
-            offset=data.get("offset", offset),
+            limit=page_limit,
+            offset=page_offset,
         )
 
     async def get(self, template_id: str) -> TemplateInfo:

@@ -7,6 +7,14 @@ from typing import Optional, Dict, Any
 import httpx
 
 from . import __version__
+from ._request_utils import (
+    RETRYABLE_STATUS,
+    SUCCESS_STATUS,
+    build_url,
+    can_retry,
+    next_retry_delay,
+    prepare_request_kwargs,
+)
 from .resources.runtime import RuntimeResource
 from .resources.templates import Templates
 from .types.exceptions import (
@@ -17,11 +25,6 @@ from .types.exceptions import (
     GravixLayerBadRequestError,
     GravixLayerConnectionError,
 )
-
-_RETRYABLE_STATUS = frozenset((502, 503, 504))
-_SUCCESS_STATUS = frozenset((200, 201, 202, 204, 207))
-_JSON_HEADERS = {"Content-Type": "application/json"}
-
 
 class GravixLayer:
     """
@@ -114,28 +117,16 @@ class GravixLayer:
         self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, stream: bool = False, **kwargs
     ) -> httpx.Response:
         _service = kwargs.pop("_service", "v1/inference")
-        is_absolute_endpoint = endpoint and endpoint.startswith(("http://", "https://"))
-
-        if is_absolute_endpoint:
-            url = endpoint
-        else:
-            service_base = self._service_urls.get(_service, f"{self.base_url}/{_service}") if _service else self.base_url
-            url = f"{service_base}/{endpoint.lstrip('/')}" if endpoint else service_base
-
-        has_files = "files" in kwargs
-        if has_files:
-            if data is not None:
-                kwargs["data"] = data
-        else:
-            if data is not None:
-                kwargs["json"] = data
-            kwargs["headers"] = _JSON_HEADERS
+        url = build_url(endpoint, _service, self._service_urls, self.base_url)
+        prepare_request_kwargs(data, kwargs)
 
         last_exc: Optional[Exception] = None
         logger_warning = self._logger.warning
         sleep = time.sleep
         rand = random.random
         max_retries = self.max_retries
+        can_retry_local = can_retry
+        next_retry_delay_local = next_retry_delay
 
         for attempt in self._retry_attempts:
             try:
@@ -147,23 +138,26 @@ class GravixLayer:
 
                 status = resp.status_code
 
-                if status in _SUCCESS_STATUS:
+                if status in SUCCESS_STATUS:
                     return resp
 
                 if status == 401:
                     raise GravixLayerAuthenticationError("Authentication failed.")
 
                 if status == 429:
-                    if attempt < max_retries:
-                        retry_after = resp.headers.get("Retry-After")
-                        delay = float(retry_after) if retry_after else (2 ** attempt + rand())
+                    if can_retry_local(attempt, max_retries):
+                        delay = next_retry_delay_local(
+                            attempt,
+                            rand,
+                            resp.headers.get("Retry-After"),
+                        )
                         logger_warning("Rate limited. Retrying in %.1fs...", delay)
                         sleep(delay)
                         continue
                     raise GravixLayerRateLimitError(resp.text)
 
-                if status in _RETRYABLE_STATUS and attempt < max_retries:
-                    delay = 2 ** attempt + rand()
+                if status in RETRYABLE_STATUS and can_retry_local(attempt, max_retries):
+                    delay = next_retry_delay_local(attempt, rand)
                     logger_warning("Server error %d. Retrying in %.1fs...", status, delay)
                     sleep(delay)
                     continue
@@ -177,8 +171,8 @@ class GravixLayer:
 
             except httpx.RequestError as exc:
                 last_exc = exc
-                if attempt < max_retries:
-                    delay = 2 ** attempt + rand()
+                if can_retry_local(attempt, max_retries):
+                    delay = next_retry_delay_local(attempt, rand)
                     logger_warning("Connection error, retrying in %.1fs...", delay)
                     sleep(delay)
                     continue

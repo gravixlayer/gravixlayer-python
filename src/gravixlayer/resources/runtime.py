@@ -6,6 +6,7 @@ import os
 from typing import List, Dict, Any, Optional, BinaryIO, Union
 from urllib.parse import urlencode
 
+from .._resource_utils import build_list_endpoint, parse_paginated_items, parse_total_items
 from ..types.runtime import (
     Runtime,
     RuntimeList,
@@ -118,23 +119,18 @@ class Runtimes:
 
     def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> RuntimeList:
         """List all runtimes"""
-        params: Dict[str, Any] = {}
-        if limit is not None:
-            params["limit"] = limit
-        if offset is not None:
-            params["offset"] = offset
-
-        endpoint = f"runtime?{urlencode(params)}" if params else "runtime"
+        endpoint = build_list_endpoint("runtime", limit=limit, offset=offset)
         response = self._make_agents_request("GET", endpoint)
         result = response.json()
 
-        runtimes_list = [
-            Runtime.from_api(self._apply_defaults(s))
-            for s in result.get("runtimes", ())
-        ]
+        runtimes_list, total = parse_total_items(
+            result,
+            "runtimes",
+            lambda s: Runtime.from_api(self._apply_defaults(s)),
+        )
         for runtime_obj in runtimes_list:
             runtime_obj._client = self.client
-        return RuntimeList(runtimes=runtimes_list, total=result.get("total", len(runtimes_list)))
+        return RuntimeList(runtimes=runtimes_list, total=total)
 
     def get(self, runtime_id: str) -> Runtime:
         """Get detailed information about a specific runtime."""
@@ -593,18 +589,20 @@ class RuntimeTemplates:
 
     def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> TemplateList:
         """List available runtime templates"""
-        params: Dict[str, Any] = {}
-        if limit is not None:
-            params["limit"] = limit
-        if offset is not None:
-            params["offset"] = offset
-
-        endpoint = f"template?{urlencode(params)}" if params else "template"
+        endpoint = build_list_endpoint("template", limit=limit, offset=offset)
         response = self._make_agents_request("GET", endpoint)
         result = response.json()
 
-        templates = [Template(**template) for template in result["templates"]]
-        return TemplateList(templates=templates, limit=result["limit"], offset=result["offset"])
+        default_limit = 100 if limit is None else limit
+        default_offset = 0 if offset is None else offset
+        templates, page_limit, page_offset = parse_paginated_items(
+            result,
+            "templates",
+            lambda template: Template(**template),
+            default_limit=default_limit,
+            default_offset=default_offset,
+        )
+        return TemplateList(templates=templates, limit=page_limit, offset=page_offset)
 
 
 class RuntimeResource:
