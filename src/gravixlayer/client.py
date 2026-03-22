@@ -65,6 +65,7 @@ class GravixLayer:
         user_agent: Optional[str] = None,
         organization: Optional[str] = None,
         project: Optional[str] = None,
+        http2: bool = True,
         **kwargs,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
@@ -108,7 +109,7 @@ class GravixLayer:
         }
 
         self._http_client = httpx.Client(
-            http2=True,
+            http2=http2,
             timeout=self.timeout,
             headers={
                 "Authorization": f"Bearer {self.api_key}",

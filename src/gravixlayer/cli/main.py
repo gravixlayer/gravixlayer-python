@@ -13,8 +13,6 @@ import argparse
 import sys
 
 from .. import __version__
-from .cmd_runtime import register_runtime_parser
-from .cmd_template import register_template_parser
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,6 +30,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cloud", help="Default cloud provider (or set GRAVIXLAYER_CLOUD)")
     parser.add_argument("--region", help="Default region (or set GRAVIXLAYER_REGION)")
     parser.add_argument("--timeout", type=float, default=60.0, help="HTTP request timeout in seconds (default: 60)")
+
+    # Lazy import command modules to avoid loading httpx/SDK until needed
+    from .cmd_runtime import register_runtime_parser
+    from .cmd_template import register_template_parser
 
     subparsers = parser.add_subparsers(dest="command")
     register_runtime_parser(subparsers)

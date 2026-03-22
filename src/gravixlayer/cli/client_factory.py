@@ -31,4 +31,5 @@ def make_client(
         cloud=cloud or os.environ.get("GRAVIXLAYER_CLOUD", "azure"),
         region=region or os.environ.get("GRAVIXLAYER_REGION", "eastus2"),
         timeout=timeout,
+        http2=False,  # CLI makes one request per process; HTTP/1.1 avoids ALPN overhead
     )
