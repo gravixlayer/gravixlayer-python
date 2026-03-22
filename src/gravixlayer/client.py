@@ -2,7 +2,6 @@ import os
 import time
 import random
 import logging
-import threading
 from typing import Optional, Dict, Any
 
 import httpx
@@ -42,7 +41,6 @@ class GravixLayer:
         timeout: Request timeout in seconds (default: 60.0)
         max_retries: Maximum retry attempts for transient failures (default: 3)
         headers: Additional HTTP headers to include in requests
-        preconnect: Establish TCP/TLS/HTTP2 connection in background on init (default: True)
 
     Example:
         >>> from gravixlayer import GravixLayer
@@ -59,7 +57,6 @@ class GravixLayer:
         timeout: float = 60.0,
         max_retries: int = 3,
         headers: Optional[Dict[str, str]] = None,
-        preconnect: bool = True,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
         if not self.api_key:
@@ -106,25 +103,8 @@ class GravixLayer:
         self.runtime = RuntimeResource(self)
         self.templates = Templates(self)
 
-        if preconnect:
-            self._preconnect_thread = threading.Thread(
-                target=self._preconnect, daemon=True
-            )
-            self._preconnect_thread.start()
-        else:
-            self._preconnect_thread = None
-
-    def _preconnect(self) -> None:
-        """Establish TCP/TLS/HTTP2 in the background via a lightweight /health probe."""
-        try:
-            self._http_client.get(f"{self.base_url}/health", timeout=5.0)
-        except Exception:
-            pass
-
     def close(self) -> None:
         """Close the underlying HTTP session and release connections."""
-        if self._preconnect_thread is not None:
-            self._preconnect_thread.join(timeout=5.0)
         self._http_client.close()
 
     def __enter__(self):

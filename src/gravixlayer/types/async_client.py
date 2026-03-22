@@ -34,9 +34,6 @@ class AsyncGravixLayer:
 
     Use as an async context manager or call ``await client.aclose()`` when done.
 
-    Args:
-        preconnect: Establish TCP/TLS/HTTP2 connection in background on first use (default: True)
-
     Example:
         >>> async with AsyncGravixLayer(api_key="...") as client:
         ...     runtime = await client.runtime.create(template="python-base-v1")
@@ -52,7 +49,6 @@ class AsyncGravixLayer:
         timeout: float = 60.0,
         max_retries: int = 3,
         headers: Optional[Dict[str, str]] = None,
-        preconnect: bool = True,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
         if not self.api_key:
@@ -97,28 +93,11 @@ class AsyncGravixLayer:
         self.runtime = AsyncRuntimeResource(self)
         self.templates = AsyncTemplates(self)
 
-        self._preconnect_enabled = preconnect
-        self._preconnect_task: Optional[asyncio.Task] = None
-
     async def aclose(self) -> None:
         """Close the underlying HTTP client and release connections."""
-        if self._preconnect_task is not None:
-            try:
-                await self._preconnect_task
-            except Exception:
-                pass
         await self._http_client.aclose()
 
-    async def _preconnect(self) -> None:
-        """Establish TCP/TLS/HTTP2 in the background via a lightweight /health probe."""
-        try:
-            await self._http_client.get(f"{self.base_url}/health", timeout=5.0)
-        except Exception:
-            pass
-
     async def __aenter__(self):
-        if self._preconnect_enabled and self._preconnect_task is None:
-            self._preconnect_task = asyncio.create_task(self._preconnect())
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
