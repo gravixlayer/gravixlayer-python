@@ -28,6 +28,9 @@ dependencies = [
     "httpx[http2]>=0.24.0",
 ]
 
+[project.scripts]
+gravixlayer = "gravixlayer.cli.main:main"
+
 [project.optional-dependencies]
 dev = [
     "pylint>=3.0.0",
