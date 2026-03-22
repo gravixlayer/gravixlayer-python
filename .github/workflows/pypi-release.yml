@@ -124,7 +124,14 @@ jobs:
         if: steps.check.outputs.should_release == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          # Token-based publish (Trusted Publishing is disabled when password is set)
           password: ${{ secrets.PYPI_TOKEN }}
+          # Prevent reruns from failing if the same version already exists on PyPI
+          skip-existing: true
+          # Better diagnostics for upload failures
+          verbose: true
+          # Avoid confusing warning when not using Trusted Publishing
+          attestations: false
 
       - name: Create GitHub Release
         if: steps.check.outputs.should_release == 'true'
