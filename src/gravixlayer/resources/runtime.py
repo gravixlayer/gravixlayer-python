@@ -2,7 +2,6 @@
 Runtime API resource for synchronous client
 """
 
-import dataclasses
 import os
 from typing import List, Dict, Any, Optional, BinaryIO, Union
 from urllib.parse import urlencode
@@ -11,7 +10,6 @@ from ..types.runtime import (
     Runtime,
     RuntimeList,
     RuntimeMetrics,
-    RuntimeTimeout,
     RuntimeTimeoutResponse,
     RuntimeHostURL,
     SSHInfo,
@@ -35,22 +33,9 @@ from ..types.runtime import (
     RuntimeKillResponse,
     _validate_runtime_id,
     _validate_path,
+    _METRICS_FIELDS,
+    _RUNTIME_DEFAULTS,
 )
-
-# Field names known to the RuntimeMetrics dataclass — cached once at import time
-_METRICS_FIELDS: frozenset = frozenset(f.name for f in dataclasses.fields(RuntimeMetrics))
-
-# Default values for runtime response fields the API may omit
-_RUNTIME_DEFAULTS: Dict[str, Any] = {
-    "metadata": {},
-    "template": None,
-    "template_id": None,
-    "started_at": None,
-    "timeout_at": None,
-    "cpu_count": None,
-    "memory_mb": None,
-    "ended_at": None,
-}
 
 
 class Runtimes:
@@ -98,8 +83,8 @@ class Runtimes:
             internet_access: Whether to allow internet access (default: None = server default)
             agent_id: Agent ID to associate with the runtime
         """
-        resolved_provider = provider or getattr(self.client, "cloud", None)
-        resolved_region = region or getattr(self.client, "region", None)
+        resolved_provider = provider or self.client.cloud
+        resolved_region = region or self.client.region
         if not resolved_provider:
             raise ValueError(
                 "provider is required. Pass it to create() or set cloud on GravixLayer client."
@@ -143,12 +128,13 @@ class Runtimes:
         response = self._make_agents_request("GET", endpoint)
         result = response.json()
 
-        runtimes_list = []
-        for s in result["runtimes"]:
-            sb = Runtime.from_api(self._apply_defaults(s))
-            sb._client = self.client
-            runtimes_list.append(sb)
-        return RuntimeList(runtimes=runtimes_list, total=result["total"])
+        runtimes_list = [
+            Runtime.from_api(self._apply_defaults(s))
+            for s in result.get("runtimes", ())
+        ]
+        for runtime_obj in runtimes_list:
+            runtime_obj._client = self.client
+        return RuntimeList(runtimes=runtimes_list, total=result.get("total", len(runtimes_list)))
 
     def get(self, runtime_id: str) -> Runtime:
         """Get detailed information about a specific runtime."""
@@ -232,16 +218,16 @@ class Runtimes:
         response = self._make_agents_request("POST", f"runtime/{runtime_id}/files/list", data)
         result = response.json()
 
-        files = []
-        for file_info in result["files"]:
-            mapped_info = {
-                "name": file_info.get("name", ""),
-                "size": file_info.get("size", 0),
-                "is_dir": file_info.get("is_dir", False),
-                "modified_at": file_info.get("modified_at") or file_info.get("mod_time", ""),
-                "mode": file_info.get("mode"),
-            }
-            files.append(FileInfo(**mapped_info))
+        files = [
+            FileInfo(
+                name=file_info.get("name", ""),
+                size=file_info.get("size", 0),
+                is_dir=file_info.get("is_dir", False),
+                modified_at=file_info.get("modified_at") or file_info.get("mod_time", ""),
+                mode=file_info.get("mode"),
+            )
+            for file_info in result.get("files", ())
+        ]
 
         return FileListResponse(files=files)
 
@@ -640,4 +626,6 @@ class RuntimeResource:
 
     def __getattr__(self, name: str):
         """Delegate any attribute not on this class to the underlying Runtimes instance."""
-        return getattr(self._runtimes, name)
+        attr = getattr(self._runtimes, name)
+        self.__dict__[name] = attr
+        return attr

@@ -7,7 +7,7 @@ deleting VM templates via the backend API.
 
 import time
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, Optional, Union
 from urllib.parse import urlencode
 
 from ..types.templates import (
@@ -21,6 +21,10 @@ from ..types.templates import (
     TemplateDeleteResponse,
     BuildLogEntry,
     BuildLogCallback,
+    _parse_build_response,
+    _parse_build_status,
+    _parse_template_info,
+    _parse_snapshot,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,58 +97,6 @@ class Templates:
         """Issue a request against the agents API (/v1/agents/...)."""
         return self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
 
-    @staticmethod
-    def _parse_build_response(data: Dict[str, Any]) -> TemplateBuildResponse:
-        return TemplateBuildResponse(
-            build_id=data["build_id"],
-            template_id=data["template_id"],
-            status=data.get("status", ""),
-            message=data.get("message", ""),
-        )
-
-    @staticmethod
-    def _parse_build_status(data: Dict[str, Any]) -> TemplateBuildStatus:
-        return TemplateBuildStatus(
-            build_id=data["build_id"],
-            template_id=data["template_id"],
-            status=data.get("status", ""),
-            phase=data.get("phase", ""),
-            progress_percent=data.get("progress_percent", 0),
-            error=data.get("error"),
-            started_at=data.get("started_at"),
-            completed_at=data.get("completed_at"),
-        )
-
-    @staticmethod
-    def _parse_template_info(data: Dict[str, Any]) -> TemplateInfo:
-        return TemplateInfo(
-            id=data["id"],
-            name=data.get("name", ""),
-            description=data.get("description", ""),
-            vcpu_count=data.get("vcpu_count", 0),
-            memory_mb=data.get("memory_mb", 0),
-            disk_size_mb=data.get("disk_size_mb", 0),
-            visibility=data.get("visibility", "private"),
-            created_at=data.get("created_at", ""),
-            updated_at=data.get("updated_at", ""),
-            provider=data.get("provider"),
-            region=data.get("region"),
-        )
-
-    @staticmethod
-    def _parse_snapshot(data: Dict[str, Any]) -> TemplateSnapshot:
-        return TemplateSnapshot(
-            template_id=data["template_id"],
-            name=data.get("name", ""),
-            description=data.get("description", ""),
-            has_snapshot=data.get("has_snapshot", False),
-            vcpu_count=data.get("vcpu_count", 0),
-            memory_mb=data.get("memory_mb", 0),
-            created_at=data.get("created_at", ""),
-            envd_version=data.get("envd_version"),
-            snapshot_size_bytes=data.get("snapshot_size_bytes"),
-        )
-
     # -- Build operations ---------------------------------------------------
 
     def build(
@@ -166,7 +118,7 @@ class Templates:
             payload = builder
 
         response = self._make_agents_request("POST", "template/build", payload)
-        return self._parse_build_response(response.json())
+        return _parse_build_response(response.json())
 
     def get_build_status(self, build_id: str) -> TemplateBuildStatus:
         """Poll the status of a running template build.
@@ -180,7 +132,7 @@ class Templates:
         response = self._make_agents_request(
             "GET", f"template/builds/{build_id}/status"
         )
-        return self._parse_build_status(response.json())
+        return _parse_build_status(response.json())
 
     def build_and_wait(
         self,
@@ -297,7 +249,7 @@ class Templates:
 
         response = self._make_agents_request("GET", endpoint)
         data = response.json()
-        templates = [self._parse_template_info(t) for t in data.get("templates", [])]
+        templates = [_parse_template_info(t) for t in data.get("templates", [])]
         return TemplateListResponse(
             templates=templates,
             limit=data.get("limit", limit),
@@ -314,7 +266,7 @@ class Templates:
             TemplateInfo with full template metadata.
         """
         response = self._make_agents_request("GET", f"template/{template_id}")
-        return self._parse_template_info(response.json())
+        return _parse_template_info(response.json())
 
     def get_snapshot(self, template_id: str) -> TemplateSnapshot:
         """Get template snapshot information.
@@ -328,7 +280,7 @@ class Templates:
         response = self._make_agents_request(
             "GET", f"template/{template_id}/snapshot"
         )
-        return self._parse_snapshot(response.json())
+        return _parse_snapshot(response.json())
 
     def delete(self, template_id: str) -> TemplateDeleteResponse:
         """Delete a template and its snapshot.

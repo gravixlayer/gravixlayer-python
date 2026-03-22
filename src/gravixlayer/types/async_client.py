@@ -3,18 +3,9 @@ import httpx
 import logging
 import asyncio
 import random
-from urllib.parse import urlparse, urlunparse
 from typing import Optional, Dict, Any
 
-
-def _get_sdk_version() -> str:
-    try:
-        from .. import __version__
-        return __version__
-    except Exception:
-        return "unknown"
-
-
+from .. import __version__
 from ..types.exceptions import (
     GravixLayerError,
     GravixLayerAuthenticationError,
@@ -25,6 +16,10 @@ from ..types.exceptions import (
 )
 from ..resources.async_runtime import AsyncRuntimeResource
 from ..resources.async_templates import AsyncTemplates
+
+_RETRYABLE_STATUS = frozenset((502, 503, 504))
+_SUCCESS_STATUS = frozenset((200, 201, 202, 204, 207))
+_JSON_HEADERS = {"Content-Type": "application/json"}
 
 
 class AsyncGravixLayer:
@@ -51,20 +46,13 @@ class AsyncGravixLayer:
         timeout: float = 60.0,
         max_retries: int = 3,
         headers: Optional[Dict[str, str]] = None,
-        logger: Optional[logging.Logger] = None,
-        user_agent: Optional[str] = None,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
-        raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com")
+        if not self.api_key:
+            raise ValueError("API key must be provided via argument or GRAVIXLAYER_API_KEY environment variable")
 
-        _known = ("/v1/inference", "/v1/agents", "/v1/vectors", "/v1/files", "/v1/deployments")
-        parsed = urlparse(raw_url.rstrip("/"))
-        path = parsed.path
-        for prefix in _known:
-            if path == prefix or path.startswith(prefix + "/"):
-                path = ""
-                break
-        self.base_url = urlunparse((parsed.scheme, parsed.netloc, path.rstrip("/"), "", "", ""))
+        raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com")
+        self.base_url = raw_url.rstrip("/")
 
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
             raise ValueError("Base URL must start with http:// or https://")
@@ -73,27 +61,26 @@ class AsyncGravixLayer:
         self.region = region or os.environ.get("GRAVIXLAYER_REGION", "eastus2")
         self.timeout = timeout
         self.max_retries = max_retries
-        self.custom_headers = headers or {}
-        self.logger = logger or logging.getLogger("gravixlayer-async")
-        self.user_agent = user_agent or f"gravixlayer-python/{_get_sdk_version()}"
-        if not self.api_key:
-            raise ValueError("API key must be provided via argument or GRAVIXLAYER_API_KEY environment variable")
+        self._retry_attempts = range(self.max_retries + 1)
 
-        self._base_url_stripped = self.base_url.rstrip("/")
+        self._logger = logging.getLogger("gravixlayer-async")
+
+        user_agent = f"gravixlayer-python/{__version__}"
+        custom_headers = headers or {}
+
         self._service_urls = {
-            svc: f"{self._base_url_stripped}/{svc}"
+            svc: f"{self.base_url}/{svc}"
             for svc in ("v1/inference", "v1/agents", "v1/vectors", "v1/files", "v1/deployments")
         }
 
-        self._default_headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "User-Agent": self.user_agent,
-            **self.custom_headers,
-        }
         self._http_client = httpx.AsyncClient(
             http2=True,
             timeout=self.timeout,
-            headers=self._default_headers,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "User-Agent": user_agent,
+                **custom_headers,
+            },
             limits=httpx.Limits(
                 max_connections=20,
                 max_keepalive_connections=10,
@@ -117,57 +104,63 @@ class AsyncGravixLayer:
         self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, stream: bool = False, **kwargs
     ) -> httpx.Response:
         _service = kwargs.pop("_service", "v1/inference")
+        is_absolute_endpoint = endpoint and endpoint.startswith(("http://", "https://"))
 
-        if endpoint and (endpoint.startswith("http://") or endpoint.startswith("https://")):
+        if is_absolute_endpoint:
             url = endpoint
         else:
-            if _service:
-                service_base = self._service_urls.get(_service) or f"{self._base_url_stripped}/{_service}"
-            else:
-                service_base = self._base_url_stripped
+            service_base = self._service_urls.get(_service, f"{self.base_url}/{_service}") if _service else self.base_url
             url = f"{service_base}/{endpoint.lstrip('/')}" if endpoint else service_base
 
         has_files = "files" in kwargs
-        headers = {"Content-Type": "application/json"} if not has_files else {}
+        if has_files:
+            if data is not None:
+                kwargs["data"] = data
+        else:
+            if data is not None:
+                kwargs["json"] = data
+            kwargs["headers"] = _JSON_HEADERS
 
-        for attempt in range(self.max_retries + 1):
+        last_exc: Optional[Exception] = None
+        logger_warning = self._logger.warning
+        sleep = asyncio.sleep
+        rand = random.random
+        max_retries = self.max_retries
+
+        for attempt in self._retry_attempts:
             try:
-                request_kwargs: Dict[str, Any] = {
-                    "method": method,
-                    "url": url,
-                    "headers": headers,
-                    **kwargs,
-                }
-                if has_files:
-                    request_kwargs["data"] = data
-                else:
-                    request_kwargs["json"] = data
+                resp = await self._http_client.request(method, url, **kwargs)
+                status = resp.status_code
 
-                resp = await self._http_client.request(**request_kwargs)
-
-                if 200 <= resp.status_code <= 207:
+                if status in _SUCCESS_STATUS:
                     return resp
-                elif resp.status_code == 401:
+
+                if status == 401:
                     raise GravixLayerAuthenticationError("Authentication failed.")
-                elif resp.status_code == 429:
-                    if attempt < self.max_retries:
-                        await asyncio.sleep(2**attempt + random.uniform(0, 1))
+
+                if status == 429:
+                    if attempt < max_retries:
+                        await sleep(2 ** attempt + rand())
                         continue
                     raise GravixLayerRateLimitError(resp.text)
-                elif resp.status_code in [502, 503, 504] and attempt < self.max_retries:
-                    self.logger.warning(f"Server error: {resp.status_code}. Retrying...")
-                    await asyncio.sleep(2**attempt + random.uniform(0, 1))
+
+                if status in _RETRYABLE_STATUS and attempt < max_retries:
+                    logger_warning("Server error %d. Retrying...", status)
+                    await sleep(2 ** attempt + rand())
                     continue
-                elif 400 <= resp.status_code < 500:
+
+                if 400 <= status < 500:
                     raise GravixLayerBadRequestError(resp.text)
-                elif 500 <= resp.status_code < 600:
+                if status >= 500:
                     raise GravixLayerServerError(resp.text)
-                else:
-                    resp.raise_for_status()
 
-            except httpx.RequestError as e:
-                if attempt == self.max_retries:
-                    raise GravixLayerConnectionError(str(e)) from e
-                await asyncio.sleep(2**attempt + random.uniform(0, 1))
+                resp.raise_for_status()
 
-        raise GravixLayerError("Failed async request")
+            except httpx.RequestError as exc:
+                last_exc = exc
+                if attempt < max_retries:
+                    await sleep(2 ** attempt + rand())
+                    continue
+                raise GravixLayerConnectionError(str(exc)) from exc
+
+        raise GravixLayerError("Failed to complete request.") from last_exc

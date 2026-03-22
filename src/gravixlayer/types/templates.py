@@ -182,6 +182,62 @@ BuildLogCallback = Callable[[BuildLogEntry], None]
 
 
 # ---------------------------------------------------------------------------
+# API response parsers (shared by sync and async resource modules)
+# ---------------------------------------------------------------------------
+
+def _parse_build_response(data: Dict[str, Any]) -> TemplateBuildResponse:
+    return TemplateBuildResponse(
+        build_id=data["build_id"],
+        template_id=data["template_id"],
+        status=data.get("status", ""),
+        message=data.get("message", ""),
+    )
+
+
+def _parse_build_status(data: Dict[str, Any]) -> TemplateBuildStatus:
+    return TemplateBuildStatus(
+        build_id=data["build_id"],
+        template_id=data["template_id"],
+        status=data.get("status", ""),
+        phase=data.get("phase", ""),
+        progress_percent=data.get("progress_percent", 0),
+        error=data.get("error"),
+        started_at=data.get("started_at"),
+        completed_at=data.get("completed_at"),
+    )
+
+
+def _parse_template_info(data: Dict[str, Any]) -> TemplateInfo:
+    return TemplateInfo(
+        id=data["id"],
+        name=data.get("name", ""),
+        description=data.get("description", ""),
+        vcpu_count=data.get("vcpu_count", 0),
+        memory_mb=data.get("memory_mb", 0),
+        disk_size_mb=data.get("disk_size_mb", 0),
+        visibility=data.get("visibility", "private"),
+        created_at=data.get("created_at", ""),
+        updated_at=data.get("updated_at", ""),
+        provider=data.get("provider"),
+        region=data.get("region"),
+    )
+
+
+def _parse_snapshot(data: Dict[str, Any]) -> TemplateSnapshot:
+    return TemplateSnapshot(
+        template_id=data["template_id"],
+        name=data.get("name", ""),
+        description=data.get("description", ""),
+        has_snapshot=data.get("has_snapshot", False),
+        vcpu_count=data.get("vcpu_count", 0),
+        memory_mb=data.get("memory_mb", 0),
+        created_at=data.get("created_at", ""),
+        envd_version=data.get("envd_version"),
+        snapshot_size_bytes=data.get("snapshot_size_bytes"),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Template builder (fluent API)
 # ---------------------------------------------------------------------------
 

@@ -44,7 +44,7 @@ from gravixlayer.resources.async_templates import AsyncTemplates, AsyncTemplateB
 from gravixlayer import GravixLayer, AsyncGravixLayer
 
 
-TMPL_BASE = f"{AGENTS_BASE}/templates"
+TMPL_BASE = f"{AGENTS_BASE}/template"
 
 
 # ===================================================================

@@ -68,26 +68,10 @@ class Runtime:
     ip_address: Optional[str] = None
     ssh_enabled: Optional[bool] = None
 
-    # Cached set of public field names — populated once on first use
-    _cached_fields: Optional[frozenset] = dataclasses.field(
-        default=None, init=False, repr=False, compare=False
-    )
-
-    @classmethod
-    def _known_fields(cls) -> frozenset:
-        """Return the set of public field names for this dataclass (cached)."""
-        if cls._cached_fields is None:
-            cls._cached_fields = frozenset(
-                f.name for f in dataclasses.fields(cls)
-                if not f.name.startswith("_")
-            )
-        return cls._cached_fields
-
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> "Runtime":
         """Create a Runtime from an API response dict, ignoring unknown fields."""
-        known = cls._known_fields()
-        filtered = {k: v for k, v in data.items() if k in known}
+        filtered = {k: v for k, v in data.items() if k in _RUNTIME_KNOWN_FIELDS}
         return cls(**filtered)
 
     def __post_init__(self):
@@ -113,12 +97,6 @@ class Runtime:
         if self._owns_client and self._client is not None:
             self._client.close()
             self._client = None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
 
     def __del__(self):
         # Best-effort cleanup for unclosed sessions
@@ -856,3 +834,27 @@ class Execution:
     def __repr__(self) -> str:
         kind = "command" if self._is_command else "code"
         return f"Execution(type={kind}, success={self.success})"
+
+
+# ---------------------------------------------------------------------------
+# Module-level constants (computed once at import time, shared by resources)
+# ---------------------------------------------------------------------------
+
+_RUNTIME_KNOWN_FIELDS: frozenset = frozenset(
+    f.name for f in dataclasses.fields(Runtime) if not f.name.startswith("_")
+)
+
+_METRICS_FIELDS: frozenset = frozenset(
+    f.name for f in dataclasses.fields(RuntimeMetrics)
+)
+
+_RUNTIME_DEFAULTS: Dict[str, Any] = {
+    "metadata": {},
+    "template": None,
+    "template_id": None,
+    "started_at": None,
+    "timeout_at": None,
+    "cpu_count": None,
+    "memory_mb": None,
+    "ended_at": None,
+}

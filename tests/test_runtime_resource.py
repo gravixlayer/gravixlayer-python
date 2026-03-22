@@ -47,7 +47,7 @@ from gravixlayer.types.runtime import (
 )
 
 
-SB = f"{AGENTS_BASE}/runtimes"
+SB = f"{AGENTS_BASE}/runtime"
 
 
 # ===================================================================
@@ -466,7 +466,7 @@ class TestSyncRuntimeResourceDelegation:
 
     def test_templates_accessible(self, client, mock_api):
         """RuntimeResource.templates should be a RuntimeTemplates instance."""
-        mock_api.get(url__regex=rf"{AGENTS_BASE}/templates").mock(
+        mock_api.get(url__regex=rf"{AGENTS_BASE}/template").mock(
             return_value=httpx.Response(200, json={
                 "templates": [
                     {"id": "t1", "name": "python-v1", "description": "", "vcpu_count": 2,

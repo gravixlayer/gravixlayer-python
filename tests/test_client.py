@@ -64,14 +64,10 @@ class TestSyncClientInit:
         with pytest.raises(ValueError, match="must start with http"):
             GravixLayer(api_key=TEST_API_KEY, base_url="ftp://invalid.com")
 
-    def test_base_url_strips_service_paths(self):
+    def test_base_url_preserves_path(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url="https://api.example.com/v1/inference")
-        assert client.base_url == "https://api.example.com"
+        assert client.base_url == "https://api.example.com/v1/inference"
         client.close()
-
-        client2 = GravixLayer(api_key=TEST_API_KEY, base_url="https://api.example.com/v1/agents")
-        assert client2.base_url == "https://api.example.com"
-        client2.close()
 
     def test_base_url_strips_trailing_slash(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url="https://api.example.com/")
@@ -114,18 +110,14 @@ class TestSyncClientInit:
 
     def test_user_agent_header_contains_version(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
-        assert client.user_agent.startswith("gravixlayer-python/")
-        client.close()
-
-    def test_custom_user_agent(self):
-        client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, user_agent="my-app/1.0")
-        assert client.user_agent == "my-app/1.0"
+        ua = client._http_client.headers.get("User-Agent", "")
+        assert ua.startswith("gravixlayer-python/")
         client.close()
 
     def test_custom_headers_merged(self):
         custom = {"X-Custom": "value"}
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, headers=custom)
-        assert client.custom_headers == custom
+        assert client._http_client.headers.get("X-Custom") == "value"
         client.close()
 
 
@@ -152,7 +144,7 @@ class TestSyncClientContextManager:
 
 class TestSyncClientRequest:
     def test_401_raises_auth_error(self, client, mock_api):
-        mock_api.get(f"{AGENTS_BASE}/runtimes/{VALID_UUID}").mock(
+        mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
             return_value=httpx.Response(401, json={"error": "Unauthorized"})
         )
         with pytest.raises(GravixLayerAuthenticationError):
@@ -160,7 +152,7 @@ class TestSyncClientRequest:
 
     def test_429_raises_rate_limit_after_retries(self, mock_api):
         c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=0)
-        mock_api.get(f"{AGENTS_BASE}/runtimes/{VALID_UUID}").mock(
+        mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
             return_value=httpx.Response(429, text="Too Many Requests")
         )
         with pytest.raises(GravixLayerRateLimitError):
@@ -168,7 +160,7 @@ class TestSyncClientRequest:
         c.close()
 
     def test_400_raises_bad_request(self, client, mock_api):
-        mock_api.post(f"{AGENTS_BASE}/runtimes").mock(
+        mock_api.post(f"{AGENTS_BASE}/runtime").mock(
             return_value=httpx.Response(400, text="Bad Request")
         )
         with pytest.raises(GravixLayerBadRequestError):
@@ -176,7 +168,7 @@ class TestSyncClientRequest:
 
     def test_500_raises_server_error_after_retries(self, mock_api):
         c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=0)
-        mock_api.post(f"{AGENTS_BASE}/runtimes").mock(
+        mock_api.post(f"{AGENTS_BASE}/runtime").mock(
             return_value=httpx.Response(500, text="Internal Server Error")
         )
         with pytest.raises(GravixLayerServerError):
@@ -185,7 +177,7 @@ class TestSyncClientRequest:
 
     def test_connection_error_raises_after_retries(self, mock_api):
         c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=0)
-        mock_api.get(f"{AGENTS_BASE}/runtimes/{VALID_UUID}").mock(
+        mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
             side_effect=httpx.ConnectError("Connection refused")
         )
         with pytest.raises(GravixLayerConnectionError):
@@ -193,7 +185,7 @@ class TestSyncClientRequest:
         c.close()
 
     def test_successful_request_returns_response(self, client, mock_api):
-        mock_api.get(f"{AGENTS_BASE}/runtimes/{VALID_UUID}").mock(
+        mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
             return_value=httpx.Response(200, json=make_runtime_response())
         )
         rt = client.runtime.get(VALID_UUID)
@@ -224,9 +216,9 @@ class TestAsyncClientInit:
         c = AsyncGravixLayer(base_url=TEST_BASE_URL)
         assert c.api_key == "env-key"
 
-    def test_base_url_strips_service_paths(self):
+    def test_base_url_preserves_path(self):
         c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url="https://api.example.com/v1/files")
-        assert c.base_url == "https://api.example.com"
+        assert c.base_url == "https://api.example.com/v1/files"
 
     def test_base_url_invalid_scheme(self):
         with pytest.raises(ValueError, match="must start with http"):
@@ -239,7 +231,8 @@ class TestAsyncClientInit:
 
     def test_user_agent_contains_version(self):
         c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
-        assert "gravixlayer-python/" in c.user_agent
+        ua = c._http_client.headers.get("User-Agent", "")
+        assert "gravixlayer-python/" in ua
 
 
 # ===================================================================
@@ -263,7 +256,7 @@ class TestAsyncClientErrors:
     @pytest.mark.asyncio
     async def test_401_raises_auth_error(self, mock_api):
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
-            mock_api.get(f"{AGENTS_BASE}/runtimes/{VALID_UUID}").mock(
+            mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
                 return_value=httpx.Response(401, json={"error": "Unauthorized"})
             )
             with pytest.raises(GravixLayerAuthenticationError):
@@ -272,7 +265,7 @@ class TestAsyncClientErrors:
     @pytest.mark.asyncio
     async def test_429_raises_rate_limit(self, mock_api):
         client = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=0)
-        mock_api.get(f"{AGENTS_BASE}/runtimes/{VALID_UUID}").mock(
+        mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
             return_value=httpx.Response(429, text="Too Many Requests")
         )
         with pytest.raises(GravixLayerRateLimitError):
@@ -282,7 +275,7 @@ class TestAsyncClientErrors:
     @pytest.mark.asyncio
     async def test_500_raises_server_error(self, mock_api):
         client = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=0)
-        mock_api.post(f"{AGENTS_BASE}/runtimes").mock(
+        mock_api.post(f"{AGENTS_BASE}/runtime").mock(
             return_value=httpx.Response(500, text="Server Error")
         )
         with pytest.raises(GravixLayerServerError):
@@ -292,7 +285,7 @@ class TestAsyncClientErrors:
     @pytest.mark.asyncio
     async def test_connection_error(self, mock_api):
         client = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=0)
-        mock_api.get(f"{AGENTS_BASE}/runtimes/{VALID_UUID}").mock(
+        mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
             side_effect=httpx.ConnectError("Connection refused")
         )
         with pytest.raises(GravixLayerConnectionError):

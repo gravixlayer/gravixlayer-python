@@ -2,11 +2,11 @@ import os
 import time
 import random
 import logging
-from typing import Optional, Dict, Any, Type
-from urllib.parse import urlparse, urlunparse
+from typing import Optional, Dict, Any
 
 import httpx
 
+from . import __version__
 from .resources.runtime import RuntimeResource
 from .resources.templates import Templates
 from .types.exceptions import (
@@ -18,10 +18,9 @@ from .types.exceptions import (
     GravixLayerConnectionError,
 )
 
-_KNOWN_SERVICE_PATHS = ("/v1/inference", "/v1/agents", "/v1/vectors", "/v1/files", "/v1/deployments")
-
-_POOL_CONNECTIONS = 10
-_POOL_MAXSIZE = 20
+_RETRYABLE_STATUS = frozenset((502, 503, 504))
+_SUCCESS_STATUS = frozenset((200, 201, 202, 204, 207))
+_JSON_HEADERS = {"Content-Type": "application/json"}
 
 
 class GravixLayer:
@@ -39,16 +38,10 @@ class GravixLayer:
         timeout: Request timeout in seconds (default: 60.0)
         max_retries: Maximum retry attempts for transient failures (default: 3)
         headers: Additional HTTP headers to include in requests
-        organization: Organization identifier
-        project: Project identifier
 
     Example:
         >>> from gravixlayer import GravixLayer
-        >>> client = GravixLayer(
-        ...     api_key="your-api-key",
-        ...     cloud="azure",
-        ...     region="eastus2",
-        ... )
+        >>> client = GravixLayer(api_key="your-api-key")
         >>> runtime = client.runtime.create(template="python-base-v1")
     """
 
@@ -61,12 +54,6 @@ class GravixLayer:
         timeout: float = 60.0,
         max_retries: int = 3,
         headers: Optional[Dict[str, str]] = None,
-        logger: Optional[Type[logging.Logger]] = None,
-        user_agent: Optional[str] = None,
-        organization: Optional[str] = None,
-        project: Optional[str] = None,
-        http2: bool = True,
-        **kwargs,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
         if not self.api_key:
@@ -75,50 +62,38 @@ class GravixLayer:
             )
 
         raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.com")
-
-        parsed = urlparse(raw_url.rstrip("/"))
-        path = parsed.path
-        for prefix in _KNOWN_SERVICE_PATHS:
-            if path == prefix or path.startswith(prefix + "/"):
-                path = ""
-                break
-        self.base_url = urlunparse((parsed.scheme, parsed.netloc, path.rstrip("/"), "", "", ""))
+        self.base_url = raw_url.rstrip("/")
 
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
             raise ValueError("Base URL must start with http:// or https://")
 
         self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD", "azure")
         self.region = region or os.environ.get("GRAVIXLAYER_REGION", "eastus2")
-        self.organization = organization
-        self.project = project
         self.timeout = timeout
         self.max_retries = max_retries
-        self.custom_headers = headers or {}
+        self._retry_attempts = range(self.max_retries + 1)
 
-        self.logger = logger or logging.getLogger("gravixlayer")
-        if not self.logger.handlers:
-            self.logger.addHandler(logging.NullHandler())
+        self._logger = logging.getLogger("gravixlayer")
 
-        from . import __version__
-        self.user_agent = user_agent or f"gravixlayer-python/{__version__}"
+        user_agent = f"gravixlayer-python/{__version__}"
+        custom_headers = headers or {}
 
-        self._base_url_stripped = self.base_url.rstrip("/")
         self._service_urls = {
-            svc: f"{self._base_url_stripped}/{svc}"
+            svc: f"{self.base_url}/{svc}"
             for svc in ("v1/inference", "v1/agents", "v1/vectors", "v1/files", "v1/deployments")
         }
 
         self._http_client = httpx.Client(
-            http2=http2,
+            http2=True,
             timeout=self.timeout,
             headers={
                 "Authorization": f"Bearer {self.api_key}",
-                "User-Agent": self.user_agent,
-                **self.custom_headers,
+                "User-Agent": user_agent,
+                **custom_headers,
             },
             limits=httpx.Limits(
-                max_connections=_POOL_MAXSIZE,
-                max_keepalive_connections=_POOL_CONNECTIONS,
+                max_connections=20,
+                max_keepalive_connections=10,
             ),
         )
 
@@ -139,72 +114,73 @@ class GravixLayer:
         self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, stream: bool = False, **kwargs
     ) -> httpx.Response:
         _service = kwargs.pop("_service", "v1/inference")
+        is_absolute_endpoint = endpoint and endpoint.startswith(("http://", "https://"))
 
-        if endpoint and (endpoint.startswith("http://") or endpoint.startswith("https://")):
+        if is_absolute_endpoint:
             url = endpoint
         else:
-            if _service:
-                service_base = self._service_urls.get(_service) or f"{self._base_url_stripped}/{_service}"
-            else:
-                service_base = self._base_url_stripped
+            service_base = self._service_urls.get(_service, f"{self.base_url}/{_service}") if _service else self.base_url
             url = f"{service_base}/{endpoint.lstrip('/')}" if endpoint else service_base
 
         has_files = "files" in kwargs
-        headers = {"Content-Type": "application/json"} if not has_files else {}
+        if has_files:
+            if data is not None:
+                kwargs["data"] = data
+        else:
+            if data is not None:
+                kwargs["json"] = data
+            kwargs["headers"] = _JSON_HEADERS
 
         last_exc: Optional[Exception] = None
+        logger_warning = self._logger.warning
+        sleep = time.sleep
+        rand = random.random
+        max_retries = self.max_retries
 
-        request_kwargs: Dict[str, Any] = {
-            "headers": headers,
-            **kwargs,
-        }
-        if has_files:
-            request_kwargs["data"] = data
-        else:
-            request_kwargs["json"] = data
-
-        for attempt in range(self.max_retries + 1):
+        for attempt in self._retry_attempts:
             try:
                 if stream:
-                    req = self._http_client.build_request(method, url, **request_kwargs)
+                    req = self._http_client.build_request(method, url, **kwargs)
                     resp = self._http_client.send(req, stream=True)
                 else:
-                    resp = self._http_client.request(method, url, **request_kwargs)
+                    resp = self._http_client.request(method, url, **kwargs)
 
-                if resp.status_code in (200, 201, 202, 204, 207):
+                status = resp.status_code
+
+                if status in _SUCCESS_STATUS:
                     return resp
 
-                if resp.status_code == 401:
+                if status == 401:
                     raise GravixLayerAuthenticationError("Authentication failed.")
 
-                if resp.status_code == 429:
-                    if attempt < self.max_retries:
+                if status == 429:
+                    if attempt < max_retries:
                         retry_after = resp.headers.get("Retry-After")
-                        delay = float(retry_after) if retry_after else (2 ** attempt + random.uniform(0, 1))
-                        self.logger.warning("Rate limited. Retrying in %.1fs...", delay)
-                        time.sleep(delay)
+                        delay = float(retry_after) if retry_after else (2 ** attempt + rand())
+                        logger_warning("Rate limited. Retrying in %.1fs...", delay)
+                        sleep(delay)
                         continue
                     raise GravixLayerRateLimitError(resp.text)
 
-                if resp.status_code in (502, 503, 504) and attempt < self.max_retries:
-                    delay = 2 ** attempt + random.uniform(0, 1)
-                    self.logger.warning("Server error %d. Retrying in %.1fs...", resp.status_code, delay)
-                    time.sleep(delay)
+                if status in _RETRYABLE_STATUS and attempt < max_retries:
+                    delay = 2 ** attempt + rand()
+                    logger_warning("Server error %d. Retrying in %.1fs...", status, delay)
+                    sleep(delay)
                     continue
 
-                if 400 <= resp.status_code < 500:
+                if 400 <= status < 500:
                     raise GravixLayerBadRequestError(resp.text)
-                if 500 <= resp.status_code < 600:
+                if status >= 500:
                     raise GravixLayerServerError(resp.text)
 
                 resp.raise_for_status()
 
             except httpx.RequestError as exc:
                 last_exc = exc
-                if attempt < self.max_retries:
-                    delay = 2 ** attempt + random.uniform(0, 1)
-                    self.logger.warning("Connection error, retrying in %.1fs...", delay)
-                    time.sleep(delay)
+                if attempt < max_retries:
+                    delay = 2 ** attempt + rand()
+                    logger_warning("Connection error, retrying in %.1fs...", delay)
+                    sleep(delay)
                     continue
                 raise GravixLayerConnectionError(str(exc)) from exc
 

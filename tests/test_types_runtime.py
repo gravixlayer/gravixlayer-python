@@ -171,13 +171,11 @@ class TestRuntimeDataclass:
         with pytest.raises(RuntimeError, match="terminated"):
             rt._require_alive()
 
-    def test_known_fields_cached(self):
-        fields1 = Runtime._known_fields()
-        fields2 = Runtime._known_fields()
-        assert fields1 is fields2
-        assert "runtime_id" in fields1
-        assert "status" in fields1
-        assert "_cached_fields" not in fields1
+    def test_known_fields_constant(self):
+        from gravixlayer.types.runtime import _RUNTIME_KNOWN_FIELDS
+        assert isinstance(_RUNTIME_KNOWN_FIELDS, frozenset)
+        assert "runtime_id" in _RUNTIME_KNOWN_FIELDS
+        assert "status" in _RUNTIME_KNOWN_FIELDS
 
     def test_context_manager(self):
         rt = Runtime(runtime_id="uuid-6", status="running")
