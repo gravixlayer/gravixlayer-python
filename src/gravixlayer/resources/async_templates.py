@@ -1,0 +1,298 @@
+"""
+Template Build Pipeline resource for asynchronous client.
+
+Provides async methods for creating, building, polling, listing, and
+deleting VM templates via the backend API. Mirrors the sync Templates class.
+"""
+
+import asyncio
+import logging
+import time as _time
+from typing import Dict, Any, Optional, Union
+
+from .._resource_utils import build_list_endpoint, parse_paginated_items
+from ..types.templates import (
+    TemplateBuilder,
+    TemplateBuildResponse,
+    TemplateBuildStatus,
+    TemplateBuildStatusEnum,
+    TemplateInfo,
+    TemplateSnapshot,
+    TemplateListResponse,
+    TemplateDeleteResponse,
+    BuildLogEntry,
+    BuildLogCallback,
+    _parse_build_response,
+    _parse_build_status,
+    _parse_template_info,
+    _parse_snapshot,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class AsyncTemplateBuildError(Exception):
+    """Raised when a template build fails."""
+
+    def __init__(self, build_id: str, message: str, status: Optional[TemplateBuildStatus] = None):
+        self.build_id = build_id
+        self.status = status
+        super().__init__(f"Template build {build_id} failed: {message}")
+
+
+class AsyncTemplateBuildTimeoutError(AsyncTemplateBuildError):
+    """Raised when a template build exceeds the timeout."""
+
+    def __init__(self, build_id: str, timeout_secs: int, status: Optional[TemplateBuildStatus] = None):
+        self.timeout_secs = timeout_secs
+        super().__init__(
+            build_id,
+            f"Build did not complete within {timeout_secs}s",
+            status=status,
+        )
+
+
+class AsyncTemplates:
+    """Async Template Build Pipeline resource.
+
+    Exposes methods aligned with the backend template API:
+        POST   /v1/agents/template/build
+        GET    /v1/agents/template/builds/:build_id/status
+        GET    /v1/agents/template
+        GET    /v1/agents/template/:id
+        GET    /v1/agents/template/:id/snapshot
+        DELETE /v1/agents/template/:id
+
+    Example:
+        >>> from gravixlayer import AsyncGravixLayer
+        >>> from gravixlayer.types.templates import TemplateBuilder
+        >>>
+        >>> async with AsyncGravixLayer(api_key="...") as client:
+        ...     builder = (
+        ...         TemplateBuilder("my-ml-env")
+        ...         .from_image("python:3.11-slim")
+        ...         .apt_install("git", "curl")
+        ...         .pip_install("numpy", "pandas")
+        ...         .start_cmd("python /app/serve.py")
+        ...     )
+        ...     status = await client.templates.build_and_wait(builder, timeout_secs=600)
+        ...     print(status.template_id)
+    """
+
+    def __init__(self, client):
+        self.client = client
+
+    # -- Internal helpers ---------------------------------------------------
+
+    async def _make_agents_request(
+        self,
+        method: str,
+        endpoint: str,
+        data: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ):
+        """Issue a request against the agents API (/v1/agents/...)."""
+        return await self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
+
+    # -- Build operations ---------------------------------------------------
+
+    async def build(
+        self,
+        builder: Union[TemplateBuilder, Dict[str, Any]],
+    ) -> TemplateBuildResponse:
+        """Start an asynchronous template build.
+
+        Args:
+            builder: A TemplateBuilder instance or a raw dict matching
+                     the BuildTemplateRequest schema.
+
+        Returns:
+            TemplateBuildResponse with build_id for status polling.
+        """
+        if isinstance(builder, TemplateBuilder):
+            payload = builder.to_dict()
+        else:
+            payload = builder
+
+        response = await self._make_agents_request("POST", "template/build", payload)
+        return _parse_build_response(response.json())
+
+    async def get_build_status(self, build_id: str) -> TemplateBuildStatus:
+        """Poll the status of a running template build.
+
+        Args:
+            build_id: The build ID returned by build().
+
+        Returns:
+            TemplateBuildStatus with current phase and progress.
+        """
+        response = await self._make_agents_request(
+            "GET", f"template/builds/{build_id}/status"
+        )
+        return _parse_build_status(response.json())
+
+    async def build_and_wait(
+        self,
+        builder: Union[TemplateBuilder, Dict[str, Any]],
+        poll_interval_secs: float = 5.0,
+        timeout_secs: int = 600,
+        on_status: Optional[BuildLogCallback] = None,
+    ) -> TemplateBuildStatus:
+        """Start a build and wait until it completes or fails.
+
+        Args:
+            builder: A TemplateBuilder or raw dict for the build request.
+            poll_interval_secs: Seconds between status polls (default 5).
+            timeout_secs: Maximum seconds to wait (default 600).
+            on_status: Optional callback invoked on each status poll.
+
+        Returns:
+            Final TemplateBuildStatus when the build reaches a terminal state.
+
+        Raises:
+            AsyncTemplateBuildError: If the build fails.
+            AsyncTemplateBuildTimeoutError: If the build exceeds timeout.
+        """
+        build_response = await self.build(builder)
+        build_id = build_response.build_id
+
+        logger.info(
+            "Template build started: build_id=%s template_id=%s",
+            build_id,
+            build_response.template_id,
+        )
+
+        if on_status:
+            on_status(BuildLogEntry(
+                level="info",
+                message=f"Build started: {build_response.message}",
+            ))
+
+        deadline = _time.monotonic() + timeout_secs
+        last_phase = ""
+
+        while True:
+            if _time.monotonic() > deadline:
+                try:
+                    final = await self.get_build_status(build_id)
+                except Exception:
+                    final = None
+                raise AsyncTemplateBuildTimeoutError(
+                    build_id, timeout_secs, status=final
+                )
+
+            await asyncio.sleep(poll_interval_secs)
+            status = await self.get_build_status(build_id)
+
+            if status.phase != last_phase:
+                last_phase = status.phase
+                logger.info(
+                    "Build %s: phase=%s progress=%d%%",
+                    build_id,
+                    status.phase,
+                    status.progress_percent,
+                )
+                if on_status:
+                    on_status(BuildLogEntry(
+                        level="info",
+                        message=f"Phase: {status.phase} ({status.progress_percent}%)",
+                    ))
+
+            if status.is_terminal:
+                if status.is_success:
+                    logger.info("Build %s completed successfully", build_id)
+                    if on_status:
+                        on_status(BuildLogEntry(
+                            level="info",
+                            message="Build completed successfully",
+                        ))
+                    return status
+                else:
+                    error_msg = status.error or "Unknown build failure"
+                    logger.error("Build %s failed: %s", build_id, error_msg)
+                    if on_status:
+                        on_status(BuildLogEntry(
+                            level="error",
+                            message=f"Build failed: {error_msg}",
+                        ))
+                    raise AsyncTemplateBuildError(
+                        build_id, error_msg, status=status
+                    )
+
+    # -- Template CRUD ------------------------------------------------------
+
+    async def list(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        project_id: Optional[str] = None,
+    ) -> TemplateListResponse:
+        """List available templates.
+
+        Args:
+            limit: Max number of templates to return (default 100).
+            offset: Pagination offset (default 0).
+            project_id: Optional project filter.
+
+        Returns:
+            TemplateListResponse containing template list and pagination info.
+        """
+        endpoint = build_list_endpoint(
+            "template",
+            limit=limit,
+            offset=offset,
+            extra_params={"project_id": project_id},
+        )
+
+        response = await self._make_agents_request("GET", endpoint)
+        data = response.json()
+        templates, page_limit, page_offset = parse_paginated_items(
+            data,
+            "templates",
+            _parse_template_info,
+            default_limit=limit,
+            default_offset=offset,
+        )
+        return TemplateListResponse(
+            templates=templates,
+            limit=page_limit,
+            offset=page_offset,
+        )
+
+    async def get(self, template_id: str) -> TemplateInfo:
+        """Get a single template by ID.
+
+        Args:
+            template_id: The template UUID.
+
+        Returns:
+            TemplateInfo with full template metadata.
+        """
+        response = await self._make_agents_request("GET", f"template/{template_id}")
+        return _parse_template_info(response.json())
+
+    async def get_snapshot(self, template_id: str) -> TemplateSnapshot:
+        """Get template snapshot information.
+
+        Args:
+            template_id: The template UUID.
+
+        Returns:
+            TemplateSnapshot with snapshot metadata.
+        """
+        response = await self._make_agents_request(
+            "GET", f"template/{template_id}/snapshot"
+        )
+        return _parse_snapshot(response.json())
+
+    async def delete(self, template_id: str) -> TemplateDeleteResponse:
+        """Delete a template and its snapshot.
+
+        Args:
+            template_id: The template UUID.
+
+        Returns:
+            TemplateDeleteResponse confirming deletion.
+        """
+        await self._make_agents_request("DELETE", f"template/{template_id}")
+        return TemplateDeleteResponse(template_id=template_id, deleted=True)

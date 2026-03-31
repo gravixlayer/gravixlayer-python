@@ -1,0 +1,57 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+.eggs/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+
+.pytest_cache/
+
+*.log
+
+# Internal / draft docs (not shipped in this repo). Keep reference material locally only.
+docs/
+
+# PyBuilder
+target/
+
+
+# Environments
+.env
+.venv
+.envrc
+
+
+# Rope project settings
+.ropeproject
+
+# mypy
+.mypy_cache/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
