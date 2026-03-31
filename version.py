@@ -1,10 +1,11 @@
 """Version metadata (optional helper; canonical version is in pyproject.toml and gravixlayer.__version__)."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 VERSION_HISTORY = {
     "0.1.0": "First public SDK release (0.1.x line).",
+    "0.1.1": "Republish on PyPI; 0.1.0 artifacts cannot be re-uploaded (filename reuse policy).",
 }
 
 
