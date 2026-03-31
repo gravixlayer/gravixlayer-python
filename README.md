@@ -1,10 +1,10 @@
-# GravixLayer Python SDK
+# Gravix Layer Python SDK
 
 [![PyPI version](https://badge.fury.io/py/gravixlayer.svg)](https://badge.fury.io/py/gravixlayer)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Official Python client for **[GravixLayer](https://gravixlayer.ai)** — create and manage cloud **agent runtimes** and **templates** for your workloads.
+Official Python client for **[Gravix Layer](https://gravixlayer.ai)** — create and manage cloud **agent runtimes** and **templates** for your workloads.
 
 ## Install
 
@@ -43,7 +43,7 @@ runtime = client.runtime.create(template="python-3.12-base-small")
 
 result = client.runtime.run_code(
     runtime.runtime_id,
-    code="print('Hello from GravixLayer')",
+    code="print('Hello from Gravix Layer')",
 )
 print(result.text)
 
@@ -55,7 +55,7 @@ client.runtime.kill(runtime.runtime_id)
 The client uses **HTTP/1.1 by default** for predictable latency on typical API usage.
 
 - **Warm the connection** before creating many runtimes: call **`client.warmup()`** once (or use **`warmup_on_init=True`** when constructing the client). That pays **TCP, TLS, and protocol setup** up front so the first real request is cheaper.
-- **HTTP/2**: pass **`http2=True`** to **`GravixLayer(...)`** if you want multiplexing over a single established connection after TLS (useful for high concurrency). Requires the `httpx[http2]` extra (already declared by this package).
+- **HTTP/2**: pass **`http2=True`** to the **`GravixLayer`** client constructor if you want multiplexing over a single established connection after TLS (useful for high concurrency). Requires the `httpx[http2]` extra (already declared by this package).
 
 Sync:
 
@@ -99,6 +99,8 @@ asyncio.run(main())
 ## Support
 
 **support@gravixlayer.ai**
+
+**Feedback:** [gravixlayer/gravixlayer-feedback](https://github.com/gravixlayer/gravixlayer-feedback) — open an issue for bugs, features, and general product feedback.
 
 ## License
 
