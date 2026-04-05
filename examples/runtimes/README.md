@@ -1,6 +1,6 @@
 # Agent Runtime Tutorials
 
-Standalone tutorials for managing agent runtimes with the GravixLayer Python SDK.
+Standalone tutorials for managing agent runtimes with the Gravix Layer Python SDK.
 
 ## Setup
 

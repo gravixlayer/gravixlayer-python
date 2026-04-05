@@ -22,7 +22,7 @@ if SDK_ROOT not in sys.path:
 # ---------------------------------------------------------------------------
 
 TEST_API_KEY = "tg_test_key_abc123"
-TEST_BASE_URL = "https://app.gravixlayer.ai"
+TEST_BASE_URL = "https://api.gravixlayer.ai"
 VALID_UUID = "12345678-1234-5678-1234-567812345678"
 AGENTS_BASE = f"{TEST_BASE_URL}/v1/agents"
 

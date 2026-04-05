@@ -1,7 +1,7 @@
 """
-GravixLayer Python SDK
+Gravix Layer Python SDK
 
-Official Python client for the GravixLayer API. Provides cloud runtime
+Official Python client for the Gravix Layer API. Provides cloud runtime
 environments and template management for AI workloads.
 """
 

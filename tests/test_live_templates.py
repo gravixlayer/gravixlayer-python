@@ -7,7 +7,7 @@ Required environment variables:
     GRAVIXLAYER_API_KEY     - Your API key
 
 Optional environment variables:
-    GRAVIXLAYER_BASE_URL    - API base URL (default: https://app.gravixlayer.ai/v1/inference)
+    GRAVIXLAYER_BASE_URL    - API base URL (default: https://api.gravixlayer.ai/v1/inference)
     GRAVIXLAYER_CLOUD       - Cloud provider (default: gravix)
     GRAVIXLAYER_REGION      - Region (default: eu-west-1)
     GRAVIXLAYER_BUILD_TIMEOUT - Max wait for a build in seconds (default: 900)
@@ -55,7 +55,7 @@ log = logging.getLogger(__name__)
 # ===========================================================================
 
 API_KEY = os.environ.get("GRAVIXLAYER_API_KEY", "")
-BASE_URL = os.environ.get("GRAVIXLAYER_BASE_URL", "https://app.gravixlayer.ai/v1/inference")
+BASE_URL = os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.ai/v1/inference")
 CLOUD = os.environ.get("GRAVIXLAYER_CLOUD", "gravix")
 REGION = os.environ.get("GRAVIXLAYER_REGION", "eu-west-1")
 

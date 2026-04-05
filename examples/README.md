@@ -1,6 +1,6 @@
-# GravixLayer Python SDK Examples
+# Gravix Layer Python SDK Examples
 
-Runnable tutorials for the GravixLayer Python SDK.
+Runnable tutorials for the Gravix Layer Python SDK.
 
 ## Prerequisites
 

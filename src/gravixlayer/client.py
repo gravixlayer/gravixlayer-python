@@ -36,7 +36,7 @@ class GravixLayer:
 
     Args:
         api_key: API key for authentication (or GRAVIXLAYER_API_KEY env var)
-        base_url: Base URL for the API (or GRAVIXLAYER_BASE_URL env var, default: "https://app.gravixlayer.ai")
+        base_url: Base URL for the API (or GRAVIXLAYER_BASE_URL env var, default: "https://api.gravixlayer.ai")
         cloud: Default cloud provider for runtime/template operations (default: "azure")
         region: Default region for runtime/template operations (default: "eastus2")
         timeout: Request timeout in seconds (default: 60.0)
@@ -50,7 +50,7 @@ class GravixLayer:
 
     Example:
         >>> from gravixlayer import GravixLayer
-        >>> client = GravixLayer(api_key="your-api-key", base_url="https://app.gravixlayer.ai")
+        >>> client = GravixLayer(api_key="your-api-key", base_url="https://api.gravixlayer.ai")
         >>> runtime = client.runtime.create(template="python-base-v1")
     """
 
@@ -72,7 +72,7 @@ class GravixLayer:
                 "API key must be provided via 'api_key' argument or GRAVIXLAYER_API_KEY environment variable"
             )
 
-        raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://app.gravixlayer.ai")
+        raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.ai")
         self.base_url = raw_url.rstrip("/")
 
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):

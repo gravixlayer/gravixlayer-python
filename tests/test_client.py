@@ -50,7 +50,7 @@ class TestSyncClientInit:
     def test_default_base_url(self, monkeypatch):
         monkeypatch.delenv("GRAVIXLAYER_BASE_URL", raising=False)
         client = GravixLayer(api_key=TEST_API_KEY)
-        assert client.base_url == "https://app.gravixlayer.ai"
+        assert client.base_url == "https://api.gravixlayer.ai"
         client.close()
 
     def test_base_url_from_env(self, monkeypatch):

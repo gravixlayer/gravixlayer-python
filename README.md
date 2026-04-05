@@ -27,7 +27,7 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer(
     api_key="your-api-key",
-    base_url="https://app.gravixlayer.ai",
+    base_url="https://api.gravixlayer.ai",
     cloud="azure",
     region="eastus2",
 )

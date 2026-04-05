@@ -1,6 +1,6 @@
 # Custom Template Tutorials
 
-Standalone examples for building custom agent runtime templates with the GravixLayer Python SDK.
+Standalone examples for building custom agent runtime templates with the Gravix Layer Python SDK.
 
 Custom templates let you build your own environments from public Docker images. Currently supports Ubuntu, Alpine, and Debian based images.
 

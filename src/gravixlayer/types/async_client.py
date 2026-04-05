@@ -61,7 +61,7 @@ class AsyncGravixLayer:
         if not self.api_key:
             raise ValueError("API key must be provided via argument or GRAVIXLAYER_API_KEY environment variable")
 
-        raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://app.gravixlayer.ai")
+        raw_url = base_url or os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.ai")
         self.base_url = raw_url.rstrip("/")
 
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
