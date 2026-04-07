@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gravixlayer"
-version = "0.1.2"
+version = "0.1.3"
 description = "Gravix Layer Python SDK — agent runtimes and templates (Alpha; API may evolve). See docs.gravixlayer.ai."
 readme = "README.md"
 requires-python = ">=3.9"
