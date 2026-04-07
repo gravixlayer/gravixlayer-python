@@ -29,7 +29,7 @@ export GRAVIXLAYER_REGION="eastus2"
 |-----------|-------------|
 | [`runtimes/`](runtimes/) | 15 standalone examples covering agent runtime lifecycle, code execution, shell commands, file ops, metrics, SSH, and more. See [runtimes/README.md](runtimes/README.md). |
 | [`templates/`](templates/) | 8 standalone examples for building custom templates (Docker image, local dir, Git, Dockerfile). See [templates/README.md](templates/README.md). |
-| [`apps/`](apps/) | Sample applications used by template examples (Python FastAPI, Node.js Next.js). |
+| [`agents/`](agents/) | Sample agents for python and javascript |
 
 ## Quick Run
 

@@ -27,7 +27,6 @@ print(f"Runtime    : {sid}")
 result = client.runtime.run_code(
     sid,
     code="console.log('Hello from Node.js')",
-    language="javascript",
 )
 print(f"\n--- Simple output ---")
 print(f"Output     : {result.text}")
@@ -48,7 +47,7 @@ const info = {
 console.log(JSON.stringify(info, null, 2));
 """
 
-result = client.runtime.run_code(sid, code=code, language="javascript")
+result = client.runtime.run_code(sid, code=code)
 print(f"\n--- System info ---")
 print(result.stdout_text)
 
@@ -68,7 +67,7 @@ async function fetchData() {
 fetchData().then(r => console.log(JSON.stringify(r)));
 """
 
-result = client.runtime.run_code(sid, code=code, language="javascript")
+result = client.runtime.run_code(sid, code=code)
 print(f"\n--- Async code ---")
 print(result.stdout_text)
 
