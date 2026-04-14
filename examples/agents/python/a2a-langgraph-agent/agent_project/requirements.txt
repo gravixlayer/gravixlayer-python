@@ -1,0 +1,6 @@
+langchain>=1.0.0
+langchain-anthropic>=1.0.0
+langgraph>=1.0.0
+gravixlayer[a2a]>=0.1.4
+a2a-sdk[http-server]>=0.2.7
+uvicorn[standard]>=0.30.0

@@ -17,6 +17,23 @@ from .templates import (
     BuildLogEntry,
     TemplateBuilder,
 )
+from .agents import (
+    AgentBuildStatus,
+    AgentBuildPhase,
+    AgentDeployStatus,
+    AgentDNSStatus,
+    AgentHealthStatus,
+    AgentFramework,
+    AgentSkill,
+    AgentCard,
+    AgentBuildRequest,
+    AgentBuildResponse,
+    AgentBuildStatusResponse,
+    AgentDeployRequest,
+    AgentDeployResponse,
+    AgentEndpoint,
+    AgentDestroyResponse,
+)
 
 __all__ = [
     "WriteEntry",
@@ -35,4 +52,20 @@ __all__ = [
     "TemplateDeleteResponse",
     "BuildLogEntry",
     "TemplateBuilder",
+    # Agent types
+    "AgentBuildStatus",
+    "AgentBuildPhase",
+    "AgentDeployStatus",
+    "AgentDNSStatus",
+    "AgentHealthStatus",
+    "AgentFramework",
+    "AgentSkill",
+    "AgentCard",
+    "AgentBuildRequest",
+    "AgentBuildResponse",
+    "AgentBuildStatusResponse",
+    "AgentDeployRequest",
+    "AgentDeployResponse",
+    "AgentEndpoint",
+    "AgentDestroyResponse",
 ]
