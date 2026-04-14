@@ -5,7 +5,7 @@ Official Python client for the Gravix Layer API. Provides cloud runtime
 environments and template management for AI workloads.
 """
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 from .client import GravixLayer
 from .types.async_client import AsyncGravixLayer
@@ -50,15 +50,42 @@ from .types.templates import (
     BuildLogEntry,
     TemplateBuilder,
 )
+from .types.agents import (
+    AgentBuildStatus,
+    AgentBuildPhase,
+    AgentDeployStatus,
+    AgentDNSStatus,
+    AgentHealthStatus,
+    AgentFramework,
+    AgentSkill,
+    AgentCard,
+    AgentBuildRequest,
+    AgentBuildResponse,
+    AgentBuildStatusResponse,
+    AgentDeployRequest,
+    AgentDeployResponse,
+    AgentEndpoint,
+    AgentDestroyResponse,
+)
 from .resources.templates import (
     Templates,
     TemplateBuildError,
     TemplateBuildTimeoutError,
 )
+from .resources.agents import (
+    Agents,
+    AgentBuildError,
+    AgentBuildTimeoutError,
+)
 from .resources.async_templates import (
     AsyncTemplates,
     AsyncTemplateBuildError,
     AsyncTemplateBuildTimeoutError,
+)
+from .resources.async_agents import (
+    AsyncAgents,
+    AsyncAgentBuildError,
+    AsyncAgentBuildTimeoutError,
 )
 from .types.exceptions import (
     GravixLayerError,
@@ -115,6 +142,30 @@ __all__ = [
     "AsyncTemplates",
     "AsyncTemplateBuildError",
     "AsyncTemplateBuildTimeoutError",
+    # Agent types
+    "AgentBuildStatus",
+    "AgentBuildPhase",
+    "AgentDeployStatus",
+    "AgentDNSStatus",
+    "AgentHealthStatus",
+    "AgentFramework",
+    "AgentSkill",
+    "AgentCard",
+    "AgentBuildRequest",
+    "AgentBuildResponse",
+    "AgentBuildStatusResponse",
+    "AgentDeployRequest",
+    "AgentDeployResponse",
+    "AgentEndpoint",
+    "AgentDestroyResponse",
+    # Agent resources
+    "Agents",
+    "AgentBuildError",
+    "AgentBuildTimeoutError",
+    "AsyncAgents",
+    "AsyncAgentBuildError",
+    "AsyncAgentBuildTimeoutError",
+    # Exceptions
     "GravixLayerError",
     "GravixLayerAuthenticationError",
     "GravixLayerRateLimitError",

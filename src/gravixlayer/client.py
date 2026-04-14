@@ -18,6 +18,7 @@ from ._request_utils import (
 )
 from .resources.runtime import RuntimeResource
 from .resources.templates import Templates
+from .resources.agents import Agents
 from .types.exceptions import (
     GravixLayerError,
     GravixLayerAuthenticationError,
@@ -110,6 +111,7 @@ class GravixLayer:
 
         self.runtime = RuntimeResource(self)
         self.templates = Templates(self)
+        self.agents = Agents(self)
 
         if warmup_on_init:
             self.warmup()
