@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deploy a LangGraph agent to GravixLayer.
 
-Builds the agent project, deploys to a Firecracker VM, and prints the
+Builds the agent project, deploys it to GravixLayer, and prints the
 endpoint URL. Environment variables:
 
     GRAVIXLAYER_API_KEY   - Required. Your GravixLayer API key.

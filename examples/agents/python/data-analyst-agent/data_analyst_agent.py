@@ -144,7 +144,7 @@ Rules:
 
 STDERR_FILTERS = [
     "UserWarning", "Matplotlib", "FutureWarning",
-    "/tmp/cellcore", "main.py:", "DtypeWarning",
+    "/tmp", "main.py:", "DtypeWarning",
 ]
 
 

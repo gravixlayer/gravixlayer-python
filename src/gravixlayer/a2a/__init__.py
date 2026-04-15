@@ -3,8 +3,7 @@ GravixLayer A2A Runtime — Server-side glue for A2A protocol compliance.
 
 Provides ``run_a2a()`` and ``create_a2a_app()`` to expose any agent framework
 (LangGraph, CrewAI, Google ADK, OpenAI Agents SDK, Anthropic, AWS Strands, or
-plain Python) as a fully A2A-compliant server inside a GravixLayer Firecracker
-microVM.
+plain Python) as a fully A2A-compliant server on GravixLayer.
 
 Requires the ``a2a`` optional dependency group::
 
@@ -13,7 +12,7 @@ Requires the ``a2a`` optional dependency group::
 Architecture:
 
     ┌─────────────────────────────────────────────────────┐
-    │  User's Firecracker microVM                         │
+    │  GravixLayer Runtime                                │
     │                                                     │
     │  ┌──────────────┐   ┌────────────────────────────┐  │
     │  │ Agent Code   │   │ run_a2a()                  │  │
@@ -28,7 +27,7 @@ Architecture:
     └───────────────────────────┬──────────────────────────┘
                                 │
     ┌───────────────────────────▼──────────────────────────┐
-    │  CellRouter (host)  TLS :443                         │
+    │  GravixLayer Edge   TLS :443                         │
     │  /a2a/*  → a2a_port (8001)                           │
     │  /.well-known/agent-card.json → a2a_port (8001)      │
     └──────────────────────────────────────────────────────┘

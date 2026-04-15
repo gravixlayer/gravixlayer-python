@@ -4,8 +4,8 @@ Deploy a LangGraph agent as a **fully A2A-compliant** server on GravixLayer.
 
 The agent uses `gravixlayer.a2a.run_a2a()` to expose itself over the A2A protocol
 (JSON-RPC: `message/send`, `message/stream`, `tasks/get`) with an Agent Card at
-`/.well-known/agent-card.json`. CellRouter on the host proxies `/a2a/*` requests
-from the public HTTPS endpoint to the agent's A2A port.
+`/.well-known/agent-card.json`. The platform routes A2A requests from the public
+HTTPS endpoint to the agent's A2A port.
 
 ## Agent capabilities
 
@@ -31,10 +31,10 @@ a2a-langgraph-agent/
 ## Architecture
 
 ```
-Internet → HTTPS → CellRouter (:443)
-                    ├── /a2a/*  → VM a2a_port (8001) → run_a2a() server
-                    ├── /.well-known/agent-card.json → VM a2a_port (8001)
-                    └── /*      → VM http_port (8000) → (optional HTTP)
+Internet → HTTPS → GravixLayer Edge (:443)
+                    ├── /a2a/*  → a2a_port (8001) → run_a2a() server
+                    ├── /.well-known/agent-card.json → a2a_port (8001)
+                    └── /*      → http_port (8000) → (optional HTTP)
 ```
 
 ## Prerequisites
@@ -64,9 +64,9 @@ python test_agent.py
 
 1. `deploy.py` archives `agent_project/` as a tar.gz
 2. Uploads to `POST /v1/agents/template/build-agent` with metadata (framework=langgraph, python 3.13)
-3. Backend builds a Docker image, converts to ext4 rootfs, creates a Firecracker VM snapshot
-4. Deploys the snapshot as a running microVM
-5. CellRouter registers the agent with `a2a_port=8001` and routes HTTPS traffic
+3. Backend builds a container image and creates a runtime snapshot
+4. Deploys the snapshot as a running instance
+5. The platform registers the agent with `a2a_port=8001` and routes HTTPS traffic
 6. Inside the VM, `app.py` starts `run_a2a()` on port 8001 serving the A2A JSON-RPC protocol
 7. Agent Card is served by the VM's A2A server at `/.well-known/agent-card.json`
 8. A2A clients can discover and communicate with the agent via standard A2A protocol

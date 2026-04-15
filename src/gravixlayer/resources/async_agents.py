@@ -437,8 +437,7 @@ class AsyncAgents:
     ) -> Dict[str, Any]:
         """Invoke a deployed agent.
 
-        Sends a request to the agent's public HTTPS endpoint via the
-        CellRouter ingress proxy.
+        Sends a request to the agent's public HTTPS endpoint.
 
         Args:
             agent_id: The agent ID to invoke.

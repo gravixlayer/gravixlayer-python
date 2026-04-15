@@ -1,9 +1,7 @@
 """A2A-compliant server wrapping the LangGraph agent.
 
 Uses gravixlayer.a2a.run_a2a() to expose the agent as an A2A JSON-RPC
-server. CellRouter on the host proxies /a2a/* requests to this port.
-
-This is the entrypoint for the deployed Firecracker VM.
+server on the configured port.
 """
 
 from __future__ import annotations
