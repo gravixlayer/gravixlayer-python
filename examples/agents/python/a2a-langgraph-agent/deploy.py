@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 from gravixlayer import GravixLayer
-from gravixlayer.types.agents import AgentCard, AgentSkill
+from gravixlayer.types.agents import AgentCard, AgentCapabilities, AgentSkill
 
 AGENT_SOURCE_DIR = Path(__file__).parent
 
@@ -71,7 +71,7 @@ def main():
                 examples=["Send an email to alice@example.com"],
             ),
         ],
-        streaming=True,
+        capabilities=AgentCapabilities(streaming=True),
         default_input_modes=["text"],
         default_output_modes=["text"],
     )

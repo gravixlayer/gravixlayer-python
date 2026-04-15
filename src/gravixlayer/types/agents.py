@@ -91,14 +91,31 @@ class AgentSkill:
 
 
 @dataclass
+class AgentCapabilities:
+    """Agent capabilities declaration (A2A spec)."""
+    streaming: bool = False
+    push_notifications: bool = False
+    state_transition_history: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
+        if self.streaming:
+            result["streaming"] = self.streaming
+        if self.push_notifications:
+            result["push_notifications"] = self.push_notifications
+        if self.state_transition_history:
+            result["state_transition_history"] = self.state_transition_history
+        return result
+
+
+@dataclass
 class AgentCard:
     """A2A Agent Card describing agent capabilities."""
     name: str
     description: str
     version: str = ""
     skills: List[AgentSkill] = field(default_factory=list)
-    streaming: bool = False
-    push_notifications: bool = False
+    capabilities: Optional[AgentCapabilities] = None
     default_input_modes: List[str] = field(default_factory=list)
     default_output_modes: List[str] = field(default_factory=list)
 
@@ -108,10 +125,8 @@ class AgentCard:
             result["version"] = self.version
         if self.skills:
             result["skills"] = [s.to_dict() for s in self.skills]
-        if self.streaming:
-            result["streaming"] = self.streaming
-        if self.push_notifications:
-            result["push_notifications"] = self.push_notifications
+        caps = self.capabilities or AgentCapabilities()
+        result["capabilities"] = caps.to_dict()
         if self.default_input_modes:
             result["default_input_modes"] = self.default_input_modes
         if self.default_output_modes:

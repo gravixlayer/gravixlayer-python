@@ -167,9 +167,16 @@ def _convert_agent_card(
                 examples=getattr(s, "examples", []),
             ))
 
+    caps = card_dict.get("capabilities", {})
+    if not caps:
+        caps = {
+            "streaming": card_dict.get("streaming", False),
+            "push_notifications": card_dict.get("push_notifications", False),
+        }
+
     capabilities = AgentCapabilities(
-        streaming=card_dict.get("streaming", False),
-        pushNotifications=card_dict.get("push_notifications", False),
+        streaming=caps.get("streaming", False),
+        pushNotifications=caps.get("push_notifications", False),
     )
 
     return A2AAgentCard(
