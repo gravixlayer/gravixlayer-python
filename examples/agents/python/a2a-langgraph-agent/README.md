@@ -17,10 +17,9 @@ Once deployed, the platform automatically serves:
 ## Project Structure
 
 ```
-├── src/
-│   └── simple_agent/
-│       ├── graph.py            # Agent definition
-│       └── app.py              # A2A server entrypoint
+├── simple_agent/
+│   ├── graph.py            # Agent definition
+│   └── app.py              # A2A server entrypoint
 ├── deploy.py                   # Build + deploy via GravixLayer SDK
 ├── test_agent.py               # Invoke and stream tests
 ├── langgraph.json              # LangGraph configuration
