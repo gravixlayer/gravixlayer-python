@@ -25,7 +25,10 @@ logger = logging.getLogger("gravixlayer.a2a")
 _MIN_A2A_SDK_VERSION = "0.2.7"
 
 # Default port for A2A protocol server.
-_DEFAULT_A2A_PORT = 8001
+# Aligned with GravixApp RuntimeConfig.port (8000) and the platform's
+# default port detection so that auto-generated ready_cmd health checks
+# connect to the correct port without explicit user configuration.
+_DEFAULT_A2A_PORT = 8000
 
 # Default host binding — 0.0.0.0 to accept connections from the platform.
 _DEFAULT_HOST = "0.0.0.0"
@@ -242,15 +245,16 @@ def run_a2a(
     - Signal handling for graceful shutdown
     - Health endpoint at ``/health`` for platform health checks
 
-    The server listens on ``a2a_port`` (default 8001). The platform
+    The server listens on ``port`` (default 8000). The platform
     routes A2A requests from the public endpoint to this port.
 
     Args:
         executor: An ``AgentExecutor`` implementation. Framework-agnostic.
         agent_card: Agent Card metadata (GravixLayer AgentCard, dict,
             or a2a-sdk AgentCard).
-        port: Port to listen on. Must match ``a2a_port`` in the deploy
-            request. Default: 8001.
+        port: Port to listen on. Default: 8000. Override if you need
+            a different port and set ``a2a_port`` in your deploy config
+            to match.
         host: Host to bind to. Default: ``0.0.0.0``.
         task_store: Optional custom task store. Default: in-memory.
         log_level: Uvicorn log level. Default: ``info``.
@@ -280,7 +284,6 @@ def run_a2a(
         run_a2a(
             executor=MyExecutor(),
             agent_card=AgentCard(name="My Agent", description="..."),
-            port=8001,
         )
     """
     _check_a2a_sdk_available()

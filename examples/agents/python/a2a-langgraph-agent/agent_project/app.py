@@ -1,4 +1,8 @@
-"""A2A-compliant server for the LangGraph agent."""
+"""A2A-compliant server wrapping the LangGraph agent.
+
+Uses gravixlayer.a2a.run_a2a() to expose the agent as an A2A JSON-RPC
+server on the configured port.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +23,7 @@ from a2a.types import (
 
 from gravixlayer.a2a import run_a2a
 
-from simple_agent.graph import graph
+from agent import graph
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
