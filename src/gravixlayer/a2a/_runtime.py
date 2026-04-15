@@ -24,12 +24,10 @@ logger = logging.getLogger("gravixlayer.a2a")
 # Minimum required a2a-sdk version (must support A2AStarletteApplication)
 _MIN_A2A_SDK_VERSION = "0.2.7"
 
-# Default port for A2A protocol server inside the microVM.
-# CellRouter routes /a2a/* to this port.
+# Default port for A2A protocol server.
 _DEFAULT_A2A_PORT = 8001
 
-# Default host binding — 0.0.0.0 required inside Firecracker VM
-# so CellRouter on the host can reach the server via tap0.
+# Default host binding — 0.0.0.0 to accept connections from the platform.
 _DEFAULT_HOST = "0.0.0.0"
 
 
@@ -83,7 +81,7 @@ def _convert_agent_card(
 
     Args:
         card: A GravixLayer AgentCard, dict, or a2a-sdk AgentCard.
-        url: The base URL for the agent card (populated by CellRouter).
+        url: The base URL for the agent card.
 
     Returns:
         An a2a-sdk AgentCard instance.
@@ -236,15 +234,15 @@ def run_a2a(
     """Start an A2A-compliant JSON-RPC server using uvicorn.
 
     This is the primary entrypoint for running an agent as an A2A server
-    inside a GravixLayer Firecracker microVM. It handles:
+    on GravixLayer. It handles:
 
     - Building the Starlette ASGI app with A2A protocol routes
     - Starting uvicorn with production-grade settings
-    - Signal handling for graceful shutdown (SIGTERM from CellFabric)
-    - Health endpoint at ``/health`` for CellRouter health checks
+    - Signal handling for graceful shutdown
+    - Health endpoint at ``/health`` for platform health checks
 
-    The server listens on ``a2a_port`` (default 8001). CellRouter on the
-    host proxies ``/a2a/*`` requests from the public endpoint to this port.
+    The server listens on ``a2a_port`` (default 8001). The platform
+    routes A2A requests from the public endpoint to this port.
 
     Args:
         executor: An ``AgentExecutor`` implementation. Framework-agnostic.
@@ -252,7 +250,7 @@ def run_a2a(
             or a2a-sdk AgentCard).
         port: Port to listen on. Must match ``a2a_port`` in the deploy
             request. Default: 8001.
-        host: Host to bind to. Default: ``0.0.0.0`` (required for VM).
+        host: Host to bind to. Default: ``0.0.0.0``.
         task_store: Optional custom task store. Default: in-memory.
         log_level: Uvicorn log level. Default: ``info``.
 
@@ -306,28 +304,23 @@ def run_a2a(
         port,
     )
 
-    # Configure uvicorn with production settings appropriate for
-    # a Firecracker microVM (single process, no reload).
+    # Configure uvicorn with production settings.
     config = uvicorn.Config(
         app=app,
         host=host,
         port=port,
         log_level=log_level,
-        # Single worker — each VM runs one agent instance.
-        # CellFabric scales by launching more VMs.
+        # Single worker — one agent instance per runtime.
         workers=1,
-        # Disable reload in production VM.
+        # Disable reload in production.
         reload=False,
-        # Access log for observability (CellRouter also logs).
+        # Access log for observability.
         access_log=True,
         # Timeout for graceful shutdown on SIGTERM.
-        # CellFabric sends SIGTERM before force-killing the VM.
         timeout_graceful_shutdown=10,
     )
 
     server = uvicorn.Server(config)
 
-    # uvicorn.Server.run() handles SIGTERM/SIGINT internally,
-    # which is the correct behavior for Firecracker VMs where
-    # CellFabric sends SIGTERM for graceful shutdown.
+    # uvicorn.Server.run() handles SIGTERM/SIGINT internally.
     server.run()
