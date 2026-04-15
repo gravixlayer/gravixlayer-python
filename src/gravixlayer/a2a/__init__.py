@@ -17,7 +17,7 @@ Architecture:
     │  ┌──────────────┐   ┌────────────────────────────┐  │
     │  │ Agent Code   │   │ run_a2a()                  │  │
     │  │ (any         │──→│  Starlette + uvicorn       │  │
-    │  │  framework)  │   │  Port 8001 (a2a_port)      │  │
+    │  │  framework)  │   │  Port 8000 (default)       │  │
     │  └──────────────┘   │  /.well-known/agent-card   │  │
     │                     │  /  (JSON-RPC: message/send │  │
     │                     │      message/stream,        │  │
@@ -28,8 +28,8 @@ Architecture:
                                 │
     ┌───────────────────────────▼──────────────────────────┐
     │  GravixLayer Edge   TLS :443                         │
-    │  /a2a/*  → a2a_port (8001)                           │
-    │  /.well-known/agent-card.json → a2a_port (8001)      │
+    │  /a2a/*  → a2a_port (8000)                           │
+    │  /.well-known/agent-card.json → a2a_port (8000)      │
     └──────────────────────────────────────────────────────┘
 
 Usage::
@@ -47,7 +47,6 @@ Usage::
     run_a2a(
         executor=MyExecutor(),
         agent_card=my_agent_card,
-        port=8001,
     )
 """
 
