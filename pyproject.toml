@@ -28,6 +28,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+runtime = [
+    "starlette>=0.38.0",
+    "uvicorn[standard]>=0.30.0",
+]
 a2a = [
     "a2a-sdk[http-server]>=0.2.7",
     "uvicorn[standard]>=0.30.0",

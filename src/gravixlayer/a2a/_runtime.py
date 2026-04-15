@@ -184,7 +184,8 @@ def create_a2a_app(
 
     from a2a.server.apps import A2AStarletteApplication
     from a2a.server.request_handlers import DefaultRequestHandler
-    from a2a.server.tasks import InMemoryTaskStore, InMemoryQueueManager
+    from a2a.server.tasks import InMemoryTaskStore
+    from a2a.server.events import InMemoryQueueManager
     from starlette.applications import Starlette
     from starlette.responses import JSONResponse
     from starlette.routing import Route
