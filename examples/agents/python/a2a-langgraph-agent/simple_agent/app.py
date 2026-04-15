@@ -91,7 +91,7 @@ agent_card = AgentCard(
         "A concise assistant with utility tools: clock, calculator, "
         "and mock email operations."
     ),
-    url="",
+    url="",  # Injected at serve time by the GravixLayer SDK card_modifier
     version="1.0.0",
     skills=[
         AgentSkill(
