@@ -21,7 +21,7 @@ from pathlib import Path
 from gravixlayer import GravixLayer
 from gravixlayer.types.agents import AgentCard, AgentSkill
 
-AGENT_PROJECT_DIR = Path(__file__).parent / "agent_project"
+AGENT_SOURCE_DIR = Path(__file__).parent
 
 
 def on_build_status(status):
@@ -76,16 +76,16 @@ def main():
         default_output_modes=["text"],
     )
 
-    print(f"Deploying agent from: {AGENT_PROJECT_DIR}")
+    print(f"Deploying agent from: {AGENT_SOURCE_DIR}")
     print("Starting build + deploy...")
 
     deployment = client.agents.deploy(
-        source=str(AGENT_PROJECT_DIR),
+        source=str(AGENT_SOURCE_DIR),
         name="a2a-langgraph-agent",
         description="LangGraph agent with tools deployed via GravixLayer SDK",
         framework="langgraph",
         python_version="3.13",
-        entrypoint="python app.py",
+        entrypoint="python -m simple_agent.app",
         ports=[8000, 8001],
         environment={
             "ANTHROPIC_API_KEY": anthropic_key,
