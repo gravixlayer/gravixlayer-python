@@ -12,6 +12,7 @@ SDK import time.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -32,6 +33,46 @@ _DEFAULT_A2A_PORT = 8000
 
 # Default host binding — 0.0.0.0 to accept connections from the platform.
 _DEFAULT_HOST = "0.0.0.0"
+
+# Platform metadata path written by the deploy pipeline.
+_AGENT_METADATA_PATH = "/var/run/tensorgrid/agent-id"
+
+# Public domain suffix for agent endpoints.
+_AGENT_DOMAIN = "agents.gravixlayer.ai"
+
+
+def _read_agent_id() -> Optional[str]:
+    """Read agent_id from the platform metadata file."""
+    try:
+        with open(_AGENT_METADATA_PATH) as f:
+            value = f.read().strip()
+            return value if value else None
+    except (FileNotFoundError, PermissionError, OSError):
+        return None
+
+
+def _make_card_modifier():
+    """Create a card_modifier that injects the platform agent URL.
+
+    The modifier is called per-request by the a2a-sdk when a client
+    fetches ``/.well-known/agent-card.json``.  It reads the agent_id
+    (from ``GRAVIXLAYER_AGENT_ID`` env var or the metadata file) and sets
+    the card's ``url`` to ``https://<agent_id>.agents.gravixlayer.ai``.
+    The result is cached after the first successful lookup.
+    """
+    _cached_url: list[Optional[str]] = [None]
+
+    def modifier(card):
+        if _cached_url[0] is None:
+            agent_id = os.environ.get("GRAVIXLAYER_AGENT_ID") or _read_agent_id()
+            if agent_id:
+                _cached_url[0] = f"https://{agent_id}.{_AGENT_DOMAIN}"
+
+        if _cached_url[0] and not card.url:
+            card = card.model_copy(update={"url": _cached_url[0]})
+        return card
+
+    return modifier
 
 
 class GravixLayerA2AError(Exception):
@@ -209,6 +250,7 @@ def create_a2a_app(
     a2a_app = A2AStarletteApplication(
         agent_card=a2a_card,
         http_handler=request_handler,
+        card_modifier=_make_card_modifier(),
     )
 
     # Build the Starlette app with A2A routes + health endpoint.
