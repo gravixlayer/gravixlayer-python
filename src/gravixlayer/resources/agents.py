@@ -15,8 +15,10 @@ API endpoints:
 import io
 import json
 import os
+import sys
 import tarfile
 import time
+import threading
 import logging
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional, Union
@@ -27,6 +29,95 @@ def _fmt_duration(secs: float) -> str:
         return f"{secs:.1f}s"
     m, s = divmod(secs, 60)
     return f"{int(m)}m {s:.0f}s"
+
+
+def _load_dotenv(source_dir: Path) -> Dict[str, str]:
+    """Read a .env file from the source directory and return key-value pairs.
+
+    Supports KEY=VALUE lines, quoted values, and comments. Skips blank lines
+    and lines starting with '#'. Does NOT modify ``os.environ``.
+    """
+    env_file = source_dir / ".env"
+    if not env_file.is_file():
+        return {}
+    result: Dict[str, str] = {}
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        # Strip surrounding quotes (single or double)
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+            value = value[1:-1]
+        if key:
+            result[key] = value
+    return result
+
+
+# Phase labels — map backend phases to user-friendly stage names.
+# building/finalizing are both build work; distributing is actual deployment.
+_PHASE_LABELS = {
+    "initializing": "PACKAGING",
+    "preparing": "PACKAGING",
+    "building": "BUILDING",
+    "finalizing": "BUILDING",
+    "distributing": "DEPLOYING",
+    "completed": "READY",
+}
+
+_SPINNER_CHARS = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+
+class _DeploySpinner:
+    """Thread-safe spinner for deploy progress display."""
+
+    def __init__(self):
+        self._label = ""
+        self._phase_start = 0.0
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def _spin(self):
+        i = 0
+        while not self._stop_event.is_set():
+            elapsed = _fmt_duration(time.monotonic() - self._phase_start)
+            char = _SPINNER_CHARS[i % len(_SPINNER_CHARS)]
+            sys.stderr.write(f"\r  {self._label}... {char} {elapsed}")
+            sys.stderr.flush()
+            i += 1
+            self._stop_event.wait(0.1)
+
+    def update(self, label: str, phase_start: float, elapsed: float, prev_label: str):
+        """Transition to a new phase: finish the previous and start a new spinner."""
+        if prev_label:
+            self.stop()
+            sys.stderr.write(f"\r  {prev_label}... DONE ({_fmt_duration(elapsed)})\n")
+            sys.stderr.flush()
+        self._label = label
+        self._phase_start = phase_start
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._spin, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join()
+            self._thread = None
+
+    def finish(self, label: str, elapsed: float, total: float, endpoint: str = ""):
+        """Print the final phase DONE line and summary."""
+        self.stop()
+        if label:
+            sys.stderr.write(f"\r  {label}... DONE ({_fmt_duration(elapsed)})\n")
+        sys.stderr.write(f"  READY: Deployment successful ({_fmt_duration(total)})\n")
+        if endpoint:
+            sys.stderr.write(f"  Agent Endpoint: {endpoint}\n")
+        sys.stderr.flush()
 
 from ..types.agents import (
     AgentBuildRequest,
@@ -278,12 +369,16 @@ class Agents:
     ) -> AgentBuildStatusResponse:
         """Block until an agent template build completes or fails.
 
+        By default, prints a live spinner with phase progress to stderr.
+        Pass ``on_status`` to suppress the built-in display and handle
+        status updates yourself.
+
         Args:
             build_id: The build ID to monitor.
             poll_interval_secs: Seconds between status polls (default 5).
             timeout_secs: Maximum seconds to wait (default 600).
             on_status: Optional callback invoked on each poll with an
-                       AgentBuildStatusResponse.
+                       AgentBuildStatusResponse. Suppresses built-in display.
 
         Returns:
             Final AgentBuildStatusResponse when build reaches terminal state.
@@ -299,18 +394,13 @@ class Agents:
         phase_start = time.monotonic()
         build_start = time.monotonic()
 
-        # Map backend phases to user-friendly stage labels
-        _PHASE_LABELS = {
-            "initializing": "PACKAGING",
-            "preparing": "PACKAGING",
-            "building": "BUILDING",
-            "finalizing": "DEPLOYING",
-            "distributing": "DEPLOYING",
-            "completed": "READY",
-        }
+        show_spinner = on_status is None and sys.stderr.isatty()
+        spinner = _DeploySpinner() if show_spinner else None
 
         while True:
             if time.monotonic() > deadline:
+                if spinner:
+                    spinner.stop()
                 try:
                     final = self.get_build_status(build_id)
                 except Exception:
@@ -328,17 +418,21 @@ class Agents:
             current_label = _PHASE_LABELS.get(status.phase, status.phase.upper())
             if current_label != last_label:
                 now = time.monotonic()
-                if on_status is None and last_label:
-                    prev_label = last_label
-                    elapsed_s = now - phase_start
-                    logger.info("%s: DONE (%s)", prev_label, _fmt_duration(elapsed_s))
+                elapsed_s = now - phase_start
+                if spinner:
+                    spinner.update(current_label, now, elapsed_s, last_label)
+                elif on_status is None and last_label:
+                    logger.info("%s: DONE (%s)", last_label, _fmt_duration(elapsed_s))
                 phase_start = now
                 last_label = current_label
 
             if status.is_terminal:
+                elapsed_s = time.monotonic() - phase_start
                 total_s = time.monotonic() - build_start
                 if status.is_success:
-                    if on_status is None:
+                    if spinner:
+                        spinner.finish(last_label, elapsed_s, total_s)
+                    elif on_status is None:
                         logger.info(
                             "%s: Deployment successful (%s)",
                             current_label,
@@ -347,7 +441,11 @@ class Agents:
                     return status
 
                 error_msg = status.error or "Unknown build failure"
-                if on_status is None:
+                if spinner:
+                    spinner.stop()
+                    sys.stderr.write(f"\r  FAILED: {error_msg} ({_fmt_duration(total_s)})\n")
+                    sys.stderr.flush()
+                elif on_status is None:
                     logger.error("FAILED: %s (%s)", error_msg, _fmt_duration(total_s))
                 raise AgentBuildError(build_id, error_msg, status=status)
 
@@ -444,6 +542,20 @@ class Agents:
             if not name:
                 raise ValueError("'name' is required when deploying from source")
 
+            # Auto-load .env file from source directory. Explicit environment
+            # variables take precedence over .env values.
+            source_path = Path(source).resolve()
+            dotenv_vars = _load_dotenv(source_path)
+            if dotenv_vars:
+                merged = {**dotenv_vars, **(environment or {})}
+                environment = merged
+
+            show_output = on_build_status is None and sys.stderr.isatty()
+            if show_output:
+                display_name = name or source_path.name
+                sys.stderr.write(f"\nDeploying {display_name}...\n\n")
+                sys.stderr.flush()
+
             build_response = self.build(
                 source,
                 name=name,
@@ -488,9 +600,11 @@ class Agents:
         )
 
         response = self._make_agents_request("POST", "deploy", request.to_dict())
-        return _parse_deploy_response(response.json())
-
-    # -- Agent endpoint operations ------------------------------------------
+        result = _parse_deploy_response(response.json())
+        if source is not None and on_build_status is None and sys.stderr.isatty():
+            sys.stderr.write(f"  Agent Endpoint: {result.endpoint}\n")
+            sys.stderr.flush()
+        return result
 
     def get(self, agent_id: str) -> AgentEndpoint:
         """Get agent endpoint information.
