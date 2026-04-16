@@ -44,3 +44,7 @@ For the private Git example, also set:
 export GIT_AUTH_TOKEN="ghp_xxxxx"
 python examples/templates/06_python_private_git.py
 ```
+
+**Local directory examples** (`03`, `04`): the scripts expect a project path on disk (see `project_dir`). Sample `examples/apps/...` trees are **not included** in this repo — point `project_dir` at your own Python or Node project, or create matching folders.
+
+Back to [Examples overview](../README.md).
