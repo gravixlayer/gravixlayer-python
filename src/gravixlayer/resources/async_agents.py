@@ -260,7 +260,7 @@ class AsyncAgents:
             current_label = _PHASE_LABELS.get(status.phase, status.phase.upper())
             if current_label != last_label:
                 now = _time.monotonic()
-                if last_label:
+                if on_status is None and last_label:
                     prev_label = last_label
                     elapsed_s = now - phase_start
                     logger.info("%s: DONE (%s)", prev_label, _fmt_duration(elapsed_s))
@@ -270,15 +270,17 @@ class AsyncAgents:
             if status.is_terminal:
                 total_s = _time.monotonic() - build_start
                 if status.is_success:
-                    logger.info(
-                        "%s: Deployment successful (%s)",
-                        current_label,
-                        _fmt_duration(total_s),
-                    )
+                    if on_status is None:
+                        logger.info(
+                            "%s: Deployment successful (%s)",
+                            current_label,
+                            _fmt_duration(total_s),
+                        )
                     return status
 
                 error_msg = status.error or "Unknown build failure"
-                logger.error("FAILED: %s (%s)", error_msg, _fmt_duration(total_s))
+                if on_status is None:
+                    logger.error("FAILED: %s (%s)", error_msg, _fmt_duration(total_s))
                 raise AsyncAgentBuildError(build_id, error_msg, status=status)
 
     # -- Deploy operations --------------------------------------------------
