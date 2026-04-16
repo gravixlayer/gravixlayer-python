@@ -17,6 +17,7 @@ Usage:
 import os
 import sys
 import time
+import threading
 from pathlib import Path
 
 from gravixlayer import GravixLayer
@@ -40,8 +41,34 @@ _PHASE_LABELS = {
     "distributing": "DEPLOYING",
     "completed": "READY",
 }
+
+_SPINNER_CHARS = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
 _last_label = ""
 _phase_start = 0.0
+_spinner_stop = threading.Event()
+_spinner_thread: threading.Thread | None = None
+
+
+def _start_spinner(label: str):
+    global _spinner_thread
+    _spinner_stop.clear()
+    def spin():
+        i = 0
+        while not _spinner_stop.is_set():
+            elapsed = _fmt_duration(time.monotonic() - _phase_start)
+            char = _SPINNER_CHARS[i % len(_SPINNER_CHARS)]
+            print(f"\r  {label}... {char} {elapsed}", end="", flush=True)
+            i += 1
+            _spinner_stop.wait(0.1)
+    _spinner_thread = threading.Thread(target=spin, daemon=True)
+    _spinner_thread.start()
+
+
+def _stop_spinner():
+    _spinner_stop.set()
+    if _spinner_thread is not None:
+        _spinner_thread.join()
 
 
 def on_build_status(status):
@@ -50,12 +77,13 @@ def on_build_status(status):
     if label != _last_label:
         now = time.monotonic()
         if _last_label:
-            elapsed = (now - _phase_start)
-            print(f" DONE ({_fmt_duration(elapsed)})")
+            _stop_spinner()
+            elapsed = now - _phase_start
+            print(f"\r  {_last_label}... DONE ({_fmt_duration(elapsed)})")
         _phase_start = now
         _last_label = label
         if not status.is_terminal:
-            print(f"  {label}...", end="", flush=True)
+            _start_spinner(label)
     
 
 def main():
@@ -132,7 +160,11 @@ def main():
         on_build_status=on_build_status,
     )
 
+    _stop_spinner()
     total_s = (time.monotonic() - build_start)
+    if _last_label:
+        elapsed = time.monotonic() - _phase_start
+        print(f"\r  {_last_label}... DONE ({_fmt_duration(elapsed)})")
     print(f"  READY: Deployment successful ({_fmt_duration(total_s)})")
     print(f"  Agent Endpoint: {deployment.endpoint}")
 
