@@ -30,6 +30,7 @@ export GRAVIXLAYER_REGION="eastus2"
 | **Env vars & metadata** on a runtime | [`runtimes/03_runtime_with_env_vars.py`](runtimes/03_runtime_with_env_vars.py) |
 | **Run Python / JS code** in a runtime | [`runtimes/04_run_python_code.py`](runtimes/04_run_python_code.py), [`runtimes/05_run_node_code.py`](runtimes/05_run_node_code.py) |
 | **Run shell commands** | [`runtimes/06_run_shell_commands.py`](runtimes/06_run_shell_commands.py) |
+| **Run a sample agent** (LLM + runtimes — not only code or shell) | [`agents/python/data-analyst-agent/`](agents/python/data-analyst-agent/) — [`data_analyst_agent.py`](agents/python/data-analyst-agent/data_analyst_agent.py), [README](agents/python/data-analyst-agent/README.md) |
 | **Files** (read/write/upload/list) | [`runtimes/07_file_operations.py`](runtimes/07_file_operations.py) |
 | **Persistent code state** (contexts) | [`runtimes/08_code_contexts.py`](runtimes/08_code_contexts.py) |
 | **Metrics** (CPU, memory, disk, network) | [`runtimes/09_runtime_metrics.py`](runtimes/09_runtime_metrics.py) |
@@ -39,7 +40,7 @@ export GRAVIXLAYER_REGION="eastus2"
 | **SSH** enable / disable / rotate | [`runtimes/13_enable_ssh.py`](runtimes/13_enable_ssh.py), [`runtimes/14_disable_ssh.py`](runtimes/14_disable_ssh.py), [`runtimes/15_revoke_and_reenable_ssh.py`](runtimes/15_revoke_and_reenable_ssh.py) |
 | **Build templates** from Docker image / local dir / Git / Dockerfile | [`templates/`](templates/) — see [templates/README.md](templates/README.md) |
 | **List / delete** templates | [`templates/08_list_and_delete.py`](templates/08_list_and_delete.py) |
-| **Sample agents** (LangGraph, etc.) | [`agents/`](agents/) |
+| **Other agent samples** | [`agents/python/`](agents/python/) (see folder READMEs) |
 
 ---
 
@@ -49,7 +50,7 @@ export GRAVIXLAYER_REGION="eastus2"
 |--------|----------|
 | [`runtimes/`](runtimes/) | **15** scripts — lifecycle, code execution, shell, files, metrics, SSH, context manager. |
 | [`templates/`](templates/) | **8** scripts — `TemplateBuilder`: Docker image, local directory, Git, Dockerfile, list/delete. |
-| [`agents/`](agents/) | Heavier sample projects (e.g. data analyst, A2A LangGraph); each has its own README. |
+| [`agents/`](agents/) | **Data analyst** and other public samples under `agents/python/`; each has a README. Optional pre-release work can live in `agents/internal/` (gitignored — not shipped in the public repo). |
 
 ---
 
@@ -107,6 +108,15 @@ python examples/runtimes/06_run_shell_commands.py
 python examples/templates/01_python_docker_image.py
 ```
 
+**Sample agent** (uses the SDK to create runtimes and run LLM-generated code end-to-end — not the same as only calling `run_code` or shell yourself):
+
+```bash
+cd examples/agents/python/data-analyst-agent
+pip install -r requirements.txt
+export OPENAI_API_KEY="..." GRAVIXLAYER_API_KEY="..."
+python data_analyst_agent.py
+```
+
 ---
 
 ## Notes
@@ -114,3 +124,4 @@ python examples/templates/01_python_docker_image.py
 - Examples are safe to run repeatedly; they include cleanup where applicable.
 - For **private Git**, set `GIT_AUTH_TOKEN` (see `templates/README.md`).
 - Full indexes: [runtimes/README.md](runtimes/README.md) · [templates/README.md](templates/README.md)
+- **`examples/agents/internal/`** is listed in `.gitignore` for pre-release agent samples (e.g. before the agents feature is public). Clone contributors keep that tree locally; it is not committed or published.
