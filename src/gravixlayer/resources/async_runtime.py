@@ -43,12 +43,22 @@ from ..types.runtime import (
     _RUNTIME_DEFAULTS,
 )
 
+from .runtime_git import AsyncRuntimeGitResource
+
 
 class AsyncRuntimes:
     """Runtimes resource for asynchronous client."""
 
     def __init__(self, client):
         self.client = client
+        self._git_resource: Optional["AsyncRuntimeGitResource"] = None
+
+    @property
+    def git(self) -> "AsyncRuntimeGitResource":
+        """Git operations: ``await client.runtime.git.clone(...)``, etc."""
+        if self._git_resource is None:
+            self._git_resource = AsyncRuntimeGitResource(self)
+        return self._git_resource
 
     async def _make_agents_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs):
         """Make a request to the agents API (/v1/agents/...)."""

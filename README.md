@@ -14,7 +14,7 @@ Official Python client for **[Gravix Layer](https://gravixlayer.ai)** — create
 |------|--------|
 | 1 | **Install:** `pip install gravixlayer` |
 | 2 | **Set API key:** `export GRAVIXLAYER_API_KEY="your-api-key"` (from the Gravix Layer console) |
-| 3 | **Run the quick start** below, or open **[examples/](examples/)** for runnable tutorials (runtimes, templates, agents) |
+| 3 | **Run the quick start** below, or open **[examples/](examples/)** for runnable scripts (runtimes, templates) |
 
 **Docs:** [docs.gravixlayer.ai](https://docs.gravixlayer.ai) · **Examples index:** [examples/README.md](examples/README.md)
 
@@ -69,8 +69,7 @@ client.runtime.kill(runtime.runtime_id)
 | Area | What you’ll learn |
 |------|-------------------|
 | **[examples/runtimes/](examples/runtimes/)** | Create runtimes, run code & shell, files, metrics, SSH, context manager — **15 scripts** |
-| **[examples/templates/](examples/templates/)** | Build custom templates (Docker image, local dir, Git, Dockerfile) — **8 scripts** |
-| **[examples/agents/](examples/agents/)** | Sample agent projects |
+| **[examples/templates/](examples/templates/)** | Build custom templates (Docker image, Git, Dockerfile) — **6 scripts** |
 
 Start here: **[examples/README.md](examples/README.md)** (task table + quick reference).
 

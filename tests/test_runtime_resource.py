@@ -2,8 +2,8 @@
 Tests for sync and async runtime resources.
 
 Covers: create, list, get, kill, connect, set_timeout, get_metrics,
-get_host_url, file operations, command/code execution, SSH, pause/resume,
-write/write_files (multipart), code contexts.
+get_host_url, file operations, git (``client.runtime.git.*``), command/code execution,
+SSH, pause/resume, write/write_files (multipart), code contexts.
 """
 
 import io
@@ -44,10 +44,13 @@ from gravixlayer.types.runtime import (
     WriteEntry,
     WriteResult,
     WriteFilesResponse,
+    GitOperationResult,
 )
 
 
 SB = f"{AGENTS_BASE}/runtime"
+
+_GIT_OK = {"success": True, "exit_code": 0, "stdout": "ok\n", "stderr": "", "error": ""}
 
 
 # ===================================================================
@@ -180,6 +183,59 @@ class TestSyncRuntimeConfig:
         result = client.runtime.get_host_url(VALID_UUID, 8080)
         assert isinstance(result, RuntimeHostURL)
         assert "8080" in result.url
+
+
+# ===================================================================
+# Sync Runtime Resource — Git (nested client.runtime.git.*)
+# ===================================================================
+
+
+class TestSyncRuntimeGit:
+    def test_git_clone(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/clone").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        r = client.runtime.git.clone(
+            VALID_UUID,
+            "https://github.com/foo/bar.git",
+            "/workspace/bar",
+            branch="main",
+            depth=1,
+            auth_token="tok",
+        )
+        assert isinstance(r, GitOperationResult)
+        assert r.success is True
+        req = mock_api.calls[-1].request
+        import json
+        body = json.loads(req.content)
+        assert body["url"].endswith("bar.git")
+        assert body["path"] == "/workspace/bar"
+        assert body["branch"] == "main"
+        assert body["depth"] == 1
+        assert body["auth_token"] == "tok"
+
+    def test_git_status_and_pull(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/status").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/git/pull").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        st = client.runtime.git.status(VALID_UUID, "/workspace/repo")
+        assert st.exit_code == 0
+        pl = client.runtime.git.pull(VALID_UUID, "/workspace/repo", remote="origin", branch="main")
+        assert pl.success
+        req = mock_api.calls[-1].request
+        import json
+        body = json.loads(req.content)
+        assert body["repository_path"] == "/workspace/repo"
+        assert body["remote"] == "origin"
+        assert body["branch"] == "main"
+
+    def test_git_property_cached(self, client, mock_api):
+        g1 = client.runtime.git
+        g2 = client.runtime.git
+        assert g1 is g2
 
 
 # ===================================================================
@@ -553,6 +609,30 @@ class TestAsyncRuntimeLifecycle:
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             result = await client.runtime.connect(VALID_UUID)
             assert result["status"] == "connected"
+
+
+# ===================================================================
+# Async Runtime Resource — Git (nested client.runtime.git.*)
+# ===================================================================
+
+
+class TestAsyncRuntimeGit:
+    @pytest.mark.asyncio
+    async def test_git_fetch(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/fetch").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            r = await client.runtime.git.fetch(VALID_UUID, "/workspace/repo", remote="origin")
+            assert isinstance(r, GitOperationResult)
+            assert r.success
+
+    @pytest.mark.asyncio
+    async def test_git_property_cached(self, mock_api):
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            g1 = client.runtime.git
+            g2 = client.runtime.git
+            assert g1 is g2
 
 
 # ===================================================================

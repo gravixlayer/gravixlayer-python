@@ -6,6 +6,7 @@ internal/agents/runtime_api_handlers.go.
 """
 
 import dataclasses
+import inspect
 import os
 import re
 from typing import Dict, Any, List, Optional, Union
@@ -348,6 +349,12 @@ class Runtime:
         self._require_alive()
         return self._client.runtime.ssh_status(self.runtime_id)
 
+    @property
+    def git(self) -> "RuntimeGit":
+        """Git operations in the runtime (clone, status, pull, push, etc.)."""
+        self._require_alive()
+        return RuntimeGit(self._client, self.runtime_id)
+
     # -- State management --------------------------------------------------
 
     def pause(self) -> None:
@@ -508,6 +515,153 @@ class DirectoryCreateResponse:
 
     message: str
     path: Optional[str] = None
+
+
+@dataclass
+class GitOperationResult:
+    """Result of a git operation (stdout/stderr from the git binary in the VM)."""
+
+    success: bool
+    exit_code: int
+    stdout: str = ""
+    stderr: str = ""
+    error: str = ""
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "GitOperationResult":
+        return cls(
+            success=bool(data.get("success")),
+            exit_code=int(data.get("exit_code", 0)),
+            stdout=str(data.get("stdout") or ""),
+            stderr=str(data.get("stderr") or ""),
+            error=str(data.get("error") or ""),
+        )
+
+
+class RuntimeGit:
+    """Git operations for a bound :class:`Runtime` (uses ``/v1/agents/runtime/:id/git/*``).
+
+    Only the synchronous :class:`gravixlayer.GravixLayer` client is supported here.
+    With :class:`gravixlayer.AsyncGravixLayer`, use ``await client.runtime.git.clone(...)`` (etc.) instead.
+    """
+
+    def __init__(self, client: Any, runtime_id: str):
+        self._client = client
+        self._runtime_id = runtime_id
+
+    @staticmethod
+    def _sync_git_result(result: Any) -> GitOperationResult:
+        if inspect.isawaitable(result):
+            raise TypeError(
+                "runtime.git only works with the synchronous GravixLayer client. "
+                "With AsyncGravixLayer, use await client.runtime.git.clone(...) and related methods."
+            )
+        return result
+
+    def clone(
+        self,
+        url: str,
+        path: str,
+        branch: Optional[str] = None,
+        depth: Optional[int] = None,
+        auth_token: Optional[str] = None,
+    ) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.clone(
+                self._runtime_id,
+                url=url,
+                path=path,
+                branch=branch,
+                depth=depth,
+                auth_token=auth_token,
+            )
+        )
+
+    def status(self, repository_path: str) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.status(self._runtime_id, repository_path=repository_path)
+        )
+
+    def branch_list(self, repository_path: str) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.branch_list(
+                self._runtime_id, repository_path=repository_path
+            )
+        )
+
+    def checkout(self, repository_path: str, ref_name: str) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.checkout(
+                self._runtime_id, repository_path=repository_path, ref_name=ref_name
+            )
+        )
+
+    def pull(
+        self,
+        repository_path: str,
+        remote: Optional[str] = None,
+        branch: Optional[str] = None,
+    ) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.pull(
+                self._runtime_id,
+                repository_path=repository_path,
+                remote=remote,
+                branch=branch,
+            )
+        )
+
+    def push(
+        self,
+        repository_path: str,
+        remote: Optional[str] = None,
+        refspec: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+    ) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.push(
+                self._runtime_id,
+                repository_path=repository_path,
+                remote=remote,
+                refspec=refspec,
+                username=username,
+                password=password,
+            )
+        )
+
+    def fetch(self, repository_path: str, remote: Optional[str] = None) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.fetch(
+                self._runtime_id, repository_path=repository_path, remote=remote
+            )
+        )
+
+    def add(self, repository_path: str, paths: Optional[List[str]] = None) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.add(
+                self._runtime_id, repository_path=repository_path, paths=paths
+            )
+        )
+
+    def commit(
+        self,
+        repository_path: str,
+        message: str,
+        author_name: Optional[str] = None,
+        author_email: Optional[str] = None,
+        allow_empty: Optional[bool] = None,
+    ) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.commit(
+                self._runtime_id,
+                repository_path=repository_path,
+                message=message,
+                author_name=author_name,
+                author_email=author_email,
+                allow_empty=allow_empty,
+            )
+        )
 
 
 @dataclass

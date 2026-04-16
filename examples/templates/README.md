@@ -24,8 +24,6 @@ export GRAVIXLAYER_API_KEY="your-api-key"
 |---|------|--------|-------------|
 | 1 | [01_python_docker_image.py](01_python_docker_image.py) | Docker image | Python FastAPI app with `pip_install` and inline `copy_file` |
 | 2 | [02_node_docker_image.py](02_node_docker_image.py) | Docker image | Node.js Express app with manual build polling |
-| 3 | [03_python_local_dir.py](03_python_local_dir.py) | Local directory | Python project using `copy_file` + `copy_dir` from disk |
-| 4 | [04_node_local_dir.py](04_node_local_dir.py) | Local directory | Node.js project using `copy_file` + `copy_dir` from disk |
 | 5 | [05_node_git_clone.py](05_node_git_clone.py) | Git (public) | Node.js app cloned from a public GitHub repo |
 | 6 | [06_python_private_git.py](06_python_private_git.py) | Git (private) | Python app cloned from a private repo with `auth_token` |
 | 7 | [07_dockerfile.py](07_dockerfile.py) | Dockerfile | Full control via raw Dockerfile content |
@@ -44,7 +42,5 @@ For the private Git example, also set:
 export GIT_AUTH_TOKEN="ghp_xxxxx"
 python examples/templates/06_python_private_git.py
 ```
-
-**Local directory examples** (`03`, `04`): the scripts expect a project path on disk (see `project_dir`). Sample `examples/apps/...` trees are **not included** in this repo — point `project_dir` at your own Python or Node project, or create matching folders.
 
 Back to [Examples overview](../README.md).

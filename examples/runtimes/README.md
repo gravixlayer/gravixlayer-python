@@ -28,6 +28,7 @@ export GRAVIXLAYER_API_KEY="your-api-key"
 | 13 | [13_enable_ssh.py](13_enable_ssh.py) | Enable SSH and save private key |
 | 14 | [14_disable_ssh.py](14_disable_ssh.py) | Disable SSH and verify status |
 | 15 | [15_revoke_and_reenable_ssh.py](15_revoke_and_reenable_ssh.py) | Revoke, re-enable, and rotate SSH keys |
+| 16 | [16_runtime_git_operations.py](16_runtime_git_operations.py) | Full ``client.runtime.git`` API (clone, status, branches, checkout, fetch, pull, add, commit, push) |
 
 ## Run an example
 
@@ -35,6 +36,7 @@ export GRAVIXLAYER_API_KEY="your-api-key"
 python examples/runtimes/01_create_python_runtime.py
 python examples/runtimes/07_file_operations.py
 python examples/runtimes/13_enable_ssh.py
+python examples/runtimes/16_runtime_git_operations.py
 ```
 
 Back to [Examples overview](../README.md).
