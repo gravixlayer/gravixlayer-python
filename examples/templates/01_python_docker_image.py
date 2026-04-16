@@ -53,8 +53,9 @@ def health():
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
-    timeout_secs=1200,
+    timeout_secs=600,
 )
+
 
 print(f"Build finished: status={status.status}, phase={status.phase}")
 if status.is_success:
