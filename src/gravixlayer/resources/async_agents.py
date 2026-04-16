@@ -15,6 +15,13 @@ import time as _time
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Optional, Union
 
+
+def _fmt_duration(secs: float) -> str:
+    if secs < 60:
+        return f"{secs:.1f}s"
+    m, s = divmod(secs, 60)
+    return f"{int(m)}m {s:.0f}s"
+
 from ..types.agents import (
     AgentBuildRequest,
     AgentBuildResponse,
@@ -221,7 +228,7 @@ class AsyncAgents:
         logger.info("Waiting for agent build: build_id=%s", build_id)
 
         deadline = _time.monotonic() + timeout_secs
-        last_phase = ""
+        last_label = ""
         phase_start = _time.monotonic()
         build_start = _time.monotonic()
 
@@ -251,27 +258,27 @@ class AsyncAgents:
                 on_status(status)
 
             current_label = _PHASE_LABELS.get(status.phase, status.phase.upper())
-            if status.phase != last_phase:
+            if current_label != last_label:
                 now = _time.monotonic()
-                if last_phase:
-                    prev_label = _PHASE_LABELS.get(last_phase, last_phase.upper())
-                    elapsed_ms = int((now - phase_start) * 1000)
-                    logger.info("%s: DONE (%dms)", prev_label, elapsed_ms)
+                if last_label:
+                    prev_label = last_label
+                    elapsed_s = now - phase_start
+                    logger.info("%s: DONE (%s)", prev_label, _fmt_duration(elapsed_s))
                 phase_start = now
-                last_phase = status.phase
+                last_label = current_label
 
             if status.is_terminal:
-                total_ms = int((_time.monotonic() - build_start) * 1000)
+                total_s = _time.monotonic() - build_start
                 if status.is_success:
                     logger.info(
-                        "%s: Deployment successful (%dms)",
+                        "%s: Deployment successful (%s)",
                         current_label,
-                        total_ms,
+                        _fmt_duration(total_s),
                     )
                     return status
 
                 error_msg = status.error or "Unknown build failure"
-                logger.error("FAILED: %s (%dms)", error_msg, total_ms)
+                logger.error("FAILED: %s (%s)", error_msg, _fmt_duration(total_s))
                 raise AsyncAgentBuildError(build_id, error_msg, status=status)
 
     # -- Deploy operations --------------------------------------------------
