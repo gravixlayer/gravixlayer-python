@@ -2,20 +2,22 @@
 """
 Python template from a public Docker image.
 
-Uses: from_image, pip_install, copy_file (inline content), start_cmd
+Uses: from_image, pip_install, apt_install, copy_file (inline content), start_cmd
 
 Demonstrates building a Python FastAPI template from a public Docker
-image with pip_install, inline copy_file, and build_and_wait.
+image with pip_install, apt_install (e.g. curl), inline copy_file, and
+build_and_wait. The server skips apt work when packages are already
+present after base provisioning.
+
+Note: `python:*-slim` and `node:*-slim` share the same Debian-based pipeline;
+if one image succeeds and another fails on the same host, it is usually apt
+network/state or step order (e.g. pip before apt), not a different code path.
 """
 
-import logging
 import sys
 import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger(__name__)
 
 client = GravixLayer()
 
@@ -24,12 +26,12 @@ client = GravixLayer()
 template_name = f"sdk-python-image-{int(time.time())}"
 builder = (
     TemplateBuilder(template_name, "python-template-from-docker-image")
-    .from_image("python:3.11-slim")
+    .from_image("python:3.13-slim")
     .vcpu(2)
     .memory(1024)
     .disk(4096)
-    .apt_install("curl")
     .pip_install("fastapi", "uvicorn")
+    .apt_install("curl")
     .mkdir("/app")
     .copy_file(
         """
@@ -48,12 +50,10 @@ def health():
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=120)
 )
 
-print("Starting build...")
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
     timeout_secs=1200,
-    on_status=lambda entry: log.info("[build] %s", entry.message),
 )
 
 print(f"Build finished: status={status.status}, phase={status.phase}")

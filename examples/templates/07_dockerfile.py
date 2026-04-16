@@ -8,19 +8,17 @@ Good for complex environments that need full control over the base
 image, system packages, and build steps. The entire Dockerfile is
 built on the server and the resulting image is used as the template.
 
-When using dockerfile() you do NOT need pip_install or apt_install
-build steps -- handle everything inside the Dockerfile. You still
-need start_cmd and ready_cmd so the build pipeline knows how to
-launch and verify the application.
+When using dockerfile(), put system packages and pip in the Dockerfile
+instead of pip_install/apt_install build steps. You still need start_cmd
+and ready_cmd so the pipeline can launch and verify the app.
 """
 
-import logging
 import sys
+import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger(__name__)
+_TEMPLATE_SUFFIX = int(time.time())
 
 client = GravixLayer()
 
@@ -29,10 +27,12 @@ client = GravixLayer()
 dockerfile_content = """\
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \\
-    curl && rm -rf /var/lib/apt/lists/*
+# Example: install a Debian package inside the image (optional for this API).
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir fastapi uvicorn[standard]
+RUN pip install --no-cache-dir fastapi "uvicorn[standard]"
 
 WORKDIR /app
 
@@ -54,7 +54,10 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
 # -- Build the template -----------------------------------------------------
 
 builder = (
-    TemplateBuilder("dockerfile-agent", description="Template built from a raw Dockerfile")
+    TemplateBuilder(
+        f"dockerfile-agent-{_TEMPLATE_SUFFIX}",
+        description="Template built from a raw Dockerfile",
+    )
     .dockerfile(dockerfile_content)
     .vcpu(2)
     .memory(1024)
@@ -64,12 +67,10 @@ builder = (
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
 )
 
-print("Starting build...")
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
     timeout_secs=600,
-    on_status=lambda entry: log.info("[build] %s", entry.message),
 )
 
 print(f"Build finished: status={status.status}, phase={status.phase}")

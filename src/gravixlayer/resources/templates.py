@@ -5,10 +5,12 @@ Provides methods for creating, building, polling, listing, and
 deleting VM templates via the backend API.
 """
 
+import sys
 import time
 import logging
 from typing import Dict, Any, Optional, Union
 
+from .._cli_progress import TEMPLATE_BUILD_PHASE_LABELS, PhaseSpinner, fmt_duration
 from .._resource_utils import build_list_endpoint, parse_paginated_items
 from ..types.templates import (
     TemplateBuilder,
@@ -143,11 +145,15 @@ class Templates:
     ) -> TemplateBuildStatus:
         """Start a build and block until it completes or fails.
 
+        On a TTY, shows the same PACKAGING / BUILDING / VERIFYING spinner and
+        elapsed times as agent deploy. Pass ``on_status`` to disable the
+        built-in display and handle updates yourself.
+
         Args:
             builder: A TemplateBuilder or raw dict for the build request.
             poll_interval_secs: Seconds between status polls (default 5).
             timeout_secs: Maximum seconds to wait (default 600).
-            on_status: Optional callback invoked on each status poll.
+            on_status: Optional callback on each **phase change** (not every poll).
 
         Returns:
             Final TemplateBuildStatus when the build reaches a terminal state.
@@ -172,11 +178,22 @@ class Templates:
             ))
 
         deadline = time.monotonic() + timeout_secs
-        last_phase = ""
+        last_phase_raw = ""
+        last_display_label = ""
+        phase_start = time.monotonic()
+        build_start = time.monotonic()
+
+        show_spinner = on_status is None and sys.stderr.isatty()
+        spinner = PhaseSpinner() if show_spinner else None
+
+        if show_spinner:
+            sys.stderr.write("\nBuilding template...\n\n")
+            sys.stderr.flush()
 
         while True:
             if time.monotonic() > deadline:
-                # Fetch one last status for the caller
+                if spinner:
+                    spinner.stop()
                 try:
                     final = self.get_build_status(build_id)
                 except Exception:
@@ -185,12 +202,10 @@ class Templates:
                     build_id, timeout_secs, status=final
                 )
 
-            time.sleep(poll_interval_secs)
             status = self.get_build_status(build_id)
 
-            # Notify on phase transitions
-            if status.phase != last_phase:
-                last_phase = status.phase
+            if status.phase != last_phase_raw:
+                last_phase_raw = status.phase
                 logger.info(
                     "Build %s: phase=%s progress=%d%%",
                     build_id,
@@ -204,25 +219,59 @@ class Templates:
                     ))
 
             if status.is_terminal:
+                elapsed_s = time.monotonic() - phase_start
+                total_s = time.monotonic() - build_start
                 if status.is_success:
-                    logger.info("Build %s completed successfully", build_id)
-                    if on_status:
-                        on_status(BuildLogEntry(
-                            level="info",
-                            message="Build completed successfully",
-                        ))
+                    if spinner:
+                        spinner.finish(
+                            last_display_label,
+                            elapsed_s,
+                            total_s,
+                            ready_message="Template build successful",
+                        )
+                        sys.stderr.write(f"  Template ID: {status.template_id}\n")
+                        sys.stderr.flush()
+                    else:
+                        logger.info("Build %s completed successfully", build_id)
+                        if on_status:
+                            on_status(BuildLogEntry(
+                                level="info",
+                                message="Build completed successfully",
+                            ))
                     return status
+
+                error_msg = status.error or "Unknown build failure"
+                if spinner:
+                    spinner.stop()
+                    sys.stderr.write(
+                        f"\r  FAILED: {error_msg} ({fmt_duration(total_s)})\n"
+                    )
+                    sys.stderr.flush()
                 else:
-                    error_msg = status.error or "Unknown build failure"
                     logger.error("Build %s failed: %s", build_id, error_msg)
                     if on_status:
                         on_status(BuildLogEntry(
                             level="error",
                             message=f"Build failed: {error_msg}",
                         ))
-                    raise TemplateBuildError(
-                        build_id, error_msg, status=status
-                    )
+                raise TemplateBuildError(
+                    build_id, error_msg, status=status
+                )
+
+            current_display = TEMPLATE_BUILD_PHASE_LABELS.get(
+                status.phase, status.phase.upper()
+            )
+            if current_display != last_display_label:
+                now = time.monotonic()
+                elapsed_s = now - phase_start
+                if spinner:
+                    spinner.update(current_display, now, elapsed_s, last_display_label)
+                elif on_status is None and last_display_label:
+                    logger.info("%s: DONE (%s)", last_display_label, fmt_duration(elapsed_s))
+                phase_start = now
+                last_display_label = current_display
+
+            time.sleep(poll_interval_secs)
 
     # -- Template CRUD ------------------------------------------------------
 

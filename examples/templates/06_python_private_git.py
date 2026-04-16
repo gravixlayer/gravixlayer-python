@@ -2,7 +2,7 @@
 """
 Python template from a private Git repository.
 
-Uses: from_image, git_clone (with auth_token), run, start_cmd
+Uses: from_image, apt_install, git_clone (with auth_token), start_cmd
 
 For private repositories, pass an auth_token (GitHub PAT, deploy key,
 etc.) to git_clone. The token is used only during the build and is
@@ -16,14 +16,13 @@ Requires:
     export GIT_AUTH_TOKEN="ghp_xxxxx"
 """
 
-import logging
 import os
 import sys
+import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger(__name__)
+_TEMPLATE_SUFFIX = int(time.time())
 
 client = GravixLayer()
 
@@ -36,14 +35,17 @@ if not git_token:
 # -- Build the template -----------------------------------------------------
 
 builder = (
-    TemplateBuilder("python-private-repo", description="Python template from private Git repo")
+    TemplateBuilder(
+        f"python-private-repo-{_TEMPLATE_SUFFIX}",
+        description="Python template from private Git repo",
+    )
     .from_image("python:3.11-slim")
     .vcpu(2)
     .memory(512)
     .disk(4096)
     .envs({"PYTHONUNBUFFERED": "1"})
     .tags({"runtime": "python", "source": "private-git"})
-    .apt_install("curl", "git")
+    .apt_install("git", "ca-certificates")
     .git_clone(
         url="https://github.com/your-org/your-private-repo.git",
         dest="/app",
@@ -56,12 +58,10 @@ builder = (
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
 )
 
-print("Starting build...")
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
     timeout_secs=600,
-    on_status=lambda entry: log.info("[build] %s", entry.message),
 )
 
 print(f"Build finished: status={status.status}, phase={status.phase}")
