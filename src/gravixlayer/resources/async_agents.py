@@ -10,17 +10,12 @@ import asyncio
 import io
 import json
 import logging
+import sys
 import tarfile
 import time as _time
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Optional, Union
 
-
-def _fmt_duration(secs: float) -> str:
-    if secs < 60:
-        return f"{secs:.1f}s"
-    m, s = divmod(secs, 60)
-    return f"{int(m)}m {s:.0f}s"
 
 from ..types.agents import (
     AgentBuildRequest,
@@ -38,7 +33,14 @@ from ..types.agents import (
     _parse_agent_endpoint,
     _parse_destroy_response,
 )
-from .agents import _ARCHIVE_EXCLUDE_PATTERNS, _create_source_archive
+from .agents import (
+    _ARCHIVE_EXCLUDE_PATTERNS,
+    _create_source_archive,
+    _load_dotenv,
+    _fmt_duration,
+    _PHASE_LABELS,
+    _DeploySpinner,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -211,12 +213,16 @@ class AsyncAgents:
     ) -> AgentBuildStatusResponse:
         """Wait until an agent template build completes or fails.
 
+        By default, prints a live spinner with phase progress to stderr.
+        Pass ``on_status`` to suppress the built-in display and handle
+        status updates yourself.
+
         Args:
             build_id: The build ID to monitor.
             poll_interval_secs: Seconds between status polls (default 5).
             timeout_secs: Maximum seconds to wait (default 600).
             on_status: Optional callback invoked on each poll with an
-                       AgentBuildStatusResponse.
+                       AgentBuildStatusResponse. Suppresses built-in display.
 
         Returns:
             Final AgentBuildStatusResponse when build reaches terminal state.
@@ -232,17 +238,13 @@ class AsyncAgents:
         phase_start = _time.monotonic()
         build_start = _time.monotonic()
 
-        _PHASE_LABELS = {
-            "initializing": "PACKAGING",
-            "preparing": "PACKAGING",
-            "building": "BUILDING",
-            "finalizing": "DEPLOYING",
-            "distributing": "DEPLOYING",
-            "completed": "READY",
-        }
+        show_spinner = on_status is None and sys.stderr.isatty()
+        spinner = _DeploySpinner() if show_spinner else None
 
         while True:
             if _time.monotonic() > deadline:
+                if spinner:
+                    spinner.stop()
                 try:
                     final = await self.get_build_status(build_id)
                 except Exception:
@@ -260,17 +262,21 @@ class AsyncAgents:
             current_label = _PHASE_LABELS.get(status.phase, status.phase.upper())
             if current_label != last_label:
                 now = _time.monotonic()
-                if on_status is None and last_label:
-                    prev_label = last_label
-                    elapsed_s = now - phase_start
-                    logger.info("%s: DONE (%s)", prev_label, _fmt_duration(elapsed_s))
+                elapsed_s = now - phase_start
+                if spinner:
+                    spinner.update(current_label, now, elapsed_s, last_label)
+                elif on_status is None and last_label:
+                    logger.info("%s: DONE (%s)", last_label, _fmt_duration(elapsed_s))
                 phase_start = now
                 last_label = current_label
 
             if status.is_terminal:
+                elapsed_s = _time.monotonic() - phase_start
                 total_s = _time.monotonic() - build_start
                 if status.is_success:
-                    if on_status is None:
+                    if spinner:
+                        spinner.finish(last_label, elapsed_s, total_s)
+                    elif on_status is None:
                         logger.info(
                             "%s: Deployment successful (%s)",
                             current_label,
@@ -279,7 +285,11 @@ class AsyncAgents:
                     return status
 
                 error_msg = status.error or "Unknown build failure"
-                if on_status is None:
+                if spinner:
+                    spinner.stop()
+                    sys.stderr.write(f"\r  FAILED: {error_msg} ({_fmt_duration(total_s)})\n")
+                    sys.stderr.flush()
+                elif on_status is None:
                     logger.error("FAILED: %s (%s)", error_msg, _fmt_duration(total_s))
                 raise AsyncAgentBuildError(build_id, error_msg, status=status)
 
@@ -376,6 +386,20 @@ class AsyncAgents:
             if not name:
                 raise ValueError("'name' is required when deploying from source")
 
+            # Auto-load .env file from source directory. Explicit environment
+            # variables take precedence over .env values.
+            source_path = Path(source).resolve()
+            dotenv_vars = _load_dotenv(source_path)
+            if dotenv_vars:
+                merged = {**dotenv_vars, **(environment or {})}
+                environment = merged
+
+            show_output = on_build_status is None and sys.stderr.isatty()
+            if show_output:
+                display_name = name or source_path.name
+                sys.stderr.write(f"\nDeploying {display_name}...\n\n")
+                sys.stderr.flush()
+
             build_response = await self.build(
                 source,
                 name=name,
@@ -420,7 +444,11 @@ class AsyncAgents:
         )
 
         response = await self._make_agents_request("POST", "deploy", request.to_dict())
-        return _parse_deploy_response(response.json())
+        result = _parse_deploy_response(response.json())
+        if source is not None and on_build_status is None and sys.stderr.isatty():
+            sys.stderr.write(f"  Agent Endpoint: {result.endpoint}\n")
+            sys.stderr.flush()
+        return result
 
     # -- Agent endpoint operations ------------------------------------------
 
