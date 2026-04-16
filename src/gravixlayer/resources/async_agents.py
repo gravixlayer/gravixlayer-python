@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Optional, Union
 
 
+from .._cli_progress import AGENT_BUILD_PHASE_LABELS, PhaseSpinner, fmt_duration
 from ..types.agents import (
     AgentBuildRequest,
     AgentBuildResponse,
@@ -37,9 +38,6 @@ from .agents import (
     _ARCHIVE_EXCLUDE_PATTERNS,
     _create_source_archive,
     _load_dotenv,
-    _fmt_duration,
-    _PHASE_LABELS,
-    _DeploySpinner,
 )
 
 logger = logging.getLogger(__name__)
@@ -239,7 +237,7 @@ class AsyncAgents:
         build_start = _time.monotonic()
 
         show_spinner = on_status is None and sys.stderr.isatty()
-        spinner = _DeploySpinner() if show_spinner else None
+        spinner = PhaseSpinner() if show_spinner else None
 
         while True:
             if _time.monotonic() > deadline:
@@ -259,14 +257,14 @@ class AsyncAgents:
             if on_status is not None:
                 on_status(status)
 
-            current_label = _PHASE_LABELS.get(status.phase, status.phase.upper())
+            current_label = AGENT_BUILD_PHASE_LABELS.get(status.phase, status.phase.upper())
             if current_label != last_label:
                 now = _time.monotonic()
                 elapsed_s = now - phase_start
                 if spinner:
                     spinner.update(current_label, now, elapsed_s, last_label)
                 elif on_status is None and last_label:
-                    logger.info("%s: DONE (%s)", last_label, _fmt_duration(elapsed_s))
+                    logger.info("%s: DONE (%s)", last_label, fmt_duration(elapsed_s))
                 phase_start = now
                 last_label = current_label
 
@@ -275,22 +273,27 @@ class AsyncAgents:
                 total_s = _time.monotonic() - build_start
                 if status.is_success:
                     if spinner:
-                        spinner.finish(last_label, elapsed_s, total_s)
+                        spinner.finish(
+                            last_label,
+                            elapsed_s,
+                            total_s,
+                            ready_message="Deployment successful",
+                        )
                     elif on_status is None:
                         logger.info(
                             "%s: Deployment successful (%s)",
                             current_label,
-                            _fmt_duration(total_s),
+                            fmt_duration(total_s),
                         )
                     return status
 
                 error_msg = status.error or "Unknown build failure"
                 if spinner:
                     spinner.stop()
-                    sys.stderr.write(f"\r  FAILED: {error_msg} ({_fmt_duration(total_s)})\n")
+                    sys.stderr.write(f"\r  FAILED: {error_msg} ({fmt_duration(total_s)})\n")
                     sys.stderr.flush()
                 elif on_status is None:
-                    logger.error("FAILED: %s (%s)", error_msg, _fmt_duration(total_s))
+                    logger.error("FAILED: %s (%s)", error_msg, fmt_duration(total_s))
                 raise AsyncAgentBuildError(build_id, error_msg, status=status)
 
     # -- Deploy operations --------------------------------------------------

@@ -24,6 +24,7 @@ from ..types.templates import (
     TemplateDeleteResponse,
     BuildLogEntry,
     BuildLogCallback,
+    template_build_display_name,
     _parse_build_response,
     _parse_build_status,
     _parse_template_info,
@@ -142,8 +143,8 @@ class AsyncTemplates:
     ) -> TemplateBuildStatus:
         """Start a build and wait until it completes or fails.
 
-        On a TTY, shows the same PACKAGING / BUILDING / VERIFYING spinner as
-        agent deploy. Pass ``on_status`` to disable the built-in display.
+        On a TTY, shows PACKAGING / BUILDING / VERIFYING stages (spinner and
+        timing; SDK-owned). Pass ``on_status`` to disable the built-in display.
 
         Args:
             builder: A TemplateBuilder or raw dict for the build request.
@@ -158,6 +159,7 @@ class AsyncTemplates:
             AsyncTemplateBuildError: If the build fails.
             AsyncTemplateBuildTimeoutError: If the build exceeds timeout.
         """
+        display_name = template_build_display_name(builder)
         build_response = await self.build(builder)
         build_id = build_response.build_id
 
@@ -183,7 +185,7 @@ class AsyncTemplates:
         spinner = PhaseSpinner() if show_spinner else None
 
         if show_spinner:
-            sys.stderr.write("\nBuilding template...\n\n")
+            sys.stderr.write(f"\nBuilding template {display_name}...\n\n")
             sys.stderr.flush()
 
         while True:

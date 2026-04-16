@@ -78,6 +78,7 @@ class TemplateBuildPhase(str, Enum):
     PREPARING = "preparing"
     BUILDING = "building"
     FINALIZING = "finalizing"
+    DISTRIBUTING = "distributing"
     COMPLETED = "completed"
 
 
@@ -280,6 +281,11 @@ class TemplateBuilder:
         self._environment: Dict[str, str] = {}
         self._build_steps: List[BuildStep] = []
         self._tags: Dict[str, str] = {}
+
+    @property
+    def name(self) -> str:
+        """Template name sent to the build API."""
+        return self._name
 
     # -- Base image selection -----------------------------------------------
 
@@ -624,3 +630,10 @@ class TemplateBuilder:
             data["tags"] = self._tags
 
         return data
+
+
+def template_build_display_name(builder: Union[TemplateBuilder, Dict[str, Any]]) -> str:
+    """Resolve the template name for SDK progress headings."""
+    if isinstance(builder, TemplateBuilder):
+        return builder.name
+    return str(builder.get("name") or "template")

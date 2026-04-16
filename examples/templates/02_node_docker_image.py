@@ -4,7 +4,7 @@ Node.js Express template from a Docker image.
 
 Uses: from_image, apt_install, copy_file (inline content), run, start_cmd, build_and_wait
 
-``build_and_wait`` shows the same PACKAGING / BUILDING / VERIFYING progress as agent deploy.
+``build_and_wait`` shows PACKAGING / BUILDING / VERIFYING progress (SDK spinner).
 Uses a local package.json with run("npm install") so that require()
 resolves correctly (npm_install() installs globally).
 """
