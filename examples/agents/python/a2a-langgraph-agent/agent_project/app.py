@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import uuid
 
 from a2a.server.agent_execution import AgentExecutor
 from a2a.server.agent_execution.context import RequestContext
@@ -17,7 +18,9 @@ from a2a.types import (
     AgentCard,
     AgentCapabilities,
     AgentSkill,
+    Message,
     Part,
+    Role,
     TextPart,
 )
 
@@ -45,8 +48,12 @@ class LangGraphA2AExecutor(AgentExecutor):
         user_input = context.get_user_input()
         if not user_input:
             await event_queue.enqueue_event(
-                context.new_agent_message(
-                    parts=[Part(root=TextPart(text="No input provided."))]
+                Message(
+                    role=Role.agent,
+                    parts=[Part(root=TextPart(text="No input provided."))],
+                    message_id=str(uuid.uuid4()),
+                    context_id=context.context_id,
+                    task_id=context.task_id,
                 )
             )
             return
@@ -64,8 +71,12 @@ class LangGraphA2AExecutor(AgentExecutor):
         except Exception as e:
             logger.exception("LangGraph invocation failed")
             await event_queue.enqueue_event(
-                context.new_agent_message(
-                    parts=[Part(root=TextPart(text=f"Agent error: {e}"))]
+                Message(
+                    role=Role.agent,
+                    parts=[Part(root=TextPart(text=f"Agent error: {e}"))],
+                    message_id=str(uuid.uuid4()),
+                    context_id=context.context_id,
+                    task_id=context.task_id,
                 )
             )
             return
@@ -78,8 +89,12 @@ class LangGraphA2AExecutor(AgentExecutor):
             content = str(result)
 
         await event_queue.enqueue_event(
-            context.new_agent_message(
-                parts=[Part(root=TextPart(text=content))]
+            Message(
+                role=Role.agent,
+                parts=[Part(root=TextPart(text=content))],
+                message_id=str(uuid.uuid4()),
+                context_id=context.context_id,
+                task_id=context.task_id,
             )
         )
 

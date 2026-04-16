@@ -16,6 +16,7 @@ Usage:
 
 import os
 import sys
+import time
 from pathlib import Path
 
 from gravixlayer import GravixLayer
@@ -23,10 +24,32 @@ from gravixlayer.types.agents import AgentCard, AgentCapabilities, AgentSkill
 
 AGENT_SOURCE_DIR = Path(__file__).parent
 
+# Phase tracking for clean build output
+_PHASE_LABELS = {
+    "initializing": "PACKAGING",
+    "preparing": "PACKAGING",
+    "building": "BUILDING",
+    "finalizing": "DEPLOYING",
+    "distributing": "DEPLOYING",
+    "completed": "READY",
+}
+_last_phase = ""
+_phase_start = 0.0
+
 
 def on_build_status(status):
-    print(f"  Build: phase={status.phase} progress={status.progress_percent}%")
-
+    global _last_phase, _phase_start
+    label = _PHASE_LABELS.get(status.phase, status.phase.upper())
+    if status.phase != _last_phase:
+        now = time.monotonic()
+        if _last_phase:
+            elapsed = int((now - _phase_start) * 1000)
+            print(f" DONE ({elapsed}ms)")
+        _phase_start = now
+        _last_phase = status.phase
+        if not status.is_terminal:
+            print(f"  {label}...", end="", flush=True)
+    
 
 def main():
     api_key = os.environ.get("GRAVIXLAYER_API_KEY")
@@ -39,6 +62,7 @@ def main():
         print("Error: ANTHROPIC_API_KEY environment variable required")
         sys.exit(1)
 
+    name = "a2a-langgraph-agent"
     client = GravixLayer(api_key=api_key)
 
     agent_card = AgentCard(
@@ -76,12 +100,14 @@ def main():
         default_output_modes=["text"],
     )
 
-    print(f"Deploying agent from: {AGENT_SOURCE_DIR}")
-    print("Starting build + deploy...")
+    print(f"\nDeployment name [{name}]:")
+    print("Starting deployment...\n")
+
+    build_start = time.monotonic()
 
     deployment = client.agents.deploy(
         source=str(AGENT_SOURCE_DIR),
-        name="a2a-langgraph-agent",
+        name=name,
         description="LangGraph agent with tools deployed via GravixLayer SDK",
         framework="langgraph",
         python_version="3.13",
@@ -99,12 +125,10 @@ def main():
         on_build_status=on_build_status,
     )
 
-    print(f"\nAgent deployed successfully!")
-    print(f"  Agent ID:       {deployment.agent_id}")
-    print(f"  Endpoint:       {deployment.endpoint}")
-    print(f"  A2A Endpoint:   {deployment.a2a_endpoint}")
-    print(f"  Agent Card:     {deployment.agent_card_url}")
-    print(f"  Status:         {deployment.status}")
+    total_ms = int((time.monotonic() - build_start) * 1000)
+    print(f" DONE ({total_ms}ms)")
+    print(f"  READY: Deployment successful ({total_ms}ms)")
+    print(f"  Agent Endpoint: {deployment.endpoint}")
 
     state_file = Path(__file__).parent / ".agent_state"
     state_file.write_text(deployment.agent_id)

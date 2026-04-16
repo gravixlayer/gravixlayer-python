@@ -222,6 +222,17 @@ class AsyncAgents:
 
         deadline = _time.monotonic() + timeout_secs
         last_phase = ""
+        phase_start = _time.monotonic()
+        build_start = _time.monotonic()
+
+        _PHASE_LABELS = {
+            "initializing": "PACKAGING",
+            "preparing": "PACKAGING",
+            "building": "BUILDING",
+            "finalizing": "DEPLOYING",
+            "distributing": "DEPLOYING",
+            "completed": "READY",
+        }
 
         while True:
             if _time.monotonic() > deadline:
@@ -239,22 +250,28 @@ class AsyncAgents:
             if on_status is not None:
                 on_status(status)
 
+            current_label = _PHASE_LABELS.get(status.phase, status.phase.upper())
             if status.phase != last_phase:
+                now = _time.monotonic()
+                if last_phase:
+                    prev_label = _PHASE_LABELS.get(last_phase, last_phase.upper())
+                    elapsed_ms = int((now - phase_start) * 1000)
+                    logger.info("%s: DONE (%dms)", prev_label, elapsed_ms)
+                phase_start = now
                 last_phase = status.phase
-                logger.info(
-                    "Build %s: phase=%s progress=%d%%",
-                    build_id,
-                    status.phase,
-                    status.progress_percent,
-                )
 
             if status.is_terminal:
+                total_ms = int((_time.monotonic() - build_start) * 1000)
                 if status.is_success:
-                    logger.info("Build %s completed successfully", build_id)
+                    logger.info(
+                        "%s: Deployment successful (%dms)",
+                        current_label,
+                        total_ms,
+                    )
                     return status
 
                 error_msg = status.error or "Unknown build failure"
-                logger.error("Build %s failed: %s", build_id, error_msg)
+                logger.error("FAILED: %s (%dms)", error_msg, total_ms)
                 raise AsyncAgentBuildError(build_id, error_msg, status=status)
 
     # -- Deploy operations --------------------------------------------------
