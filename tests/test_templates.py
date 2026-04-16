@@ -759,7 +759,14 @@ class TestEnumCompleteness:
         assert len(TemplateBuildStatusEnum) == 5
 
     def test_build_phase_enum_values(self):
-        expected = {"initializing", "preparing", "building", "finalizing", "completed"}
+        expected = {
+            "initializing",
+            "preparing",
+            "building",
+            "finalizing",
+            "distributing",
+            "completed",
+        }
         actual = {e.value for e in TemplateBuildPhase}
         assert actual == expected
 

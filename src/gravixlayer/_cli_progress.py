@@ -1,6 +1,10 @@
 """
 TTY progress display for long-running builds.
 
+Phase labels, spinner, and elapsed-time formatting live in the SDK (this
+module and the ``Templates`` / ``Agents`` resources). Customer scripts only
+call ``build_and_wait`` / ``deploy``; they do not implement this UI.
+
 Shared by :class:`~gravixlayer.resources.agents.Agents` and
 :class:`~gravixlayer.resources.templates.Templates` so deploy and template
 builds show the same spinner, timing, and phase labels on stderr.
@@ -26,12 +30,14 @@ AGENT_BUILD_PHASE_LABELS = {
     "completed": "READY",
 }
 
-# Template builds: packaging → building → verifying (snapshot / finalize).
+# Template builds: packaging → build (incl. finalize on server) → verify (distribution).
+# Backend "finalizing" is grouped under BUILDING; "distributing" is shown as VERIFYING.
 TEMPLATE_BUILD_PHASE_LABELS = {
     "initializing": "PACKAGING",
     "preparing": "PACKAGING",
     "building": "BUILDING",
-    "finalizing": "VERIFYING",
+    "finalizing": "BUILDING",
+    "distributing": "VERIFYING",
     "completed": "READY",
 }
 
