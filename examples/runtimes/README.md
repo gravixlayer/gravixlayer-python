@@ -1,22 +1,15 @@
 # Agent Runtime Tutorials
 
-Standalone tutorials for managing agent runtimes with the Gravix Layer Python SDK.
+Standalone tutorials for managing **agent runtimes** with the Gravix Layer Python SDK.
 
 ## Setup
 
-Install the SDK:
-
 ```bash
 pip install gravixlayer
-```
-
-Set your API key:
-
-```bash
 export GRAVIXLAYER_API_KEY="your-api-key"
 ```
 
-## Tutorial Index
+## Tutorial index
 
 | # | File | Description |
 |---|------|-------------|
@@ -31,14 +24,17 @@ export GRAVIXLAYER_API_KEY="your-api-key"
 | 9 | [09_runtime_metrics.py](09_runtime_metrics.py) | Query CPU, memory, disk, and network metrics |
 | 10 | [10_timeout_management.py](10_timeout_management.py) | Configure and extend agent runtime timeout |
 | 11 | [11_list_and_manage.py](11_list_and_manage.py) | List agent runtimes and inspect details |
-| 12 | [13_enable_ssh.py](13_enable_ssh.py) | Enable SSH and save private key |
-| 13 | [14_disable_ssh.py](14_disable_ssh.py) | Disable SSH and verify status |
-| 14 | [15_revoke_and_reenable_ssh.py](15_revoke_and_reenable_ssh.py) | Revoke, re-enable, and rotate SSH keys |
+| 12 | [12_context_manager.py](12_context_manager.py) | Use `with` / `Runtime` for automatic cleanup |
+| 13 | [13_enable_ssh.py](13_enable_ssh.py) | Enable SSH and save private key |
+| 14 | [14_disable_ssh.py](14_disable_ssh.py) | Disable SSH and verify status |
+| 15 | [15_revoke_and_reenable_ssh.py](15_revoke_and_reenable_ssh.py) | Revoke, re-enable, and rotate SSH keys |
 
-## Run an Example
+## Run an example
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py
 python examples/runtimes/07_file_operations.py
 python examples/runtimes/13_enable_ssh.py
 ```
+
+Back to [Examples overview](../README.md).

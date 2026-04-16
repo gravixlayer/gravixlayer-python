@@ -6,6 +6,20 @@
 
 Official Python client for **[Gravix Layer](https://gravixlayer.ai)** — create and manage cloud **agent runtimes** and **templates** for your workloads.
 
+---
+
+## New to this SDK?
+
+| Step | Action |
+|------|--------|
+| 1 | **Install:** `pip install gravixlayer` |
+| 2 | **Set API key:** `export GRAVIXLAYER_API_KEY="your-api-key"` (from the Gravix Layer console) |
+| 3 | **Run the quick start** below, or open **[examples/](examples/)** for runnable tutorials (runtimes, templates, agents) |
+
+**Docs:** [docs.gravixlayer.ai](https://docs.gravixlayer.ai) · **Examples index:** [examples/README.md](examples/README.md)
+
+---
+
 ## Install
 
 ```bash
@@ -50,6 +64,16 @@ print(result.text)
 client.runtime.kill(runtime.runtime_id)
 ```
 
+## Examples (runnable)
+
+| Area | What you’ll learn |
+|------|-------------------|
+| **[examples/runtimes/](examples/runtimes/)** | Create runtimes, run code & shell, files, metrics, SSH, context manager — **15 scripts** |
+| **[examples/templates/](examples/templates/)** | Build custom templates (Docker image, local dir, Git, Dockerfile) — **8 scripts** |
+| **[examples/agents/](examples/agents/)** | Sample agent projects |
+
+Start here: **[examples/README.md](examples/README.md)** (task table + quick reference).
+
 ## Performance note (connections and HTTP/2)
 
 The client uses **HTTP/1.1 by default** for predictable latency on typical API usage.
@@ -90,17 +114,15 @@ async def main():
 asyncio.run(main())
 ```
 
-## Documentation and examples
+## Documentation and support
 
-- **Examples**: [examples/](examples/) (runtimes, templates, sample apps)
-- **Documentation**: [docs.gravixlayer.ai](https://docs.gravixlayer.ai)
-- **Issues**: [GitHub Issues](https://github.com/gravixlayer/gravixlayer-python/issues)
-
-## Support
+- **Examples:** [examples/README.md](examples/README.md)
+- **Documentation:** [docs.gravixlayer.ai](https://docs.gravixlayer.ai)
+- **Issues:** [GitHub Issues](https://github.com/gravixlayer/gravixlayer-python/issues)
 
 **support@gravixlayer.ai**
 
-**Feedback:** [gravixlayer/gravixlayer-feedback](https://github.com/gravixlayer/gravixlayer-feedback) — open an issue for bugs, features, and general product feedback.
+**Feedback:** [gravixlayer/gravixlayer-feedback](https://github.com/gravixlayer/gravixlayer-feedback) — bugs, features, and product feedback.
 
 ## License
 
