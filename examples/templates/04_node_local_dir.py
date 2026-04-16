@@ -2,7 +2,7 @@
 """
 Node.js Next.js template from a local source directory.
 
-Uses: from_image, copy_file (local file), copy_dir, run, start_cmd
+Uses: from_image, apt_install, copy_file (local file), copy_dir, run, start_cmd
 
 Same pattern as 03_python_local_dir but for Node.js / Next.js.
 Shows copy_dir for the full project and copy_file for package.json.
@@ -23,14 +23,13 @@ Usage:
     python examples/templates/04_node_local_dir.py
 """
 
-import logging
 import os
 import sys
+import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger(__name__)
+_TEMPLATE_SUFFIX = int(time.time())
 
 client = GravixLayer()
 
@@ -42,7 +41,10 @@ project_dir = os.path.join(examples_dir, "apps", "node-hello")
 # -- Build the template -----------------------------------------------------
 
 builder = (
-    TemplateBuilder("node-local-dir", description="Node.js Next.js template from local directory")
+    TemplateBuilder(
+        f"node-local-dir-{_TEMPLATE_SUFFIX}",
+        description="Node.js Next.js template from local directory",
+    )
     .from_image("node:20-slim")
     .vcpu(2)
     .memory(1024)
@@ -58,12 +60,10 @@ builder = (
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
 )
 
-print("Starting build...")
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
     timeout_secs=600,
-    on_status=lambda entry: log.info("[build] %s", entry.message),
 )
 
 print(f"Build finished: status={status.status}, phase={status.phase}")

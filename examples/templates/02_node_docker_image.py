@@ -2,21 +2,19 @@
 """
 Node.js Express template from a Docker image.
 
-Uses: from_image, copy_file (inline content), run, start_cmd
+Uses: from_image, apt_install, copy_file (inline content), run, start_cmd, build_and_wait
 
-Demonstrates manual build + poll as an alternative to build_and_wait.
+``build_and_wait`` shows the same PACKAGING / BUILDING / VERIFYING progress as agent deploy.
 Uses a local package.json with run("npm install") so that require()
 resolves correctly (npm_install() installs globally).
 """
 
-import logging
 import sys
 import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger(__name__)
+_TEMPLATE_SUFFIX = int(time.time())
 
 client = GravixLayer()
 
@@ -54,7 +52,10 @@ package_json = """\
 # -- Build the template -----------------------------------------------------
 
 builder = (
-    TemplateBuilder("node-express-agent", description="Node.js Express hello-world agent")
+    TemplateBuilder(
+        f"sdk-node-express-{_TEMPLATE_SUFFIX}",
+        description="Node.js Express hello-world agent",
+    )
     .from_image("node:20-slim")
     .vcpu(2)
     .memory(512)
@@ -70,18 +71,11 @@ builder = (
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=30)
 )
 
-# Manual build + poll (alternative to build_and_wait)
-print("Starting build...")
-build_response = client.templates.build(builder)
-build_id = build_response.build_id
-print(f"Build ID: {build_id}")
-
-while True:
-    time.sleep(10)
-    status = client.templates.get_build_status(build_id)
-    print(f"  status={status.status}  phase={status.phase}  progress={status.progress_percent}%")
-    if status.is_terminal:
-        break
+status = client.templates.build_and_wait(
+    builder,
+    poll_interval_secs=10,
+    timeout_secs=600,
+)
 
 if status.is_success:
     print(f"Template ID: {status.template_id}")

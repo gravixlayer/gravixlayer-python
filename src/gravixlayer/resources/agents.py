@@ -18,17 +18,9 @@ import os
 import sys
 import tarfile
 import time
-import threading
 import logging
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional, Union
-
-
-def _fmt_duration(secs: float) -> str:
-    if secs < 60:
-        return f"{secs:.1f}s"
-    m, s = divmod(secs, 60)
-    return f"{int(m)}m {s:.0f}s"
 
 
 def _load_dotenv(source_dir: Path) -> Dict[str, str]:
@@ -58,67 +50,7 @@ def _load_dotenv(source_dir: Path) -> Dict[str, str]:
     return result
 
 
-# Phase labels — map backend phases to user-friendly stage names.
-# building/finalizing are both build work; distributing is actual deployment.
-_PHASE_LABELS = {
-    "initializing": "PACKAGING",
-    "preparing": "PACKAGING",
-    "building": "BUILDING",
-    "finalizing": "BUILDING",
-    "distributing": "DEPLOYING",
-    "completed": "READY",
-}
-
-_SPINNER_CHARS = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-
-
-class _DeploySpinner:
-    """Thread-safe spinner for deploy progress display."""
-
-    def __init__(self):
-        self._label = ""
-        self._phase_start = 0.0
-        self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
-
-    def _spin(self):
-        i = 0
-        while not self._stop_event.is_set():
-            elapsed = _fmt_duration(time.monotonic() - self._phase_start)
-            char = _SPINNER_CHARS[i % len(_SPINNER_CHARS)]
-            sys.stderr.write(f"\r  {self._label}... {char} {elapsed}")
-            sys.stderr.flush()
-            i += 1
-            self._stop_event.wait(0.1)
-
-    def update(self, label: str, phase_start: float, elapsed: float, prev_label: str):
-        """Transition to a new phase: finish the previous and start a new spinner."""
-        if prev_label:
-            self.stop()
-            sys.stderr.write(f"\r  {prev_label}... DONE ({_fmt_duration(elapsed)})\n")
-            sys.stderr.flush()
-        self._label = label
-        self._phase_start = phase_start
-        self._stop_event.clear()
-        self._thread = threading.Thread(target=self._spin, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        self._stop_event.set()
-        if self._thread is not None:
-            self._thread.join()
-            self._thread = None
-
-    def finish(self, label: str, elapsed: float, total: float, endpoint: str = ""):
-        """Print the final phase DONE line and summary."""
-        self.stop()
-        if label:
-            sys.stderr.write(f"\r  {label}... DONE ({_fmt_duration(elapsed)})\n")
-        sys.stderr.write(f"  READY: Deployment successful ({_fmt_duration(total)})\n")
-        if endpoint:
-            sys.stderr.write(f"  Agent Endpoint: {endpoint}\n")
-        sys.stderr.flush()
-
+from .._cli_progress import AGENT_BUILD_PHASE_LABELS, PhaseSpinner, fmt_duration
 from ..types.agents import (
     AgentBuildRequest,
     AgentBuildResponse,
@@ -395,7 +327,7 @@ class Agents:
         build_start = time.monotonic()
 
         show_spinner = on_status is None and sys.stderr.isatty()
-        spinner = _DeploySpinner() if show_spinner else None
+        spinner = PhaseSpinner() if show_spinner else None
 
         while True:
             if time.monotonic() > deadline:
@@ -415,14 +347,14 @@ class Agents:
             if on_status is not None:
                 on_status(status)
 
-            current_label = _PHASE_LABELS.get(status.phase, status.phase.upper())
+            current_label = AGENT_BUILD_PHASE_LABELS.get(status.phase, status.phase.upper())
             if current_label != last_label:
                 now = time.monotonic()
                 elapsed_s = now - phase_start
                 if spinner:
                     spinner.update(current_label, now, elapsed_s, last_label)
                 elif on_status is None and last_label:
-                    logger.info("%s: DONE (%s)", last_label, _fmt_duration(elapsed_s))
+                    logger.info("%s: DONE (%s)", last_label, fmt_duration(elapsed_s))
                 phase_start = now
                 last_label = current_label
 
@@ -431,22 +363,27 @@ class Agents:
                 total_s = time.monotonic() - build_start
                 if status.is_success:
                     if spinner:
-                        spinner.finish(last_label, elapsed_s, total_s)
+                        spinner.finish(
+                            last_label,
+                            elapsed_s,
+                            total_s,
+                            ready_message="Deployment successful",
+                        )
                     elif on_status is None:
                         logger.info(
                             "%s: Deployment successful (%s)",
                             current_label,
-                            _fmt_duration(total_s),
+                            fmt_duration(total_s),
                         )
                     return status
 
                 error_msg = status.error or "Unknown build failure"
                 if spinner:
                     spinner.stop()
-                    sys.stderr.write(f"\r  FAILED: {error_msg} ({_fmt_duration(total_s)})\n")
+                    sys.stderr.write(f"\r  FAILED: {error_msg} ({fmt_duration(total_s)})\n")
                     sys.stderr.flush()
                 elif on_status is None:
-                    logger.error("FAILED: %s (%s)", error_msg, _fmt_duration(total_s))
+                    logger.error("FAILED: %s (%s)", error_msg, fmt_duration(total_s))
                 raise AgentBuildError(build_id, error_msg, status=status)
 
     # -- Deploy operations --------------------------------------------------

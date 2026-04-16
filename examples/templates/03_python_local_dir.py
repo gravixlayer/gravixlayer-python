@@ -2,7 +2,7 @@
 """
 Python template from a local source directory.
 
-Uses: from_image, copy_file (local file), copy_dir, start_cmd
+Uses: from_image, apt_install, copy_file (local file), copy_dir, start_cmd
 
 Good for multi-file projects on disk. copy_dir() walks the local
 directory tree recursively and uploads every file, preserving the
@@ -23,14 +23,13 @@ Usage:
     python examples/templates/03_python_local_dir.py
 """
 
-import logging
 import os
 import sys
+import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-log = logging.getLogger(__name__)
+_TEMPLATE_SUFFIX = int(time.time())
 
 client = GravixLayer()
 
@@ -43,8 +42,11 @@ requirements = os.path.join(project_dir, "requirements.txt")
 # -- Build the template -----------------------------------------------------
 
 builder = (
-    TemplateBuilder("python-local-dir", description="Python template from local source directory")
-    .from_image("python:3.11-slim")
+    TemplateBuilder(
+        f"python-local-dir-{_TEMPLATE_SUFFIX}",
+        description="Python template from local source directory",
+    )
+    .from_image("python:3.13-slim")
     .vcpu(2)
     .memory(512)
     .disk(4096)
@@ -61,12 +63,10 @@ builder = (
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
 )
 
-print("Starting build...")
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
     timeout_secs=600,
-    on_status=lambda entry: log.info("[build] %s", entry.message),
 )
 
 print(f"Build finished: status={status.status}, phase={status.phase}")
