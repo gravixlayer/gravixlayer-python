@@ -24,6 +24,13 @@ from gravixlayer.types.agents import AgentCard, AgentCapabilities, AgentSkill
 
 AGENT_SOURCE_DIR = Path(__file__).parent
 
+def _fmt_duration(secs: float) -> str:
+    if secs < 60:
+        return f"{secs:.1f}s"
+    m, s = divmod(secs, 60)
+    return f"{int(m)}m {s:.0f}s"
+
+
 # Phase tracking for clean build output
 _PHASE_LABELS = {
     "initializing": "PACKAGING",
@@ -33,20 +40,20 @@ _PHASE_LABELS = {
     "distributing": "DEPLOYING",
     "completed": "READY",
 }
-_last_phase = ""
+_last_label = ""
 _phase_start = 0.0
 
 
 def on_build_status(status):
-    global _last_phase, _phase_start
+    global _last_label, _phase_start
     label = _PHASE_LABELS.get(status.phase, status.phase.upper())
-    if status.phase != _last_phase:
+    if label != _last_label:
         now = time.monotonic()
-        if _last_phase:
-            elapsed = int((now - _phase_start) * 1000)
-            print(f" DONE ({elapsed}ms)")
+        if _last_label:
+            elapsed = (now - _phase_start)
+            print(f" DONE ({_fmt_duration(elapsed)})")
         _phase_start = now
-        _last_phase = status.phase
+        _last_label = label
         if not status.is_terminal:
             print(f"  {label}...", end="", flush=True)
     
@@ -125,9 +132,8 @@ def main():
         on_build_status=on_build_status,
     )
 
-    total_ms = int((time.monotonic() - build_start) * 1000)
-    print(f" DONE ({total_ms}ms)")
-    print(f"  READY: Deployment successful ({total_ms}ms)")
+    total_s = (time.monotonic() - build_start)
+    print(f"  READY: Deployment successful ({_fmt_duration(total_s)})")
     print(f"  Agent Endpoint: {deployment.endpoint}")
 
     state_file = Path(__file__).parent / ".agent_state"

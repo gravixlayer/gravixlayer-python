@@ -35,7 +35,7 @@ _DEFAULT_A2A_PORT = 8000
 _DEFAULT_HOST = "0.0.0.0"
 
 # Platform metadata path written by the deploy pipeline.
-_AGENT_METADATA_PATH = "/var/run/tensorgrid/agent-id"
+_AGENT_METADATA_PATH = "/var/run/gravixlayer/agent-id"
 
 # Public domain suffix for agent endpoints.
 _AGENT_DOMAIN = "agents.gravixlayer.ai"
