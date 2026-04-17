@@ -1,6 +1,6 @@
 """Version metadata (optional helper; canonical version is in pyproject.toml and gravixlayer.__version__)."""
 
-__version__ = "0.1.35"
+__version__ = "0.1.36"
 __version_info__ = tuple(int(x) for x in __version__.split("."))
 
 VERSION_HISTORY = {
