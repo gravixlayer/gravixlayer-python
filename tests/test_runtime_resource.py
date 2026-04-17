@@ -232,10 +232,52 @@ class TestSyncRuntimeGit:
         assert body["remote"] == "origin"
         assert body["branch"] == "main"
 
+    def test_git_branch_list(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/branches").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        r = client.runtime.git.branch_list(VALID_UUID, "/workspace/repo")
+        assert r.success
+        import json
+
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["repository_path"] == "/workspace/repo"
+        assert "scope" not in body
+
+        r2 = client.runtime.git.branch_list(VALID_UUID, "/workspace/repo", scope="remote")
+        assert r2.success
+        body2 = json.loads(mock_api.calls[-1].request.content)
+        assert body2["scope"] == "remote"
+
     def test_git_property_cached(self, client, mock_api):
         g1 = client.runtime.git
         g2 = client.runtime.git
         assert g1 is g2
+
+    def test_git_create_branch(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/branch/create").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        r = client.runtime.git.create_branch(
+            VALID_UUID, "/workspace/r", "feature-x", start_point="main"
+        )
+        assert r.success
+        import json
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["repository_path"] == "/workspace/r"
+        assert body["branch_name"] == "feature-x"
+        assert body["start_point"] == "main"
+
+    def test_git_delete_branch(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/branch/delete").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        r = client.runtime.git.delete_branch(VALID_UUID, "/workspace/r", "old", force=True)
+        assert r.success
+        import json
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["branch_name"] == "old"
+        assert body["force"] is True
 
 
 # ===================================================================
@@ -625,6 +667,28 @@ class TestAsyncRuntimeGit:
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             r = await client.runtime.git.fetch(VALID_UUID, "/workspace/repo", remote="origin")
             assert isinstance(r, GitOperationResult)
+            assert r.success
+
+    @pytest.mark.asyncio
+    async def test_git_branch_list(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/branches").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            r = await client.runtime.git.branch_list(VALID_UUID, "/w/r", scope="all")
+            assert r.success
+            import json
+
+            body = json.loads(mock_api.calls[-1].request.content)
+            assert body["scope"] == "all"
+
+    @pytest.mark.asyncio
+    async def test_git_create_branch(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/branch/create").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            r = await client.runtime.git.create_branch(VALID_UUID, "/w/r", "b1")
             assert r.success
 
     @pytest.mark.asyncio

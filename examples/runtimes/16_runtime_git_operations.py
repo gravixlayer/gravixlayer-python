@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Runtime Git API — ``client.runtime.git``
 
-Runs through: clone → status → branches → fetch → checkout → add/commit → pull → push.
+Runs through: clone → status → branches → fetch → checkout → create/delete branch →
+add/commit → pull → push.
 Uses a tiny public repo by default; set ``GRAVIXLAYER_GIT_BRANCH`` if your repo’s default differs.
 
     export GRAVIXLAYER_API_KEY="your-api-key"
@@ -47,9 +48,11 @@ if not r.success:
 r = client.runtime.git.status(sid, REPO)
 print("status:  ", r.success, (r.stdout or "")[:200])
 
-# List local branches.
+# List local branches (default). Use scope="remote" or scope="all" for ``git branch -r`` / ``-a``.
 r = client.runtime.git.branch_list(sid, REPO)
-print("branches:", r.success, (r.stdout or "")[:200])
+print("branches (local):", r.success, (r.stdout or "")[:200])
+r = client.runtime.git.branch_list(sid, REPO, scope="all")
+print("branches (all):  ", r.success, (r.stdout or "")[:200])
 
 # Fetch from remote (optional remote name).
 r = client.runtime.git.fetch(sid, REPO, remote="origin")
@@ -58,6 +61,17 @@ print("fetch:   ", r.success, r.exit_code)
 # Check out a branch or ref.
 r = client.runtime.git.checkout(sid, REPO, BRANCH)
 print("checkout:", r.success, r.exit_code)
+
+# Create a local branch, switch to it, switch back, then delete it (must not be checked out).
+DEMO = "gravix-demo"
+r = client.runtime.git.create_branch(sid, REPO, DEMO)
+print("create_branch:", r.success, r.exit_code)
+r = client.runtime.git.checkout(sid, REPO, DEMO)
+print("checkout demo:", r.success, r.exit_code)
+r = client.runtime.git.checkout(sid, REPO, BRANCH)
+print("checkout back:", r.success, r.exit_code)
+r = client.runtime.git.delete_branch(sid, REPO, DEMO)
+print("delete_branch:", r.success, r.exit_code)
 
 # Write a new file inside the repository directory.
 client.runtime.write_file(sid, f"{REPO}/note.txt", "hello\n")
@@ -90,4 +104,4 @@ else:
 
 # Stop the runtime.
 client.runtime.kill(sid)
-print("done.")
+

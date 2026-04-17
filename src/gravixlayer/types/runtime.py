@@ -566,6 +566,11 @@ class RuntimeGit:
         depth: Optional[int] = None,
         auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Clone into ``path`` on the runtime.
+
+        ``url`` must be ``http://``, ``https://``, ``ssh://``, ``git://``, or SCP-style
+        (e.g. ``git@github.com:org/repo.git``). ``file://`` is not allowed.
+        """
         return self._sync_git_result(
             self._client.runtime.git.clone(
                 self._runtime_id,
@@ -582,10 +587,12 @@ class RuntimeGit:
             self._client.runtime.git.status(self._runtime_id, repository_path=repository_path)
         )
 
-    def branch_list(self, repository_path: str) -> GitOperationResult:
+    def branch_list(
+        self, repository_path: str, scope: Optional[str] = None
+    ) -> GitOperationResult:
         return self._sync_git_result(
             self._client.runtime.git.branch_list(
-                self._runtime_id, repository_path=repository_path
+                self._runtime_id, repository_path, scope=scope
             )
         )
 
@@ -660,6 +667,36 @@ class RuntimeGit:
                 author_name=author_name,
                 author_email=author_email,
                 allow_empty=allow_empty,
+            )
+        )
+
+    def create_branch(
+        self,
+        repository_path: str,
+        branch_name: str,
+        start_point: Optional[str] = None,
+    ) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.create_branch(
+                self._runtime_id,
+                repository_path=repository_path,
+                branch_name=branch_name,
+                start_point=start_point,
+            )
+        )
+
+    def delete_branch(
+        self,
+        repository_path: str,
+        branch_name: str,
+        force: Optional[bool] = None,
+    ) -> GitOperationResult:
+        return self._sync_git_result(
+            self._client.runtime.git.delete_branch(
+                self._runtime_id,
+                repository_path=repository_path,
+                branch_name=branch_name,
+                force=force,
             )
         )
 

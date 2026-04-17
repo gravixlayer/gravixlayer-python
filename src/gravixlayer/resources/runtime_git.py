@@ -30,7 +30,13 @@ class RuntimeGitResource:
         depth: Optional[int] = None,
         auth_token: Optional[str] = None,
     ) -> GitOperationResult:
-        """Clone a repository into the runtime."""
+        """Clone a repository into the runtime.
+
+        ``url`` must use an allowed form (enforced by the API): ``http://``, ``https://``,
+        ``ssh://``, ``git://``, or SCP-style SSH such as ``git@github.com:org/repo.git``.
+        ``file://`` and other schemes are rejected. For private HTTPS repos, pass
+        ``auth_token`` (sent as embedded credentials for that clone only).
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         data: Dict[str, Any] = {"url": url, "path": path}
@@ -54,10 +60,18 @@ class RuntimeGitResource:
         )
         return GitOperationResult.from_api(response.json())
 
-    def branch_list(self, runtime_id: str, repository_path: str) -> GitOperationResult:
+    def branch_list(
+        self,
+        runtime_id: str,
+        repository_path: str,
+        scope: Optional[str] = None,
+    ) -> GitOperationResult:
+        """List branches: local (default), ``remote`` (``git branch -r``), or ``all`` (``git branch -a``)."""
         _validate_runtime_id(runtime_id)
         _validate_path(repository_path)
-        data = {"repository_path": repository_path}
+        data: Dict[str, Any] = {"repository_path": repository_path}
+        if scope is not None:
+            data["scope"] = scope
         response = self._rt._make_agents_request(
             "POST", f"runtime/{runtime_id}/git/branches", data
         )
@@ -167,6 +181,48 @@ class RuntimeGitResource:
         )
         return GitOperationResult.from_api(response.json())
 
+    def create_branch(
+        self,
+        runtime_id: str,
+        repository_path: str,
+        branch_name: str,
+        start_point: Optional[str] = None,
+    ) -> GitOperationResult:
+        """Create a branch: ``git branch <name> [start_point]``."""
+        _validate_runtime_id(runtime_id)
+        _validate_path(repository_path)
+        data: Dict[str, Any] = {
+            "repository_path": repository_path,
+            "branch_name": branch_name,
+        }
+        if start_point is not None:
+            data["start_point"] = start_point
+        response = self._rt._make_agents_request(
+            "POST", f"runtime/{runtime_id}/git/branch/create", data
+        )
+        return GitOperationResult.from_api(response.json())
+
+    def delete_branch(
+        self,
+        runtime_id: str,
+        repository_path: str,
+        branch_name: str,
+        force: Optional[bool] = None,
+    ) -> GitOperationResult:
+        """Delete a branch: ``git branch -d`` or ``-D`` when ``force`` is true."""
+        _validate_runtime_id(runtime_id)
+        _validate_path(repository_path)
+        data: Dict[str, Any] = {
+            "repository_path": repository_path,
+            "branch_name": branch_name,
+        }
+        if force is not None:
+            data["force"] = force
+        response = self._rt._make_agents_request(
+            "POST", f"runtime/{runtime_id}/git/branch/delete", data
+        )
+        return GitOperationResult.from_api(response.json())
+
 
 class AsyncRuntimeGitResource:
     """Git operations on runtimes (async). Use ``await client.runtime.git.clone(...)``."""
@@ -185,6 +241,11 @@ class AsyncRuntimeGitResource:
         depth: Optional[int] = None,
         auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Clone a repository into the runtime.
+
+        Same URL rules as :meth:`RuntimeGitResource.clone` (``http``/``https``/``ssh``/``git``
+        URL schemes or SCP-style ``git@host:path``; ``file://`` not allowed).
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         data: Dict[str, Any] = {"url": url, "path": path}
@@ -209,11 +270,16 @@ class AsyncRuntimeGitResource:
         return GitOperationResult.from_api(response.json())
 
     async def branch_list(
-        self, runtime_id: str, repository_path: str
+        self,
+        runtime_id: str,
+        repository_path: str,
+        scope: Optional[str] = None,
     ) -> GitOperationResult:
         _validate_runtime_id(runtime_id)
         _validate_path(repository_path)
-        data = {"repository_path": repository_path}
+        data: Dict[str, Any] = {"repository_path": repository_path}
+        if scope is not None:
+            data["scope"] = scope
         response = await self._rt._make_agents_request(
             "POST", f"runtime/{runtime_id}/git/branches", data
         )
@@ -320,5 +386,45 @@ class AsyncRuntimeGitResource:
             data["allow_empty"] = allow_empty
         response = await self._rt._make_agents_request(
             "POST", f"runtime/{runtime_id}/git/commit", data
+        )
+        return GitOperationResult.from_api(response.json())
+
+    async def create_branch(
+        self,
+        runtime_id: str,
+        repository_path: str,
+        branch_name: str,
+        start_point: Optional[str] = None,
+    ) -> GitOperationResult:
+        _validate_runtime_id(runtime_id)
+        _validate_path(repository_path)
+        data: Dict[str, Any] = {
+            "repository_path": repository_path,
+            "branch_name": branch_name,
+        }
+        if start_point is not None:
+            data["start_point"] = start_point
+        response = await self._rt._make_agents_request(
+            "POST", f"runtime/{runtime_id}/git/branch/create", data
+        )
+        return GitOperationResult.from_api(response.json())
+
+    async def delete_branch(
+        self,
+        runtime_id: str,
+        repository_path: str,
+        branch_name: str,
+        force: Optional[bool] = None,
+    ) -> GitOperationResult:
+        _validate_runtime_id(runtime_id)
+        _validate_path(repository_path)
+        data: Dict[str, Any] = {
+            "repository_path": repository_path,
+            "branch_name": branch_name,
+        }
+        if force is not None:
+            data["force"] = force
+        response = await self._rt._make_agents_request(
+            "POST", f"runtime/{runtime_id}/git/branch/delete", data
         )
         return GitOperationResult.from_api(response.json())
