@@ -16,12 +16,17 @@ Usage:
 """
 
 import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import runtime_template_env
 
 from gravixlayer import GravixLayer
 
 client = GravixLayer()
 
-TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+TEMPLATE = runtime_template_env.resolve_gravixlayer_template()
 
 runtime = client.runtime.create(template=TEMPLATE)
 sid = runtime.runtime_id

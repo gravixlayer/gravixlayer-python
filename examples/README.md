@@ -20,6 +20,8 @@ export GRAVIXLAYER_CLOUD="azure"
 export GRAVIXLAYER_REGION="eastus2"
 ```
 
+**Template errors:** If the API returns `Template not found: python-3.12-base-…`, your shell still has an old `GRAVIXLAYER_TEMPLATE` from a prior setup. Run `unset GRAVIXLAYER_TEMPLATE` or set it to a current public name (for example `python-3.14-base-small`). Runtime examples under `examples/runtimes/` also remap legacy `python-3.12-base-*` values automatically when you run them from this repo.
+
 ---
 
 ## What can I do? (by task)
@@ -104,4 +106,5 @@ python examples/templates/01_python_docker_image.py
 
 - Examples are safe to run repeatedly; they include cleanup where applicable.
 - For **private Git**, set `GIT_AUTH_TOKEN` (see `templates/README.md`).
+- **Runtime Git example** (`16_runtime_git_operations.py`): optional `GIT_CLONE_URL`, `GIT_BRANCH`, `GIT_CLONE_PATH` for your repo and clone path inside the VM (see `runtimes/README.md`).
 - Full indexes: [runtimes/README.md](runtimes/README.md) · [templates/README.md](templates/README.md)

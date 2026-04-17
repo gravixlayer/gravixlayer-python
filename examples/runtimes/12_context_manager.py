@@ -15,10 +15,15 @@ Usage:
 """
 
 import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import runtime_template_env
 
 from gravixlayer.types.runtime import Runtime
 
-PYTHON_TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+PYTHON_TEMPLATE = runtime_template_env.resolve_gravixlayer_template()
 NODE_TEMPLATE = os.environ.get("GRAVIXLAYER_NODE_TEMPLATE", "node-20-base-small")
 
 # ---------------------------------------------------------------------------

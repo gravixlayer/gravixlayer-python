@@ -30,6 +30,8 @@ export GRAVIXLAYER_API_KEY="your-api-key"
 | 15 | [15_revoke_and_reenable_ssh.py](15_revoke_and_reenable_ssh.py) | Revoke, re-enable, and rotate SSH keys |
 | 16 | [16_runtime_git_operations.py](16_runtime_git_operations.py) | Full ``client.runtime.git`` API (clone, status, branches, checkout, fetch, pull, add, commit, push) |
 
+Script **16** reads your Git settings from the environment: `GIT_CLONE_URL`, `GIT_BRANCH`, `GIT_CLONE_PATH` (path inside the runtime), plus `GIT_AUTH_TOKEN` / `GIT_USERNAME` / `GIT_PASSWORD` when needed.
+
 ## Run an example
 
 ```bash

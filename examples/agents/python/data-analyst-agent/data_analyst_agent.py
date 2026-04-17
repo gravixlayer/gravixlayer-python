@@ -20,6 +20,10 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+import runtime_template_env
 
 from openai import OpenAI
 from gravixlayer.types.runtime import Runtime
@@ -335,7 +339,9 @@ def main():
     print("Creating Agent Runtime...")
 
     with Runtime.create(
-        template=os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-medium"),
+        template=runtime_template_env.resolve_gravixlayer_template(
+            default="python-3.14-base-medium"
+        ),
         timeout=int(os.getenv("GRAVIXLAYER_TIMEOUT", "600")),   
     ) as runtime:
         print(f"Runtime ready: {runtime.runtime_id}")
