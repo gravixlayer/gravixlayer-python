@@ -18,8 +18,8 @@ import os
 
 from gravixlayer.types.runtime import Runtime
 
-PYTHON_TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.12-base-small")
-NODE_TEMPLATE = os.environ.get("GRAVIXLAYER_NODE_TEMPLATE", "python-3.12-base-small")
+PYTHON_TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+NODE_TEMPLATE = os.environ.get("GRAVIXLAYER_NODE_TEMPLATE", "node-20-base-small")
 
 # ---------------------------------------------------------------------------
 # 1. Basic usage — runtime is killed when the block exits

@@ -63,7 +63,7 @@ class TestSyncRuntimeLifecycle:
         mock_api.post(f"{SB}").mock(
             return_value=httpx.Response(200, json=make_runtime_response())
         )
-        rt = client.runtime.create(template="python-base-v1")
+        rt = client.runtime.create(template="python-3.14-base-small")
         assert isinstance(rt, Runtime)
         assert rt.runtime_id == VALID_UUID
         assert rt.status == "running"
@@ -84,7 +84,7 @@ class TestSyncRuntimeLifecycle:
                 },
             )
         )
-        rt = client.runtime.create(template="python-base-v1")
+        rt = client.runtime.create(template="python-3.14-base-small")
         assert rt.runtime_id == VALID_UUID
         assert rt.provider == "azure"
         assert rt.region == "eastus2"
@@ -612,7 +612,7 @@ class TestAsyncRuntimeLifecycle:
             return_value=httpx.Response(200, json=make_runtime_response())
         )
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
-            rt = await client.runtime.create(template="python-base-v1")
+            rt = await client.runtime.create(template="python-3.14-base-small")
             assert isinstance(rt, Runtime)
             assert rt.runtime_id == VALID_UUID
 

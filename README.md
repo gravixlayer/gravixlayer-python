@@ -53,7 +53,7 @@ client = GravixLayer(
 from gravixlayer import GravixLayer
 
 client = GravixLayer()
-runtime = client.runtime.create(template="python-3.12-base-small")
+runtime = client.runtime.create(template="python-3.14-base-small")
 
 result = client.runtime.run_code(
     runtime.runtime_id,
@@ -107,7 +107,7 @@ from gravixlayer import AsyncGravixLayer
 
 async def main():
     async with AsyncGravixLayer() as client:
-        runtime = await client.runtime.create(template="python-3.12-base-small")
+        runtime = await client.runtime.create(template="python-3.14-base-small")
         await client.runtime.kill(runtime.runtime_id)
 
 asyncio.run(main())

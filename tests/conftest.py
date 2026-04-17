@@ -36,7 +36,7 @@ def make_runtime_response(**overrides):
     data = {
         "runtime_id": VALID_UUID,
         "status": "running",
-        "template": "python-base-v1",
+        "template": "python-3.14-base-small",
         "template_id": "tmpl-001",
         "provider": "azure",
         "region": "eastus2",
@@ -101,7 +101,7 @@ def make_cmd_run_response(**overrides):
 def make_template_info(**overrides):
     data = {
         "id": "tmpl-001",
-        "name": "python-base-v1",
+        "name": "python-3.14-base-small",
         "description": "Python 3.11 base template",
         "vcpu_count": 2,
         "memory_mb": 512,

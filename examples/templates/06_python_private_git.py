@@ -39,7 +39,7 @@ builder = (
         f"python-private-repo-{_TEMPLATE_SUFFIX}",
         description="Python template from private Git repo",
     )
-    .from_image("python:3.11-slim")
+    .from_image("ghcr.io/astral-sh/uv:python3.14-bookworm-slim")
     .vcpu(2)
     .memory(512)
     .disk(4096)

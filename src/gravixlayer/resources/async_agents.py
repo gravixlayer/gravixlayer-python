@@ -140,7 +140,7 @@ class AsyncAgents:
             name: Name for the template (required).
             description: Optional template description.
             entrypoint: Application entrypoint (e.g. ``"main:app"``).
-            python_version: Python version (e.g. ``"3.13"``).
+            python_version: Python version (e.g. ``"3.14"``).
             framework: Agent framework (langgraph, crewai, google-adk, etc.).
             ports: Ports the agent listens on (default ``[8000]``).
             vcpu_count: Number of vCPUs (default determined by backend).
@@ -347,7 +347,7 @@ class AsyncAgents:
             name: Template name (required when ``source`` is provided).
             description: Template description (build only).
             entrypoint: Application entrypoint for build (e.g. ``"main:app"``).
-            python_version: Python version for build (e.g. ``"3.13"``).
+            python_version: Python version for build (e.g. ``"3.14"``).
             framework: Agent framework (langgraph, crewai, google-adk, etc.).
             ports: Ports the agent listens on (build only, default ``[8000]``).
             vcpu_count: Number of vCPUs (build only).

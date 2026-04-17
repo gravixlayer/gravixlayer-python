@@ -16,7 +16,7 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer()
 
-TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.12-base-small")
+TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
 
 # ---------------------------------------------------------------------------
 # Create an agent runtime with env vars and metadata

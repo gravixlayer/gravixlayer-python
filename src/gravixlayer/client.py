@@ -52,7 +52,7 @@ class GravixLayer:
     Example:
         >>> from gravixlayer import GravixLayer
         >>> client = GravixLayer(api_key="your-api-key", base_url="https://api.gravixlayer.ai")
-        >>> runtime = client.runtime.create(template="python-base-v1")
+        >>> runtime = client.runtime.create(template="python-3.14-base-small")
     """
 
     def __init__(

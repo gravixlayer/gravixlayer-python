@@ -101,7 +101,7 @@ class TestValidatePath:
 
 class TestValidateTemplateId:
     def test_valid_template_id(self):
-        _validate_template_id("python-base-v1")
+        _validate_template_id("python-3.14-base-small")
 
     def test_valid_uuid(self):
         _validate_template_id("12345678-1234-5678-1234-567812345678")
@@ -132,7 +132,7 @@ class TestRuntimeDataclass:
         data = {
             "runtime_id": "uuid-1",
             "status": "running",
-            "template": "python-base-v1",
+            "template": "python-3.14-base-small",
             "cpu_count": 4,
             "memory_mb": 1024,
             "ip_address": "10.0.0.5",

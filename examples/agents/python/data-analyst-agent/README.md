@@ -106,7 +106,7 @@ export OPENAI_MODEL="meta-llama/llama-3.3-70b-instruct"
 | `GRAVIXLAYER_API_KEY` | Yes | — | Gravix Layer API key |
 | `OPENAI_API_BASE_URL` | No | `https://api.openai.com/v1` | API base URL |
 | `OPENAI_MODEL` | No | `gpt-4o` | Model name |
-| `GRAVIXLAYER_TEMPLATE` | No | `python-3.12-base-medium` | Runtime template |
+| `GRAVIXLAYER_TEMPLATE` | No | `python-3.14-base-medium` | Runtime template |
 | `GRAVIXLAYER_TIMEOUT` | No | `600` | Runtime timeout in seconds |
 
 ## Project Structure

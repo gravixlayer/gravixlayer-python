@@ -28,7 +28,7 @@ REPO = "/home/user/git-demo"
 client = GravixLayer()
 
 # Create an agent runtime to run git inside.
-rt = client.runtime.create(template=os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.12-base-small"))
+rt = client.runtime.create(template=os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small"))
 sid = rt.runtime_id
 token = os.environ.get("GIT_AUTH_TOKEN")
 

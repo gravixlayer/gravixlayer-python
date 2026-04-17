@@ -25,14 +25,16 @@ client = GravixLayer()
 # -- Dockerfile content -----------------------------------------------------
 
 dockerfile_content = """\
-FROM python:3.12-slim
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+
+ENV UV_SYSTEM_PYTHON=1
 
 # Example: install a Debian package inside the image (optional for this API).
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir fastapi "uvicorn[standard]"
+RUN uv pip install --system --no-cache fastapi "uvicorn[standard]"
 
 WORKDIR /app
 

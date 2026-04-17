@@ -4,14 +4,13 @@ Python template from a public Docker image.
 
 Uses: from_image, pip_install, apt_install, copy_file (inline content), start_cmd
 
-Demonstrates building a Python FastAPI template from a public Docker
-image with pip_install, apt_install (e.g. curl), inline copy_file, and
-build_and_wait. The server skips apt work when packages are already
-present after base provisioning.
+Demonstrates building a Python FastAPI template from the **uv** base image
+(``ghcr.io/astral-sh/uv:python3.14-bookworm-slim``), with pip_install, apt_install
+(e.g. curl), inline copy_file, and build_and_wait. Agent template builds use this
+uv image, not ``python:*-slim`` from Docker Hub.
 
-Note: `python:*-slim` and `node:*-slim` share the same Debian-based pipeline;
-if one image succeeds and another fails on the same host, it is usually apt
-network/state or step order (e.g. pip before apt), not a different code path.
+Note: uv and ``node:*-slim`` images share the same Debian-based pipeline
+when applicable; failures are often apt network/state or step order.
 """
 
 import sys
@@ -26,7 +25,7 @@ client = GravixLayer()
 template_name = f"sdk-python-image-{int(time.time())}"
 builder = (
     TemplateBuilder(template_name, "python-template-from-docker-image")
-    .from_image("python:3.13-slim")
+    .from_image("ghcr.io/astral-sh/uv:python3.14-bookworm-slim")
     .vcpu(2)
     .memory(1024)
     .disk(4096)

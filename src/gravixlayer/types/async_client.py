@@ -43,7 +43,7 @@ class AsyncGravixLayer:
 
     Example:
         >>> async with AsyncGravixLayer(api_key="...") as client:
-        ...     runtime = await client.runtime.create(template="python-base-v1")
+        ...     runtime = await client.runtime.create(template="python-3.14-base-small")
         ...     result = await client.runtime.run_code(runtime.id, "print('hello')")
     """
 

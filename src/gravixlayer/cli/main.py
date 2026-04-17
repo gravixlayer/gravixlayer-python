@@ -1,7 +1,7 @@
 """GravixLayer CLI entry point.
 
 Usage:
-    gravixlayer runtime create --template python-base-v1
+    gravixlayer runtime create --template python-3.14-base-small
     gravixlayer runtime list
     gravixlayer runtime run-cmd <runtime_id> "ls -la"
     gravixlayer runtime run-code <runtime_id> "print('hello')"

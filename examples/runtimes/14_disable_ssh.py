@@ -14,7 +14,7 @@ def main() -> None:
     runtime = None
 
     try:
-        runtime = client.runtime.create(template="python-3.12-base-small", timeout=1800)
+        runtime = client.runtime.create(template="python-3.14-base-small", timeout=1800)
         runtime_id = runtime.runtime_id
 
         client.runtime.enable_ssh(runtime_id)

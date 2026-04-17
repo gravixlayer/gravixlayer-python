@@ -1,6 +1,6 @@
 # Gravix Layer Python SDK — Examples
 
-Scripts that exercise the **Gravix Layer** Python SDK (`runtimes/`, `templates/`). Each runtime script is **standalone** where possible, uses only **public SDK APIs**, and defaults to the public template `python-3.12-base-small` unless noted.
+Scripts that exercise the **Gravix Layer** Python SDK (`runtimes/`, `templates/`). Each runtime script is **standalone** where possible, uses only **public SDK APIs**, and defaults to the public template `python-3.14-base-small` unless noted.
 
 ---
 
