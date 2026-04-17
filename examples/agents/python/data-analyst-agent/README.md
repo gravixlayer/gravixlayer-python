@@ -1,7 +1,5 @@
 # Data Analyst Agent
 
-Get a Gravix Layer API key at [gravixlayer.ai](https://gravixlayer.ai).
-
 An AI-powered data analyst that generates Python code using an LLM and executes it safely in an **isolated Gravix Layer Agent Runtime**. The agent iteratively analyzes a dataset, produces insights, and generates charts — all without running any code on your local machine.
 
 Works with **OpenAI** out of the box. Also compatible with any OpenAI-compatible provider (Groq, Together AI, OpenRouter, etc.) by setting environment variables.
@@ -56,6 +54,8 @@ pip install -r requirements.txt
 ```
 
 Set your API keys:
+
+Get a Gravix Layer API key at [gravixlayer.ai](https://gravixlayer.ai).
 
 ```bash
 export OPENAI_API_KEY="your-openai-api-key"
