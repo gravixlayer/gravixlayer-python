@@ -882,9 +882,10 @@ class CodeRunResponse:
 
 @dataclass
 class CodeContext:
-    """Code execution context.
+    """Persistent execution context (Jupyter kernel session) in a runtime.
 
-    Only context_id, language, and cwd are populated by the backend.
+    ``context_id`` is returned from :meth:`~gravixlayer.resources.runtime.Runtimes.create_context`
+    and passed to :meth:`~gravixlayer.resources.runtime.Runtimes.run_code` as ``context_id``.
     """
 
     context_id: str
@@ -894,7 +895,7 @@ class CodeContext:
 
 @dataclass
 class CodeContextDeleteResponse:
-    """Code context delete response"""
+    """Response from deleting an execution context."""
 
     message: str
     context_id: Optional[str] = None

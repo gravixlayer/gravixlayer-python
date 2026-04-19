@@ -479,26 +479,26 @@ class TestSyncRuntimeExecution:
 
 
 class TestSyncRuntimeCodeContexts:
-    def test_create_code_context(self, client, mock_api):
+    def test_create_context(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/code/contexts").mock(
             return_value=httpx.Response(200, json={"id": "ctx-1", "language": "python", "cwd": "/home/user"})
         )
-        ctx = client.runtime.create_code_context(VALID_UUID)
+        ctx = client.runtime.create_context(VALID_UUID)
         assert isinstance(ctx, CodeContext)
         assert ctx.context_id == "ctx-1"
 
-    def test_get_code_context(self, client, mock_api):
+    def test_get_context(self, client, mock_api):
         mock_api.get(f"{SB}/{VALID_UUID}/code/contexts/ctx-1").mock(
             return_value=httpx.Response(200, json={"id": "ctx-1", "language": "python", "cwd": "/home/user"})
         )
-        ctx = client.runtime.get_code_context(VALID_UUID, "ctx-1")
+        ctx = client.runtime.get_context(VALID_UUID, "ctx-1")
         assert ctx.language == "python"
 
-    def test_delete_code_context(self, client, mock_api):
+    def test_delete_context(self, client, mock_api):
         mock_api.delete(f"{SB}/{VALID_UUID}/code/contexts/ctx-1").mock(
             return_value=httpx.Response(200, json={"message": "Deleted", "context_id": "ctx-1"})
         )
-        result = client.runtime.delete_code_context(VALID_UUID, "ctx-1")
+        result = client.runtime.delete_context(VALID_UUID, "ctx-1")
         assert result.message == "Deleted"
 
 

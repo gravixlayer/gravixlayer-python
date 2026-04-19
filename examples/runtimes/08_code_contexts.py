@@ -35,7 +35,7 @@ print(f"Runtime    : {sid}\n")
 # ---------------------------------------------------------------------------
 # 1. Create a persistent code context
 # ---------------------------------------------------------------------------
-ctx = client.runtime.create_code_context(sid, language="python")
+ctx = client.runtime.create_context(sid, language="python")
 print(f"Context ID : {ctx.context_id}")
 print(f"Language   : {ctx.language}")
 
@@ -87,13 +87,13 @@ print(f"\nDescribe   :\n{result.stdout_text}")
 # ---------------------------------------------------------------------------
 # 5. Inspect the context
 # ---------------------------------------------------------------------------
-ctx_info = client.runtime.get_code_context(sid, ctx.context_id)
+ctx_info = client.runtime.get_context(sid, ctx.context_id)
 print(f"\nContext    : language={ctx_info.language}, cwd={ctx_info.cwd}")
 
 # ---------------------------------------------------------------------------
 # 6. Delete the context (kernel resources are freed)
 # ---------------------------------------------------------------------------
-delete_result = client.runtime.delete_code_context(sid, ctx.context_id)
+delete_result = client.runtime.delete_context(sid, ctx.context_id)
 print(f"Deleted    : {delete_result.message}")
 
 # ---------------------------------------------------------------------------

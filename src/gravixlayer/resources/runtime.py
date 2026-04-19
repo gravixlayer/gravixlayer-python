@@ -497,10 +497,10 @@ class Runtimes:
         response = self._make_agents_request("POST", f"runtime/{runtime_id}/code/run", data)
         return CodeRunResponse.from_api(response.json())
 
-    def create_code_context(
+    def create_context(
         self, runtime_id: str, language: Optional[str] = "python", cwd: Optional[str] = None
     ) -> CodeContext:
-        """Create an isolated code execution context."""
+        """Create an isolated execution context (Jupyter kernel session) for persistent state."""
         _validate_runtime_id(runtime_id)
         data = {}
         if language:
@@ -519,8 +519,8 @@ class Runtimes:
 
         return CodeContext(**mapped_result)
 
-    def get_code_context(self, runtime_id: str, context_id: str) -> CodeContext:
-        """Get information about a code execution context."""
+    def get_context(self, runtime_id: str, context_id: str) -> CodeContext:
+        """Get metadata for an execution context."""
         _validate_runtime_id(runtime_id)
         response = self._make_agents_request("GET", f"runtime/{runtime_id}/code/contexts/{context_id}")
         result = response.json()
@@ -533,8 +533,8 @@ class Runtimes:
 
         return CodeContext(**mapped_result)
 
-    def delete_code_context(self, runtime_id: str, context_id: str) -> CodeContextDeleteResponse:
-        """Delete a code execution context."""
+    def delete_context(self, runtime_id: str, context_id: str) -> CodeContextDeleteResponse:
+        """Delete an execution context and release its kernel session."""
         _validate_runtime_id(runtime_id)
         response = self._make_agents_request("DELETE", f"runtime/{runtime_id}/code/contexts/{context_id}")
         result = response.json()
