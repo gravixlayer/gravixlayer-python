@@ -10,7 +10,7 @@ import pytest
 import httpx
 import respx
 
-from conftest import TEST_API_KEY, TEST_BASE_URL, AGENTS_BASE, VALID_UUID, make_runtime_response
+from tests.utils import TEST_API_KEY, TEST_BASE_URL, AGENTS_BASE, VALID_UUID, make_runtime_response
 
 from gravixlayer import GravixLayer, AsyncGravixLayer
 from gravixlayer.types.exceptions import (
@@ -106,6 +106,11 @@ class TestSyncClientInit:
     def test_has_templates_resource(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
         assert hasattr(client, "templates")
+        client.close()
+
+    def test_has_agents_resource(self):
+        client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+        assert hasattr(client, "agents")
         client.close()
 
     def test_user_agent_header_contains_version(self):
@@ -266,6 +271,10 @@ class TestAsyncClientInit:
         c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
         assert hasattr(c, "runtime")
         assert hasattr(c, "templates")
+
+    def test_has_agents_resource(self):
+        c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+        assert hasattr(c, "agents")
 
     def test_user_agent_contains_version(self):
         c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)

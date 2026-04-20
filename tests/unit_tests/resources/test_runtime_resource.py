@@ -11,7 +11,7 @@ import pytest
 import httpx
 import respx
 
-from conftest import (
+from tests.utils import (
     TEST_API_KEY,
     TEST_BASE_URL,
     AGENTS_BASE,

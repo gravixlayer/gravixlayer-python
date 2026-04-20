@@ -16,7 +16,7 @@ Optional environment variables:
 Usage:
     export GRAVIXLAYER_API_KEY="tg_api_key_xxxxx"
     cd gravixlayer-python
-    python -m pytest tests/test_live_templates.py -v -s
+    python -m pytest tests/integration_tests/test_live_templates.py -v -s
 """
 
 import os
@@ -46,6 +46,9 @@ from gravixlayer.types.exceptions import (
     GravixLayerBadRequestError,
     GravixLayerAuthenticationError,
 )
+
+# Whole module exercises the live template API (see ``tests/integration_tests/``).
+pytestmark = pytest.mark.integration
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)

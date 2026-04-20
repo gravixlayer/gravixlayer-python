@@ -113,6 +113,17 @@ async def main():
 asyncio.run(main())
 ```
 
+## Development
+
+For local development and CI, run the **unit tests** (HTTP mocked; no API key required):
+
+```bash
+pip install -e ".[test]"
+pytest tests/unit_tests
+```
+
+Test layout (`tests/unit_tests` vs `tests/integration_tests`), integration runs, and markers are documented in **[tests/README.md](tests/README.md)** so this file stays focused on SDK usage.
+
 ## Documentation and support
 
 - **Examples:** [examples/README.md](examples/README.md)

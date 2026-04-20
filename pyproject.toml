@@ -46,6 +46,12 @@ dev = [
     "radon>=6.0.0",
     "types-requests>=2.25.0",
 ]
+# Unit + integration test dependencies (CI / local: pip install -e ".[test]")
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "respx>=0.20.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -103,3 +109,12 @@ skips = ["B101", "B601"]
 
 [tool.radon]
 exclude = "tests/*,test/*,.venv/*,venv/*,build/*,dist/*"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests/unit_tests", "tests/integration_tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+markers = [
+    "integration: live API tests (require credentials; skipped when unset)",
+]
