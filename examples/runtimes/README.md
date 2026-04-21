@@ -30,9 +30,13 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 10 | [10_timeout_management.py](10_timeout_management.py) | Timeouts |
 | 11 | [11_list_and_manage.py](11_list_and_manage.py) | List runtimes |
 | 12 | [12_runtime_context_manager.py](12_runtime_context_manager.py) | `with Runtime.create(...)` |
-| 13–15 | SSH scripts | Enable / disable / rotate |
-| 16 | [16_runtime_git_operations.py](16_runtime_git_operations.py) | `runtime.git` |
-| 17 | [17_stream_command_output.py](17_stream_command_output.py) | Stream `run_cmd` output via `on_stdout` / `on_stderr` / `on_exit` |
+| 13 | [13_enable_ssh.py](13_enable_ssh.py) | Enable SSH |
+| 14 | [14_disable_ssh.py](14_disable_ssh.py) | Disable SSH |
+| 15 | [15_revoke_and_reenable_ssh.py](15_revoke_and_reenable_ssh.py) | Revoke and re-enable SSH |
+| 16 | [16_connect_existing_runtime.py](16_connect_existing_runtime.py) | Reconnect to an existing runtime via `Runtime.connect(runtime_id)` |
+| 17 | [17_runtime_git_operations.py](17_runtime_git_operations.py) | `runtime.git` |
+| 18 | [18_stream_command_output.py](18_stream_command_output.py) | Stream `run_cmd` output via `on_stdout` / `on_stderr` / `on_exit` |
+| 19 | [19_runtime_lifecycle.py](19_runtime_lifecycle.py) | Full lifecycle: create → pause → resume → kill |
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py

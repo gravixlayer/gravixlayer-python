@@ -179,6 +179,77 @@ class Runtime:
         instance._owns_client = owns_client
         return instance
 
+    @classmethod
+    def connect(
+        cls,
+        runtime_id: str,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        client: Optional[Any] = None,
+    ) -> "Runtime":
+        """Connect to an existing running runtime by ID.
+
+        Use this to reconnect to a runtime that was created earlier — e.g.
+        after saving the ``runtime_id`` and coming back later, or to share a
+        runtime across multiple processes.
+
+        Args:
+            runtime_id: The ID of the running runtime to reconnect to.
+            api_key: API key (uses GRAVIXLAYER_API_KEY env var if not provided).
+            base_url: Base URL (uses GRAVIXLAYER_BASE_URL env var if not provided).
+            client: Existing GravixLayer client to reuse.
+
+        Returns:
+            Runtime instance with all convenience methods available.
+
+        Raises:
+            ValueError: If runtime_id is not a valid UUID.
+            GravixLayerNotFoundError: If the runtime does not exist.
+            RuntimeError: If the runtime is not in a usable state.
+
+        Example::
+
+            # In one process — save the ID
+            rt = Runtime.create(template="python-3.14-base-small")
+            saved_id = rt.runtime_id
+
+            # Later, in the same or a different process — reconnect
+            rt = Runtime.connect(saved_id)
+            result = rt.run_cmd("whoami")
+        """
+        _validate_runtime_id(runtime_id)
+
+        if client is None:
+            from ..client import GravixLayer
+            client = GravixLayer(api_key=api_key, base_url=base_url)
+            owns_client = True
+        else:
+            owns_client = False
+
+        runtime_response = client.runtime.get(runtime_id)
+
+        instance = cls(
+            runtime_id=runtime_response.runtime_id,
+            status=runtime_response.status,
+            template=runtime_response.template,
+            template_id=runtime_response.template_id,
+            provider=runtime_response.provider,
+            region=runtime_response.region,
+            started_at=runtime_response.started_at,
+            timeout_at=runtime_response.timeout_at,
+            cpu_count=runtime_response.cpu_count,
+            memory_mb=runtime_response.memory_mb,
+            disk_size_mb=runtime_response.disk_size_mb,
+            metadata=runtime_response.metadata,
+            ended_at=runtime_response.ended_at,
+            ip_address=runtime_response.ip_address,
+            ssh_enabled=runtime_response.ssh_enabled,
+        )
+
+        instance._client = client
+        instance._owns_client = owns_client
+        return instance
+
     def run_code(self, code: str, language: str = "python") -> "Execution":
         """Execute code in the runtime."""
         self._require_alive()

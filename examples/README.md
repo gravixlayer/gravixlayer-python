@@ -17,6 +17,8 @@ python examples/templates/01_python_docker_image.py
 | Contexts / metrics / timeouts | `runtimes/08`–`10`, `runtimes/11_list_and_manage.py` |
 | `with Runtime.create` | `runtimes/12_runtime_context_manager.py` |
 | SSH | `runtimes/13`–`15` |
+| Reconnect to existing runtime | `runtimes/16_connect_existing_runtime.py` |
+| Lifecycle (pause / resume / kill) | `runtimes/19_runtime_lifecycle.py` |
 | Git in VM | `runtimes/16_runtime_git_operations.py` |
 | Build templates | `templates/` |
 
