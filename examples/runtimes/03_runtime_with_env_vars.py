@@ -1,25 +1,18 @@
 #!/usr/bin/env python3
-"""Create an Agent Runtime with Environment Variables and Metadata
+"""Create a runtime with ``env_vars`` and ``metadata``, then verify env in Python and shell.
 
-Pass custom environment variables and metadata tags at creation time.
-Environment variables are available inside the agent runtime immediately.
-Metadata tags are useful for filtering and organising agent runtimes.
-
-Usage:
-    export GRAVIXLAYER_API_KEY="your-api-key"
+    export GRAVIXLAYER_API_KEY=...
     python examples/runtimes/03_runtime_with_env_vars.py
 """
 
 import os
+
 from gravixlayer import GravixLayer
 
 client = GravixLayer()
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
 
-# ---------------------------------------------------------------------------
-# Create an agent runtime with env vars and metadata
-# ---------------------------------------------------------------------------
 runtime = client.runtime.create(
     template=TEMPLATE,
     env_vars={
@@ -38,17 +31,20 @@ print(f"Runtime ID : {runtime.runtime_id}")
 print(f"Status     : {runtime.status}")
 print(f"Metadata   : {runtime.metadata}")
 
-# ---------------------------------------------------------------------------
-# Verify the environment variables are set inside the runtime
-# ---------------------------------------------------------------------------
-result = client.runtime.run_code(
-    runtime.runtime_id,
+rid = runtime.runtime_id
+
+py = client.runtime.run_code(
+    rid,
     code="import os; print(os.environ.get('APP_ENV', 'not set'))",
 )
-print(f"\nAPP_ENV    : {result.text}")
+print(f"\nAPP_ENV (run_code): {py.text.strip()}")
 
-# ---------------------------------------------------------------------------
-# Clean up
-# ---------------------------------------------------------------------------
-client.runtime.kill(runtime.runtime_id)
-print("Runtime terminated.")
+sh = client.runtime.run_cmd(
+    rid,
+    "sh",
+    args=["-c", 'echo "${APP_ENV:-not set}"'],
+)
+print(f"APP_ENV (run_cmd):  {sh.stdout.strip()}")
+
+client.runtime.kill(rid)
+print("\nRuntime terminated.")

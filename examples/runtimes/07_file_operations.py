@@ -83,27 +83,29 @@ batch_result = client.runtime.file.write_many(sid, entries)
 print(f"Batch write: {len(batch_result.files)} file(s)")
 
 # ---------------------------------------------------------------------------
-# 7–8. Stat + chmod
+# 7–8. Stat + chmod (same path as step 5 so the file is known to exist)
 # ---------------------------------------------------------------------------
-STAT_PATH = "/home/user/project/config.json"  # exists from step 5
-CHMOD_PATH = "/home/user/project/README.md"  # from batch write
+STAT_PATH = "/home/user/project/config.json"
 info_run = client.runtime.file.get_info(sid, STAT_PATH)
 if info_run.exists and info_run.info:
     fi = info_run.info
     print(
-        f"\nget_info   : {STAT_PATH} size={fi.size} mode={fi.mode!r} "
-        f"perms={fi.permissions!r} mtime={fi.modified_at!r}"
+        f"\nget_info   : {STAT_PATH} size={fi.size} bytes mode={fi.mode!r} "
+        f"perms={fi.permissions!r} modified_at={fi.modified_at!r} (last write time, UTC)"
     )
 else:
     print(f"\nget_info   : path not found ({STAT_PATH})")
 
-perm_resp = client.runtime.file.set_permissions(sid, CHMOD_PATH, "600")
-print(f"chmod      : {CHMOD_PATH} -> {perm_resp.message!r} ok={perm_resp.success}")
+perm_resp = client.runtime.file.set_permissions(sid, STAT_PATH, "600")
+print(f"chmod      : {STAT_PATH} -> {perm_resp.message!r} ok={perm_resp.success}")
 
-info_after = client.runtime.file.get_info(sid, CHMOD_PATH)
+info_after = client.runtime.file.get_info(sid, STAT_PATH)
 if info_after.exists and info_after.info:
     i2 = info_after.info
-    print(f"get_info   : after chmod mode={i2.mode!r} perms={i2.permissions!r}")
+    print(
+        f"get_info   : after chmod size={i2.size} bytes mode={i2.mode!r} "
+        f"perms={i2.permissions!r} modified_at={i2.modified_at!r}"
+    )
 
 # ---------------------------------------------------------------------------
 # 9. List project tree

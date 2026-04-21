@@ -115,9 +115,9 @@ class Runtimes:
         }
         if timeout is not None:
             data["timeout"] = timeout
-        if env_vars:
+        if env_vars is not None:
             data["env_vars"] = env_vars
-        if metadata:
+        if metadata is not None:
             data["metadata"] = metadata
         if internet_access is not None:
             data["internet_access"] = internet_access

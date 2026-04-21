@@ -482,6 +482,9 @@ class FileInfo:
     """File information.
 
     Maps backend FileInfo which sends: name, size, mode, mod_time, is_dir.
+
+    ``size`` is the file length in **bytes**. ``modified_at`` is last modification time
+    as an ISO 8601 string (typically UTC, suffix ``Z``).
     """
 
     name: str
