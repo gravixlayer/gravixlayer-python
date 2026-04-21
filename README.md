@@ -49,32 +49,36 @@ client = GravixLayer(
 
 ## Quick start
 
+`client.runtime.create(...)` returns a bound **`Runtime`** handle, so you can call `runtime.run_code(...)`, `runtime.run_cmd(...)`, `runtime.file.*`, `runtime.git.*`, `runtime.kill()` directly — no need to pass `runtime_id` to every call.
+
 ```python
 from gravixlayer import GravixLayer
 
 client = GravixLayer()
 runtime = client.runtime.create(template="python-3.14-base-small")
 
-result = client.runtime.run_code(
-    runtime.runtime_id,
-    code="print('Hello from Gravix Layer')",
-)
+# Run Python code
+result = runtime.run_code(code="print('Hello from Gravix Layer')")
 print(result.text)
 
-client.runtime.kill(runtime.runtime_id)
+# Run a shell command — two equivalent forms:
+runtime.run_cmd(command="pip install pandas --quiet")               # single string
+runtime.run_cmd(command="pip", args=["install", "pandas", "--quiet"])  # command + args
+
+runtime.kill()
 ```
+
+`runtime.run_cmd(command=...)` accepts either a single shell string (auto-wrapped in `/bin/sh -c` when it contains shell metacharacters like spaces, `;`, `|`, `>`, `<`, `&`, `$`, backticks) or a `command` + explicit `args` list (no shell interpretation).
 
 ### File operations
 
-Use **`client.runtime.file`** with short names: **`read`**, **`write`** (JSON text write), **`delete`**, **`list`**, **`upload`** (multipart bytes), **`write_many`** (batch multipart), plus **`create_directory`**, **`get_info`**, **`set_permissions`**. File operations live only under **`file.*`** (not on **`client.runtime`** directly).
-
-With a **`Runtime`** instance, use **`runtime.file`** — same methods, without passing **`runtime_id`** each time:
+Use **`runtime.file`** for filesystem ops on the bound handle: **`read`**, **`write`**, **`delete`**, **`list`**, **`upload`** (multipart bytes), **`write_many`** (batch multipart), plus **`create_directory`**, **`get_info`**, **`set_permissions`**. The same methods are also available resource-style via **`client.runtime.file.*(runtime_id, …)`**.
 
 ```python
 runtime = client.runtime.create(template="python-3.14-base-small")
 runtime.file.write("/workspace/note.txt", "hello\n")
 text = runtime.file.read("/workspace/out.txt").content
-client.runtime.kill(runtime.runtime_id)
+runtime.kill()
 ```
 
 See **[examples/runtimes/07_file_operations.py](examples/runtimes/07_file_operations.py)** for a full walkthrough.

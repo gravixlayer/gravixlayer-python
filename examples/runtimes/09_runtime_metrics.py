@@ -22,6 +22,9 @@ runtime = client.runtime.create(template=TEMPLATE)
 sid = runtime.runtime_id
 print(f"Runtime    : {sid}\n")
 
+# NOTE: `get_metrics` is only available on `client.runtime` (no bound method),
+# so we pass `sid`. For code execution we use the bound handle `runtime.run_code`.
+
 # ---------------------------------------------------------------------------
 # 1. Baseline metrics (idle runtime)
 # ---------------------------------------------------------------------------
@@ -39,8 +42,7 @@ print(f"Timestamp  : {metrics.timestamp}")
 # ---------------------------------------------------------------------------
 # 2. Generate some CPU load, then check metrics again
 # ---------------------------------------------------------------------------
-client.runtime.run_code(
-    sid,
+runtime.run_code(
     code="sum(i * i for i in range(10_000_000))",
 )
 
@@ -58,5 +60,5 @@ print(f"Disk Write : {metrics.disk_write} bytes")
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.runtime.kill(sid)
+runtime.kill()
 print("\nRuntime terminated.")

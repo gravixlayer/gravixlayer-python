@@ -18,14 +18,12 @@ client = GravixLayer()
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "node-20-base-small")
 
 runtime = client.runtime.create(template=TEMPLATE)
-sid = runtime.runtime_id
-print(f"Runtime    : {sid}")
+print(f"Runtime    : {runtime.runtime_id}")
 
 # ---------------------------------------------------------------------------
 # 1. Simple JavaScript output
 # ---------------------------------------------------------------------------
-result = client.runtime.run_code(
-    sid,
+result = runtime.run_code(
     code="console.log('Hello from Node.js')",
 )
 print(f"\n--- Simple output ---")
@@ -47,7 +45,7 @@ const info = {
 console.log(JSON.stringify(info, null, 2));
 """
 
-result = client.runtime.run_code(sid, code=code)
+result = runtime.run_code(code=code)
 print(f"\n--- System info ---")
 print(result.stdout_text)
 
@@ -67,12 +65,12 @@ async function fetchData() {
 fetchData().then(r => console.log(JSON.stringify(r)));
 """
 
-result = client.runtime.run_code(sid, code=code)
+result = runtime.run_code(code=code)
 print(f"\n--- Async code ---")
 print(result.stdout_text)
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.runtime.kill(sid)
+runtime.kill()
 print("\nRuntime terminated.")

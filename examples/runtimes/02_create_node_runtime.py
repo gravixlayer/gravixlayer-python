@@ -30,10 +30,15 @@ print(f"Status     : {runtime.status}")
 print(f"Template   : {runtime.template}")
 
 # ---------------------------------------------------------------------------
-# Quick verification — run a Node.js one-liner
+# Quick verification — run a Node.js one-liner.
+#
+# `run_cmd` accepts a command string and optional args list. The two forms
+# below are equivalent — use whichever reads best for your use case:
+#
+#     runtime.run_cmd(command="node -v")                     # single string
+#     runtime.run_cmd(command="node", args=["-v"])           # command + args
 # ---------------------------------------------------------------------------
-result = client.runtime.run_cmd(
-    runtime.runtime_id,
+result = runtime.run_cmd(
     command="node",
     args=["-e", "console.log('Node.js ' + process.version + ' is ready')"],
 )
@@ -42,5 +47,5 @@ print(f"\nNode check : {result.stdout.strip()}")
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.runtime.kill(runtime.runtime_id)
+runtime.kill()
 print("Runtime terminated.")

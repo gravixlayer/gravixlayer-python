@@ -28,13 +28,18 @@ print(f"Runtime    : {sid}\n")
 
 # ---------------------------------------------------------------------------
 # 1. Create a persistent code context
+#
+# NOTE: context management is only available on the resource client
+# (`client.runtime.create_context / get_context / delete_context`), so we
+# keep `sid = runtime.runtime_id` for those calls. For code execution we
+# use the bound handle `runtime.run_code(...)`.
 # ---------------------------------------------------------------------------
 ctx = client.runtime.create_context(sid, language="python")
 print(f"Context ID : {ctx.context_id}")
 print(f"Language   : {ctx.language}")
 
 # ---------------------------------------------------------------------------
-# 2. Define variables — they persist across calls
+# 2. Define variables — they persist across calls within the context
 # ---------------------------------------------------------------------------
 client.runtime.run_code(
     sid,
@@ -93,5 +98,5 @@ print(f"Deleted    : {delete_result.message}")
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-client.runtime.kill(sid)
+runtime.kill()
 print("\nRuntime terminated.")

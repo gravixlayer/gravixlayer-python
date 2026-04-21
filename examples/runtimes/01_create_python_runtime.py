@@ -22,7 +22,11 @@ client = GravixLayer()
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
 
 # ---------------------------------------------------------------------------
-# Create an agent runtime from a Python template
+# Create an agent runtime from a Python template.
+#
+# `client.runtime.create(...)` returns a bound `Runtime` handle, so you can
+# call `runtime.run_code(...)`, `runtime.run_cmd(...)`, `runtime.kill()`, etc.
+# directly — without passing `runtime_id` to every call.
 # ---------------------------------------------------------------------------
 runtime = client.runtime.create(
     template=TEMPLATE,
@@ -41,7 +45,7 @@ info = client.runtime.get(runtime.runtime_id)
 print(f"\nFull info  : status={info.status}, started_at={info.started_at}")
 
 # ---------------------------------------------------------------------------
-# Terminate the runtime
+# Terminate the runtime (bound handle — no `runtime_id` argument needed)
 # ---------------------------------------------------------------------------
-result = client.runtime.kill(runtime.runtime_id)
-print(f"\nKilled     : {result.message}")
+runtime.kill()
+print("\nRuntime terminated.")

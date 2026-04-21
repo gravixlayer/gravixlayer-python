@@ -92,7 +92,8 @@ class Runtimes:
             region: Cloud region (falls back to client.region if not set)
             template: Template name or ID to use
             timeout: Runtime timeout in seconds (default: None = no timeout)
-            env_vars: Environment variables for the runtime
+            env_vars: Environment variables for the runtime. Pass ``{}`` to set an
+                explicit empty map (distinct from omitting the field).
             metadata: Metadata tags for the runtime
             internet_access: Whether to allow internet access (default: None = server default)
             agent_id: Agent ID to associate with the runtime

@@ -30,9 +30,17 @@ with Runtime.create(
     execution = rt.run_code("print('Hello from the context manager!')")
     print(f"Output     : {execution.stdout}")
 
-    # Run a shell command
-    execution = rt.run_cmd("python", args=["--version"])
+    # Run a shell command — command + args form
+    execution = rt.run_cmd(command="python", args=["--version"])
     print(f"Python     : {execution.stdout.strip()}")
+
+    # Same command — single-string form
+    execution = rt.run_cmd(command="python --version")
+    print(f"Python     : {execution.stdout.strip()} (single string)")
+
+    # Chain multiple commands in one shell invocation
+    execution = rt.run_cmd(command="echo hello; sleep 1; echo world")
+    print(f"Chained    : {execution.stdout.strip()}")
 
     # File operations (same names as client.runtime.file.*)
     rt.file.write("/tmp/greeting.txt", "Hello, World!")
@@ -56,11 +64,11 @@ with Runtime.create(
 ) as rt:
     print(f"Runtime ID : {rt.runtime_id}")
 
-    execution = rt.run_cmd("node", args=["--version"])
+    execution = rt.run_cmd(command="node", args=["--version"])
     print(f"Node.js    : {execution.stdout.strip()}")
 
     rt.file.write("/home/user/app.js", "console.log('Hello from Node.js runtime');")
-    execution = rt.run_cmd("node", args=["/home/user/app.js"])
+    execution = rt.run_cmd(command="node /home/user/app.js")
     print(f"Output     : {execution.stdout.strip()}")
 
 print("Runtime auto-terminated on exit.\n")

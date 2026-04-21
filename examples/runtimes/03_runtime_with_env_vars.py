@@ -31,20 +31,20 @@ print(f"Runtime ID : {runtime.runtime_id}")
 print(f"Status     : {runtime.status}")
 print(f"Metadata   : {runtime.metadata}")
 
-rid = runtime.runtime_id
-
-py = client.runtime.run_code(
-    rid,
+# Use the bound handle — no need to pass runtime_id to every call.
+py = runtime.run_code(
     code="import os; print(os.environ.get('APP_ENV', 'not set'))",
 )
 print(f"\nAPP_ENV (run_code): {py.text.strip()}")
 
-sh = client.runtime.run_cmd(
-    rid,
-    "sh",
-    args=["-c", 'echo "${APP_ENV:-not set}"'],
-)
-print(f"APP_ENV (run_cmd):  {sh.stdout.strip()}")
+# `run_cmd` supports both a single shell string and command + args.
+# The single-string form is auto-wrapped in `/bin/sh -c` when it contains
+# shell metacharacters like `;`, `|`, `>`, `<`, `&`, `$`, backticks, or spaces.
+sh_single = runtime.run_cmd(command='echo "${APP_ENV:-not set}"')
+print(f"APP_ENV (single string): {sh_single.stdout.strip()}")
 
-client.runtime.kill(rid)
+sh_args = runtime.run_cmd(command="sh", args=["-c", 'echo "${DEBUG:-not set}"'])
+print(f"DEBUG   (command+args) : {sh_args.stdout.strip()}")
+
+runtime.kill()
 print("\nRuntime terminated.")

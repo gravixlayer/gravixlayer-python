@@ -21,7 +21,10 @@ client = GravixLayer()
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
 
 # ---------------------------------------------------------------------------
-# Create an agent runtime with a short timeout
+# Create an agent runtime with a short timeout.
+#
+# NOTE: `set_timeout` is only available on `client.runtime` (no bound method),
+# so we keep a reference to `sid` for those calls.
 # ---------------------------------------------------------------------------
 runtime = client.runtime.create(
     template=TEMPLATE,
@@ -47,7 +50,7 @@ info = client.runtime.get(sid)
 print(f"Confirmed  : timeout_at={info.timeout_at}")
 
 # ---------------------------------------------------------------------------
-# Clean up
+# Clean up (bound handle)
 # ---------------------------------------------------------------------------
-client.runtime.kill(sid)
+runtime.kill()
 print("\nRuntime terminated.")
