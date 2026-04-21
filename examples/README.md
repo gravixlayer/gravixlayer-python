@@ -15,7 +15,7 @@ python examples/templates/01_python_docker_image.py
 | Shell | `runtimes/06_run_shell_commands.py` |
 | Files | `runtimes/07_file_operations.py` |
 | Contexts / metrics / timeouts | `runtimes/08`–`10`, `runtimes/11_list_and_manage.py` |
-| `with Runtime.create` | `runtimes/12_context_manager.py` |
+| `with Runtime.create` | `runtimes/12_runtime_context_manager.py` |
 | SSH | `runtimes/13`–`15` |
 | Git in VM | `runtimes/16_runtime_git_operations.py` |
 | Build templates | `templates/` |

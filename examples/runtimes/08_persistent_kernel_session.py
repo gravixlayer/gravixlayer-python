@@ -12,7 +12,7 @@ This is useful for:
 
 Usage:
     export GRAVIXLAYER_API_KEY="your-api-key"
-    python examples/runtimes/08_code_contexts.py
+    python examples/runtimes/08_persistent_kernel_session.py
 """
 
 import os

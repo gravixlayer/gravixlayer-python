@@ -25,11 +25,11 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 05 | [05_run_node_code.py](05_run_node_code.py) | Run Node |
 | 06 | [06_run_shell_commands.py](06_run_shell_commands.py) | Shell (both command forms) |
 | 07 | [07_file_operations.py](07_file_operations.py) | Files |
-| 08 | [08_code_contexts.py](08_code_contexts.py) | Code contexts |
+| 08 | [08_persistent_kernel_session.py](08_persistent_kernel_session.py) | Persistent kernel session (code contexts) |
 | 09 | [09_runtime_metrics.py](09_runtime_metrics.py) | Metrics |
 | 10 | [10_timeout_management.py](10_timeout_management.py) | Timeouts |
 | 11 | [11_list_and_manage.py](11_list_and_manage.py) | List runtimes |
-| 12 | [12_context_manager.py](12_context_manager.py) | `with Runtime.create(...)` |
+| 12 | [12_runtime_context_manager.py](12_runtime_context_manager.py) | `with Runtime.create(...)` |
 | 13–15 | SSH scripts | Enable / disable / rotate |
 | 16 | [16_runtime_git_operations.py](16_runtime_git_operations.py) | `runtime.git` |
 | 17 | [17_stream_command_output.py](17_stream_command_output.py) | Stream `run_cmd` output via `on_stdout` / `on_stderr` / `on_exit` |
