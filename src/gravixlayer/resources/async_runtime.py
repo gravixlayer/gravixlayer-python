@@ -403,6 +403,7 @@ class AsyncRuntimeResource:
         await client.runtime.create(template="python-3.14-base-small")
         await client.runtime.run_code(runtime_id, "print('hi')")
         await client.runtime.kill(runtime_id)
+        await client.runtime.file.write(runtime_id, path, content)
 
     Template listing is available via ``await client.runtime.templates.list()``.
     """
@@ -411,6 +412,16 @@ class AsyncRuntimeResource:
         self.client = client
         self._runtimes = AsyncRuntimes(client)
         self.templates = AsyncRuntimeTemplates(client)
+
+    @property
+    def file(self) -> AsyncRuntimeFileResource:
+        """Nested filesystem API: ``await client.runtime.file.read``, …"""
+        return self._runtimes.file
+
+    @property
+    def git(self) -> "AsyncRuntimeGitResource":
+        """Git operations inside the runtime."""
+        return self._runtimes.git
 
     def __getattr__(self, name: str):
         """Delegate any attribute not on this class to the underlying AsyncRuntimes instance."""

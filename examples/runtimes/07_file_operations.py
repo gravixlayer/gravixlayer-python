@@ -17,6 +17,9 @@ Optional: ``GRAVIXLAYER_TEMPLATE`` selects the image (defaults to a small Python
 
 Usage:
     python examples/runtimes/07_file_operations.py
+
+To run the SDK unit tests from a checkout: ``pytest tests/unit_tests -v`` (repo root:
+``gravixlayer-python``).
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ from __future__ import annotations
 import os
 import tempfile
 
-from gravixlayer import GravixLayer
+from gravixlayer import GravixLayer, GravixLayerBadRequestError, GravixLayerServerError
 from gravixlayer.examples_env import python_runtime_template
 from gravixlayer.types.runtime import WriteEntry
 
@@ -99,30 +102,38 @@ entries = [
 ]
 batch_result = client.runtime.file.write_many(sid, entries)
 print(f"Batch write: {len(batch_result.files)} file(s) reported")
+for wf in batch_result.files:
+    if wf.error:
+        print(f"  (warn) {wf.path}: {wf.error}")
 
 # ---------------------------------------------------------------------------
-# 7. Stat a path — get_info (exists flag + FileInfo: mode, permissions, mtime, …)
+# 7–8. Stat + chmod (needs API routes POST .../files/info and .../files/set-mode)
 # ---------------------------------------------------------------------------
-info_run = client.runtime.file.get_info(sid, "/home/user/project/run.sh")
-if info_run.exists and info_run.info:
-    fi = info_run.info
+STAT_PATH = "/home/user/project/config.json"  # exists from step 5
+CHMOD_PATH = "/home/user/project/README.md"  # from batch write
+try:
+    info_run = client.runtime.file.get_info(sid, STAT_PATH)
+    if info_run.exists and info_run.info:
+        fi = info_run.info
+        print(
+            f"\nget_info   : {STAT_PATH} size={fi.size} mode={fi.mode!r} "
+            f"perms={fi.permissions!r} mtime={fi.modified_at!r}"
+        )
+    else:
+        print(f"\nget_info   : path not found ({STAT_PATH})")
+
+    perm_resp = client.runtime.file.set_permissions(sid, CHMOD_PATH, "600")
+    print(f"chmod      : {CHMOD_PATH} -> {perm_resp.message!r} ok={perm_resp.success}")
+
+    info_after = client.runtime.file.get_info(sid, CHMOD_PATH)
+    if info_after.exists and info_after.info:
+        i2 = info_after.info
+        print(f"get_info   : after chmod mode={i2.mode!r} perms={i2.permissions!r}")
+except (GravixLayerBadRequestError, GravixLayerServerError):
     print(
-        f"\nget_info   : {fi.name} size={fi.size} mode={fi.mode!r} "
-        f"perms={fi.permissions!r} mtime={fi.modified_at!r}"
+        "\nNote: Skipping get_info / set_permissions (API returned an error). "
+        "Use a gravixlayer + backend version that supports POST .../files/info and .../files/set-mode."
     )
-else:
-    print("\nget_info   : run.sh missing (unexpected)")
-
-# ---------------------------------------------------------------------------
-# 8. chmod — set_permissions (octal string, same idea as Unix chmod)
-# ---------------------------------------------------------------------------
-chmod_target = "/home/user/project/README.md"
-perm_resp = client.runtime.file.set_permissions(sid, chmod_target, "600")
-print(f"chmod      : {chmod_target} -> {perm_resp.message!r} ok={perm_resp.success}")
-
-info_readme = client.runtime.file.get_info(sid, chmod_target)
-if info_readme.exists and info_readme.info:
-    print(f"get_info   : after chmod mode={info_readme.info.mode!r} perms={info_readme.info.permissions!r}")
 
 # ---------------------------------------------------------------------------
 # 9. List project tree

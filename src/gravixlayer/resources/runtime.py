@@ -420,6 +420,7 @@ class RuntimeResource:
         client.runtime.create(template="python-3.14-base-small")
         client.runtime.run_code(runtime_id, "print('hi')")
         client.runtime.kill(runtime_id)
+        client.runtime.file.write(runtime_id, path, content)
 
     Template listing is available via ``client.runtime.templates.list()``.
     """
@@ -428,6 +429,16 @@ class RuntimeResource:
         self.client = client
         self._runtimes = Runtimes(client)
         self.templates = RuntimeTemplates(client)
+
+    @property
+    def file(self) -> RuntimeFileResource:
+        """Nested filesystem API: ``client.runtime.file.read``, ``.write``, ``.delete``, …"""
+        return self._runtimes.file
+
+    @property
+    def git(self) -> "RuntimeGitResource":
+        """Git operations inside the runtime: ``client.runtime.git.clone``, …"""
+        return self._runtimes.git
 
     def __getattr__(self, name: str):
         """Delegate any attribute not on this class to the underlying Runtimes instance."""

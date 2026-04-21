@@ -13,6 +13,8 @@ Scripts that exercise the **Gravix Layer** Python SDK (`runtimes/`, `templates/`
 | 3 | Run a minimal runtime flow: `python examples/runtimes/01_create_python_runtime.py` |
 | 4 | Skim the tables below, then open [`runtimes/README.md`](runtimes/README.md) or [`templates/README.md`](templates/README.md) for full file lists |
 
+If you have the **SDK repo** cloned and want the full unit test suite (not the example scripts): from the `gravixlayer-python` root run `pytest tests/unit_tests -v`.
+
 Optional (defaults are `azure` / `eastus2`):
 
 ```bash
