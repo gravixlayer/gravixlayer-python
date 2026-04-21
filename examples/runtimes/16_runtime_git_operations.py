@@ -22,6 +22,7 @@ Push (optional): ``export GIT_USERNAME=...`` and ``export GIT_PASSWORD=...`` (e.
 import os
 
 from gravixlayer import GravixLayer
+from gravixlayer.examples_env import python_runtime_template
 
 clone_url = os.environ.get(
     "GIT_CLONE_URL",
@@ -33,8 +34,8 @@ clone_path = os.environ.get("GIT_CLONE_PATH", "/home/user/git-demo")
 
 client = GravixLayer()
 
-# Create an agent runtime to run git inside.
-rt = client.runtime.create(template=os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small"))
+# Create an agent runtime to run git inside (template from env + legacy remap).
+rt = client.runtime.create(template=python_runtime_template())
 sid = rt.runtime_id
 token = os.environ.get("GIT_AUTH_TOKEN")
 

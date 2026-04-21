@@ -20,7 +20,7 @@ export GRAVIXLAYER_CLOUD="azure"
 export GRAVIXLAYER_REGION="eastus2"
 ```
 
-**Template errors:** If the API returns `Template not found: python-3.12-base-…`, your shell still has an old `GRAVIXLAYER_TEMPLATE` from a prior setup. Run `unset GRAVIXLAYER_TEMPLATE` or set it to a current public name (for example `python-3.14-base-small`). Runtime examples under `examples/runtimes/` also remap legacy `python-3.12-base-*` values automatically when you run them from this repo.
+**Template errors:** If the API returns `Template not found: python-3.12-base-…`, unset `GRAVIXLAYER_TEMPLATE` or set it to a current public name (e.g. `python-3.14-base-small`). Python runtime examples use `gravixlayer.examples_env.python_runtime_template()`, which remaps legacy `python-3.12-base-*` env values and prints a short note to stderr when it does.
 
 ---
 

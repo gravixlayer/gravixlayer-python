@@ -20,12 +20,9 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-import runtime_template_env
 
 from openai import OpenAI
+from gravixlayer.examples_env import python_runtime_template
 from gravixlayer.types.runtime import Runtime
 
 
@@ -337,10 +334,8 @@ def main():
     print("Creating Agent Runtime...")
 
     with Runtime.create(
-        template=runtime_template_env.resolve_gravixlayer_template(
-            default="python-3.14-base-medium"
-        ),
-        timeout=int(os.getenv("GRAVIXLAYER_TIMEOUT", "600")),   
+        template=python_runtime_template("python-3.14-base-medium"),
+        timeout=int(os.getenv("GRAVIXLAYER_TIMEOUT", "600")),
     ) as runtime:
         print(f"Runtime ready: {runtime.runtime_id}")
         print(f"  CPU: {runtime.cpu_count}, Memory: {runtime.memory_mb}MB")
@@ -370,8 +365,8 @@ def main():
             sys.exit(1)
         print(dl.stdout.strip() if dl.stdout else "Dataset ready.")
 
-        # Prepare runtime
-        runtime.run_cmd("mkdir", args=["-p", CHARTS_DIR])
+        # Prepare runtime — ensure charts output directory exists
+        runtime.file.create_directory(CHARTS_DIR, recursive=True)
         runtime.run_code("import matplotlib; matplotlib.use('Agg')")
 
         # Run analysis

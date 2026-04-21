@@ -5,23 +5,21 @@ Create a Python Agent Runtime
 Demonstrates the simplest way to spin up a Python agent runtime from a
 public template, inspect its details, and tear it down.
 
-Cloud and region default to azure / eastus2 if not specified.Agent runtimes run indefinitely if timeout is not specified.
+Cloud and region default to azure / eastus2 if not specified. Agent runtimes run
+indefinitely if timeout is not specified.
+
 Usage:
     export GRAVIXLAYER_API_KEY="your-api-key"
     python examples/runtimes/01_create_python_runtime.py
 """
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import runtime_template_env
-
 from gravixlayer import GravixLayer
+from gravixlayer.examples_env import python_runtime_template
 
 client = GravixLayer()
 
-TEMPLATE = runtime_template_env.resolve_gravixlayer_template()
+# Override with GRAVIXLAYER_TEMPLATE; legacy python-3.12-base-* names are remapped.
+TEMPLATE = python_runtime_template()
 
 # ---------------------------------------------------------------------------
 # Create an agent runtime from a Python template

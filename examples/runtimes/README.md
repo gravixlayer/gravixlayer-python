@@ -19,7 +19,7 @@ export GRAVIXLAYER_API_KEY="your-api-key"
 | 4 | [04_run_python_code.py](04_run_python_code.py) | Execute Python code snippets |
 | 5 | [05_run_node_code.py](05_run_node_code.py) | Execute JavaScript code snippets |
 | 6 | [06_run_shell_commands.py](06_run_shell_commands.py) | Run shell commands with args and working directory |
-| 7 | [07_file_operations.py](07_file_operations.py) | Read, write, upload, download, list, and delete files |
+| 7 | [07_file_operations.py](07_file_operations.py) | Files: read/write, list, mkdir, upload, batch write, **get_info**, **set_permissions**, download, delete |
 | 8 | [08_code_contexts.py](08_code_contexts.py) | Persistent execution state across code runs |
 | 9 | [09_runtime_metrics.py](09_runtime_metrics.py) | Query CPU, memory, disk, and network metrics |
 | 10 | [10_timeout_management.py](10_timeout_management.py) | Configure and extend agent runtime timeout |

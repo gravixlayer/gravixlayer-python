@@ -1,9 +1,9 @@
 """
-Shared template resolution for example scripts.
+Helpers for official example scripts.
 
-If ``GRAVIXLAYER_TEMPLATE`` is set to retired ``python-3.12-base-*`` names,
-we map them to the current ``python-3.14-base-*`` public templates so
-examples keep working after the rename.
+Example programs import :func:`python_runtime_template` so they work when
+``pip install gravixlayer`` is used from any working directory — no ``sys.path``
+changes required. You can ignore this module and pass ``template=...`` yourself.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ _LEGACY_PYTHON: Dict[str, str] = {
 }
 
 
-def resolve_gravixlayer_template(default: str = "python-3.14-base-small") -> str:
+def python_runtime_template(default: str = "python-3.14-base-small") -> str:
     """Return template name from ``GRAVIXLAYER_TEMPLATE`` or ``default``.
 
     Maps legacy ``python-3.12-base-{small,medium,large}`` to ``python-3.14-base-*``

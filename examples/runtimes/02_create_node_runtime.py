@@ -16,6 +16,8 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer()
 
+# Pick the Node image (public default below). Same env var name as Python examples,
+# so point it at a *node* template when you run Node scripts.
 TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "node-20-base-small")
 
 # ---------------------------------------------------------------------------
