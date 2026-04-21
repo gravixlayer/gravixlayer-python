@@ -3,6 +3,7 @@ Runtime API resource for synchronous client
 """
 
 import os
+import time
 from typing import List, Dict, Any, Optional
 
 from .._resource_utils import (
@@ -211,6 +212,9 @@ class Runtimes:
         working_dir: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
+        on_stdout: Optional[Any] = None,
+        on_stderr: Optional[Any] = None,
+        on_exit: Optional[Any] = None,
     ) -> CommandRunResponse:
         """Execute a shell command in the runtime.
 
@@ -224,6 +228,11 @@ class Runtimes:
             working_dir: Working directory.
             environment: Environment variables.
             timeout: Maximum execution time in **seconds** (converted to ms for the backend).
+            on_stdout: Optional callable invoked with each incremental stdout chunk
+                (``str``) as the command runs. Enables streaming mode.
+            on_stderr: Optional callable invoked with each incremental stderr chunk (``str``).
+            on_exit: Optional callable invoked with the integer exit code once the
+                command finishes.
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"command": command}
@@ -237,9 +246,93 @@ class Runtimes:
             # Backend expects milliseconds; SDK interface uses seconds
             data["timeout"] = timeout * 1000
 
+        streaming = any(cb is not None for cb in (on_stdout, on_stderr, on_exit))
+        if streaming:
+            return self._run_cmd_streaming(
+                runtime_id, data, on_stdout, on_stderr, on_exit,
+            )
+
         response = self._make_agents_request("POST", f"runtime/{runtime_id}/commands/run", data)
         result = response.json()
         return CommandRunResponse(**result)
+
+    def _run_cmd_streaming(
+        self,
+        runtime_id: str,
+        data: Dict[str, Any],
+        on_stdout: Optional[Any],
+        on_stderr: Optional[Any],
+        on_exit: Optional[Any],
+    ) -> CommandRunResponse:
+        """Stream a run_cmd response as Server-Sent Events.
+
+        Collects full stdout/stderr while also invoking the caller's callbacks
+        for each incremental chunk. The returned :class:`CommandRunResponse`
+        mirrors the unary response shape so callers can switch between modes
+        without changing downstream code.
+        """
+        import json
+        endpoint = f"runtime/{runtime_id}/commands/run?stream=true"
+        response = self._make_agents_request("POST", endpoint, data, stream=True)
+
+        stdout_parts: List[str] = []
+        stderr_parts: List[str] = []
+        exit_code: int = 0
+        start = time.monotonic()
+
+        try:
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                # SSE frames are "data: <json>" per the backend handler.
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8", errors="replace")
+                if not line.startswith("data:"):
+                    continue
+                payload = line[len("data:"):].strip()
+                if not payload:
+                    continue
+                try:
+                    evt = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                evt_type = evt.get("type")
+                if evt_type == "stdout":
+                    chunk = evt.get("data", "")
+                    stdout_parts.append(chunk)
+                    if on_stdout is not None:
+                        on_stdout(chunk)
+                elif evt_type == "stderr":
+                    chunk = evt.get("data", "")
+                    stderr_parts.append(chunk)
+                    if on_stderr is not None:
+                        on_stderr(chunk)
+                elif evt_type == "end":
+                    exit_code = int(evt.get("exit_code", 0))
+                    if on_exit is not None:
+                        on_exit(exit_code)
+                    break
+                elif evt_type == "error":
+                    # Surface the server-side error via stderr callback/buffer.
+                    msg = str(evt.get("message", ""))
+                    stderr_parts.append(msg)
+                    if on_stderr is not None:
+                        on_stderr(msg)
+                    exit_code = 1
+                    if on_exit is not None:
+                        on_exit(exit_code)
+                    break
+        finally:
+            response.close()
+
+        duration_ms = int((time.monotonic() - start) * 1000)
+        return CommandRunResponse(
+            stdout="".join(stdout_parts),
+            stderr="".join(stderr_parts),
+            exit_code=exit_code,
+            duration_ms=duration_ms,
+            success=(exit_code == 0),
+        )
 
     # Code Execution Methods
 

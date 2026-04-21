@@ -9,7 +9,7 @@ import dataclasses
 import inspect
 import os
 import re
-from typing import Any, BinaryIO, Dict, List, Optional, Union
+from typing import Any, BinaryIO, Callable, Dict, List, Optional, Union
 from dataclasses import dataclass, field
 
 
@@ -191,6 +191,9 @@ class Runtime:
         args: Optional[List[str]] = None,
         working_dir: Optional[str] = None,
         timeout: Optional[int] = None,
+        on_stdout: Optional[Callable[[str], None]] = None,
+        on_stderr: Optional[Callable[[str], None]] = None,
+        on_exit: Optional[Callable[[int], None]] = None,
     ) -> "Execution":
         """Execute a shell command in the runtime.
 
@@ -199,10 +202,21 @@ class Runtime:
             args: Additional arguments to append.
             working_dir: Working directory for the command.
             timeout: Maximum execution time in seconds.
+            on_stdout: Optional callback invoked with each stdout chunk. When any
+                callback is provided the command is streamed over SSE.
+            on_stderr: Optional callback invoked with each stderr chunk.
+            on_exit: Optional callback invoked with the final exit code.
         """
         self._require_alive()
         response = self._client.runtime.run_cmd(
-            self.runtime_id, command=command, args=args or [], working_dir=working_dir, timeout=timeout
+            self.runtime_id,
+            command=command,
+            args=args or [],
+            working_dir=working_dir,
+            timeout=timeout,
+            on_stdout=on_stdout,
+            on_stderr=on_stderr,
+            on_exit=on_exit,
         )
         return Execution(response)
 
@@ -212,13 +226,22 @@ class Runtime:
         args: Optional[List[str]] = None,
         working_dir: Optional[str] = None,
         timeout: Optional[int] = None,
+        on_stdout: Optional[Callable[[str], None]] = None,
+        on_stderr: Optional[Callable[[str], None]] = None,
+        on_exit: Optional[Callable[[int], None]] = None,
     ) -> "Execution":
         """Execute a shell command in the runtime.
 
         Alias for :meth:`run_cmd`.
         """
         return self.run_cmd(
-            command=command, args=args, working_dir=working_dir, timeout=timeout
+            command=command,
+            args=args,
+            working_dir=working_dir,
+            timeout=timeout,
+            on_stdout=on_stdout,
+            on_stderr=on_stderr,
+            on_exit=on_exit,
         )
 
     def kill(self) -> None:

@@ -32,6 +32,7 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 12 | [12_context_manager.py](12_context_manager.py) | `with Runtime.create(...)` |
 | 13–15 | SSH scripts | Enable / disable / rotate |
 | 16 | [16_runtime_git_operations.py](16_runtime_git_operations.py) | `runtime.git` |
+| 17 | [17_stream_command_output.py](17_stream_command_output.py) | Stream `run_cmd` output via `on_stdout` / `on_stderr` / `on_exit` |
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py

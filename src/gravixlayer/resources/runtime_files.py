@@ -57,6 +57,11 @@ class RuntimeFileResource:
         data = {"path": path}
         response = self._req("POST", f"runtime/{runtime_id}/files/read", data)
         result = response.json()
+        content = result.get("content", "")
+        if result.get("path") is None:
+            result["path"] = path
+        if result.get("size") is None and isinstance(content, str):
+            result["size"] = len(content.encode("utf-8"))
         return FileReadResponse(**result)
 
     def write(self, runtime_id: str, path: str, content: str) -> FileWriteResponse:
@@ -250,6 +255,11 @@ class AsyncRuntimeFileResource:
         payload = {"path": path}
         response = await self._req("POST", f"runtime/{runtime_id}/files/read", payload)
         result = response.json()
+        content = result.get("content", "")
+        if result.get("path") is None:
+            result["path"] = path
+        if result.get("size") is None and isinstance(content, str):
+            result["size"] = len(content.encode("utf-8"))
         return FileReadResponse(**result)
 
     async def write(self, runtime_id: str, path: str, content: str) -> FileWriteResponse:
