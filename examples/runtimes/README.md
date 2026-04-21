@@ -2,24 +2,17 @@
 
 Set `GRAVIXLAYER_API_KEY`. Optional: `GRAVIXLAYER_TEMPLATE` (Python examples default to `python-3.14-base-small`; Node examples default to `node-20-base-small`).
 
-All examples use the **bound `Runtime` handle** returned by `client.runtime.create(...)`, so you can call `runtime.run_code(...)`, `runtime.run_cmd(...)`, `runtime.file.write(...)`, `runtime.git.clone(...)`, `runtime.kill()` directly — no need to pass `runtime_id` to every call.
-
 ## Running commands
 
-`runtime.run_cmd(command=...)` accepts two equivalent forms:
+`runtime.run_cmd(command=...)` accepts either a single shell string or a `command` + explicit `args` list:
 
 ```python
-# Single shell string — auto-wrapped in /bin/sh -c when it contains
-# shell metacharacters (spaces, ;, |, >, <, &, $, backticks).
 runtime.run_cmd(command="pip install pandas --quiet")
 runtime.run_cmd(command="echo hello; sleep 1; echo world")
 
-# Command + explicit args list — no shell interpretation.
 runtime.run_cmd(command="pip", args=["install", "pandas", "--quiet"])
 runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 ```
-
-Both return stdout, stderr, exit code, and duration. Use the single-string form for convenience and the args form when you need to avoid shell parsing (e.g. user-supplied arguments).
 
 ## Examples
 

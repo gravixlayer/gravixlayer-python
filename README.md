@@ -49,8 +49,6 @@ client = GravixLayer(
 
 ## Quick start
 
-`client.runtime.create(...)` returns a bound **`Runtime`** handle, so you can call `runtime.run_code(...)`, `runtime.run_cmd(...)`, `runtime.file.*`, `runtime.git.*`, `runtime.kill()` directly — no need to pass `runtime_id` to every call.
-
 ```python
 from gravixlayer import GravixLayer
 
@@ -61,18 +59,14 @@ runtime = client.runtime.create(template="python-3.14-base-small")
 result = runtime.run_code(code="print('Hello from Gravix Layer')")
 print(result.text)
 
-# Run a shell command — two equivalent forms:
-runtime.run_cmd(command="pip install pandas --quiet")               # single string
-runtime.run_cmd(command="pip", args=["install", "pandas", "--quiet"])  # command + args
+# Run a shell command
+runtime.run_cmd(command="pip install pandas --quiet")
+runtime.run_cmd(command="pip", args=["install", "pandas", "--quiet"])
 
 runtime.kill()
 ```
 
-`runtime.run_cmd(command=...)` accepts either a single shell string (auto-wrapped in `/bin/sh -c` when it contains shell metacharacters like spaces, `;`, `|`, `>`, `<`, `&`, `$`, backticks) or a `command` + explicit `args` list (no shell interpretation).
-
 ### File operations
-
-Use **`runtime.file`** for filesystem ops on the bound handle: **`read`**, **`write`**, **`delete`**, **`list`**, **`upload`** (multipart bytes), **`write_many`** (batch multipart), plus **`create_directory`**, **`get_info`**, **`set_permissions`**. The same methods are also available resource-style via **`client.runtime.file.*(runtime_id, …)`**.
 
 ```python
 runtime = client.runtime.create(template="python-3.14-base-small")

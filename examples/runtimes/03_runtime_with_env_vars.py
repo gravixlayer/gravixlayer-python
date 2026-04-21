@@ -31,15 +31,11 @@ print(f"Runtime ID : {runtime.runtime_id}")
 print(f"Status     : {runtime.status}")
 print(f"Metadata   : {runtime.metadata}")
 
-# Use the bound handle — no need to pass runtime_id to every call.
 py = runtime.run_code(
     code="import os; print(os.environ.get('APP_ENV', 'not set'))",
 )
 print(f"\nAPP_ENV (run_code): {py.text.strip()}")
 
-# `run_cmd` supports both a single shell string and command + args.
-# The single-string form is auto-wrapped in `/bin/sh -c` when it contains
-# shell metacharacters like `;`, `|`, `>`, `<`, `&`, `$`, backticks, or spaces.
 sh_single = runtime.run_cmd(command='echo "${APP_ENV:-not set}"')
 print(f"APP_ENV (single string): {sh_single.stdout.strip()}")
 

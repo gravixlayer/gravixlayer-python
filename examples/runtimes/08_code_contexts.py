@@ -28,11 +28,6 @@ print(f"Runtime    : {sid}\n")
 
 # ---------------------------------------------------------------------------
 # 1. Create a persistent code context
-#
-# NOTE: context management is only available on the resource client
-# (`client.runtime.create_context / get_context / delete_context`), so we
-# keep `sid = runtime.runtime_id` for those calls. For code execution we
-# use the bound handle `runtime.run_code(...)`.
 # ---------------------------------------------------------------------------
 ctx = client.runtime.create_context(sid, language="python")
 print(f"Context ID : {ctx.context_id}")

@@ -4,18 +4,11 @@
 Execute shell commands inside a running agent runtime. Useful for package
 installation, system inspection, and running compiled binaries.
 
-`run_cmd` accepts two equivalent forms:
+`run_cmd` accepts either a single shell string or a `command` + explicit
+`args` list:
 
-    # 1. Single command string — auto-wrapped in `/bin/sh -c` when it contains
-    #    shell metacharacters (spaces, `;`, `|`, `>`, `<`, `&`, `$`, backticks).
-    runtime.run_cmd(command="echo hello; sleep 1; echo world")
     runtime.run_cmd(command="pip install requests --quiet")
-
-    # 2. Command + explicit args list — no shell interpretation.
     runtime.run_cmd(command="pip", args=["install", "requests", "--quiet"])
-    runtime.run_cmd(command="uname", args=["-a"])
-
-Each call returns stdout, stderr, exit code, and execution duration.
 
 Usage:
     export GRAVIXLAYER_API_KEY="your-api-key"
