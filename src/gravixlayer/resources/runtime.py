@@ -3,8 +3,7 @@ Runtime API resource for synchronous client
 """
 
 import os
-from typing import List, Dict, Any, Optional, BinaryIO, Union
-from urllib.parse import urlencode
+from typing import List, Dict, Any, Optional
 
 from .._resource_utils import (
     build_list_endpoint,
@@ -20,16 +19,6 @@ from ..types.runtime import (
     RuntimeHostURL,
     SSHInfo,
     SSHStatus,
-    FileReadResponse,
-    FileWriteResponse,
-    FileListResponse,
-    FileInfo,
-    FileDeleteResponse,
-    DirectoryCreateResponse,
-    FileUploadResponse,
-    WriteEntry,
-    WriteResult,
-    WriteFilesResponse,
     CommandRunResponse,
     CodeRunResponse,
     CodeContext,
@@ -38,12 +27,12 @@ from ..types.runtime import (
     TemplateList,
     RuntimeKillResponse,
     _validate_runtime_id,
-    _validate_path,
     _METRICS_FIELDS,
     _RUNTIME_DEFAULTS,
 )
 
 from .runtime_git import RuntimeGitResource
+from .runtime_files import RuntimeFileResource
 
 
 class Runtimes:
@@ -52,6 +41,14 @@ class Runtimes:
     def __init__(self, client):
         self.client = client
         self._git_resource: Optional["RuntimeGitResource"] = None
+        self._file_resource: Optional[RuntimeFileResource] = None
+
+    @property
+    def file(self) -> RuntimeFileResource:
+        """Filesystem operations: ``read``, ``write``, ``delete``, ``list``, ``upload``, ``write_many``, …"""
+        if self._file_resource is None:
+            self._file_resource = RuntimeFileResource(self)
+        return self._file_resource
 
     @property
     def git(self) -> "RuntimeGitResource":
@@ -202,220 +199,6 @@ class Runtimes:
         response = self._make_agents_request("GET", f"runtime/{runtime_id}/host/{port}")
         result = response.json()
         return RuntimeHostURL(**result)
-
-    # File Operations Methods
-
-    def read_file(self, runtime_id: str, path: str) -> FileReadResponse:
-        """Read the contents of a file from the runtime filesystem."""
-        _validate_runtime_id(runtime_id)
-        _validate_path(path)
-        data = {"path": path}
-        response = self._make_agents_request("POST", f"runtime/{runtime_id}/files/read", data)
-        result = response.json()
-        return FileReadResponse(**result)
-
-    def write_file(self, runtime_id: str, path: str, content: str) -> FileWriteResponse:
-        """Write content to a file in the runtime filesystem."""
-        _validate_runtime_id(runtime_id)
-        _validate_path(path)
-        data = {"path": path, "content": content}
-        response = self._make_agents_request("POST", f"runtime/{runtime_id}/files/write", data)
-        result = response.json()
-        return FileWriteResponse(**result)
-
-    def list_files(self, runtime_id: str, path: str) -> FileListResponse:
-        """List files and directories in a specified path."""
-        _validate_runtime_id(runtime_id)
-        _validate_path(path)
-        data = {"path": path}
-        response = self._make_agents_request("POST", f"runtime/{runtime_id}/files/list", data)
-        result = response.json()
-
-        files = [
-            FileInfo(
-                name=file_info.get("name", ""),
-                size=file_info.get("size", 0),
-                is_dir=file_info.get("is_dir", False),
-                modified_at=file_info.get("modified_at") or file_info.get("mod_time", ""),
-                mode=file_info.get("mode"),
-            )
-            for file_info in result.get("files", ())
-        ]
-
-        return FileListResponse(files=files)
-
-    def delete_file(self, runtime_id: str, path: str) -> FileDeleteResponse:
-        """Delete a file or directory from the runtime filesystem."""
-        _validate_runtime_id(runtime_id)
-        _validate_path(path)
-        data = {"path": path}
-        response = self._make_agents_request("POST", f"runtime/{runtime_id}/files/delete", data)
-        result = response.json()
-        return FileDeleteResponse(**result)
-
-    def make_directory(self, runtime_id: str, path: str) -> DirectoryCreateResponse:
-        """Create a new directory in the runtime filesystem."""
-        _validate_runtime_id(runtime_id)
-        _validate_path(path)
-        data = {"path": path}
-        response = self._make_agents_request("POST", f"runtime/{runtime_id}/files/mkdir", data)
-        result = response.json()
-        return DirectoryCreateResponse(**result)
-
-    def upload_file(self, runtime_id: str, file: BinaryIO, path: Optional[str] = None) -> FileUploadResponse:
-        """Upload a file to the runtime filesystem using multipart form data."""
-        _validate_runtime_id(runtime_id)
-        files = {"file": file}
-        data = {}
-        if path:
-            data["path"] = path
-
-        response = self._make_agents_request("POST", f"runtime/{runtime_id}/upload", data=data, files=files)
-        result = response.json()
-        return FileUploadResponse(**result)
-
-    def download_file(self, runtime_id: str, path: str) -> bytes:
-        """Download a file from the runtime filesystem."""
-        _validate_runtime_id(runtime_id)
-        _validate_path(path)
-        endpoint = f"runtime/{runtime_id}/download?{urlencode({'path': path})}"
-        response = self._make_agents_request("GET", endpoint)
-        return response.content
-
-    # Multipart File Write Methods
-
-    @staticmethod
-    def _coerce_to_bytes(data: Union[str, bytes, BinaryIO]) -> bytes:
-        """Convert str, bytes, or file-like object to bytes"""
-        if isinstance(data, str):
-            return data.encode("utf-8")
-        if isinstance(data, bytes):
-            return data
-        if hasattr(data, "read"):
-            return data.read()
-        raise TypeError(f"Expected str, bytes, or file-like object, got {type(data).__name__}")
-
-    def write(
-        self,
-        runtime_id: str,
-        path: str,
-        data: Union[str, bytes, BinaryIO],
-        user: Optional[str] = None,
-        mode: Optional[int] = None,
-    ) -> WriteResult:
-        """Write a single file to the runtime using multipart upload.
-
-        Sends raw bytes via multipart/form-data - no base64 encoding.
-
-        Args:
-            runtime_id: ID of the target runtime
-            path: Destination path inside the runtime (absolute or relative to /home/user/)
-            data: File content as str, bytes, or file-like object
-            user: Optional owner username for the file
-            mode: Optional file permissions as octal int (e.g. 0o755)
-
-        Returns:
-            WriteResult with path, name, and type info
-
-        Example:
-            >>> runtimes.write(sid, "/home/user/hello.py", "print('hello')")
-            >>> runtimes.write(sid, "data.bin", b"\\x00\\x01\\x02")
-            >>> with open("local.txt", "rb") as f:
-            ...     runtimes.write(sid, "/tmp/remote.txt", f)
-        """
-        content = self._coerce_to_bytes(data)
-        filename = os.path.basename(path)
-
-        # Build query params with proper URL encoding
-        params: Dict[str, str] = {"path": path}
-        if user:
-            params["username"] = user
-        if mode is not None:
-            params["mode"] = oct(mode)
-
-        endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
-        files = {"file": (filename, content, "application/octet-stream")}
-        response = self._make_agents_request("POST", endpoint, files=files)
-        result = response.json()
-
-        # Response is an array of file results
-        if isinstance(result, list) and len(result) > 0:
-            entry = result[0]
-            return WriteResult(
-                path=entry.get("path", path),
-                name=entry.get("name", filename),
-                type=entry.get("type", "file"),
-                size=len(content),
-            )
-        return WriteResult(path=path, name=filename, type="file", size=len(content))
-
-    def write_files(
-        self,
-        runtime_id: str,
-        entries: List[WriteEntry],
-        user: Optional[str] = None,
-    ) -> WriteFilesResponse:
-        """Write multiple files to the runtime in a single multipart upload.
-
-        Sends all files as separate parts in one HTTP POST - no base64.
-
-        Args:
-            runtime_id: ID of the target runtime
-            entries: List of WriteEntry objects with path, data, and optional mode
-            user: Optional default owner username for all files
-
-        Returns:
-            WriteFilesResponse with per-file results and partial_failure flag
-
-        Example:
-            >>> from gravixlayer.types.runtime import WriteEntry
-            >>> runtimes.write_files(sid, [
-            ...     WriteEntry(path="/home/user/main.py", data="print('hello')"),
-            ...     WriteEntry(path="/home/user/config.json", data=b'{"key": "val"}'),
-            ...     WriteEntry(path="/tmp/script.sh", data="#!/bin/bash\\necho hi", mode=0o755),
-            ... ])
-        """
-        if not entries:
-            return WriteFilesResponse(files=[], partial_failure=False)
-
-        # Build multipart parts: each file is a ("file", (filename, content, mime)) tuple
-        multipart_files = []
-        for entry in entries:
-            content = self._coerce_to_bytes(entry.data)
-            # Use full path as filename so the server preserves the destination
-            multipart_files.append(("file", (entry.path, content, "application/octet-stream")))
-
-        # Build query params with proper URL encoding
-        params: Dict[str, str] = {}
-        if user:
-            params["username"] = user
-        query = f"?{urlencode(params)}" if params else ""
-
-        endpoint = f"runtime/{runtime_id}/files{query}"
-        response = self._make_agents_request("POST", endpoint, files=multipart_files)
-        result = response.json()
-        partial_failure = response.status_code == 207
-
-        # Parse results
-        file_results = []
-        if isinstance(result, list):
-            for entry_result in result:
-                file_results.append(WriteResult(
-                    path=entry_result.get("path", ""),
-                    name=entry_result.get("name", ""),
-                    type=entry_result.get("type", "file"),
-                    error=entry_result.get("error"),
-                ))
-        elif isinstance(result, dict) and "files" in result:
-            for entry_result in result["files"]:
-                file_results.append(WriteResult(
-                    path=entry_result.get("path", ""),
-                    name=entry_result.get("name", ""),
-                    type=entry_result.get("type", "file"),
-                    error=entry_result.get("error"),
-                ))
-
-        return WriteFilesResponse(files=file_results, partial_failure=partial_failure)
 
     # Command Execution Methods
 

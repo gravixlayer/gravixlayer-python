@@ -38,23 +38,23 @@ print(f"Runtime    : {sid}\n")
 # ---------------------------------------------------------------------------
 # 1. Write a file
 # ---------------------------------------------------------------------------
-client.runtime.write_file(
+client.runtime.file.write(
     sid,
-    path="/home/user/hello.txt",
-    content="Hello from GravixLayer SDK!\nThis is line two.",
+    "/home/user/hello.txt",
+    "Hello from GravixLayer SDK!\nThis is line two.",
 )
 print("Wrote      : /home/user/hello.txt")
 
 # ---------------------------------------------------------------------------
 # 2. Read the file back
 # ---------------------------------------------------------------------------
-read_result = client.runtime.read_file(sid, path="/home/user/hello.txt")
+read_result = client.runtime.file.read(sid, "/home/user/hello.txt")
 print(f"Read       : {read_result.content}")
 
 # ---------------------------------------------------------------------------
 # 3. Create a directory
 # ---------------------------------------------------------------------------
-client.runtime.make_directory(sid, path="/home/user/project/src")
+client.runtime.file.create_directory(sid, "/home/user/project/src")
 print("Created    : /home/user/project/src/")
 
 # ---------------------------------------------------------------------------
@@ -66,13 +66,13 @@ import json
 data = {"name": "GravixLayer", "version": "1.0"}
 print(json.dumps(data))
 """
-client.runtime.write_file(sid, path="/home/user/project/src/main.py", content=script)
+client.runtime.file.write(sid, "/home/user/project/src/main.py", script)
 print("Wrote      : /home/user/project/src/main.py")
 
 # ---------------------------------------------------------------------------
 # 5. List files
 # ---------------------------------------------------------------------------
-file_list = client.runtime.list_files(sid, path="/home/user/project/src")
+file_list = client.runtime.file.list(sid, "/home/user/project/src")
 print(f"\nFiles in /home/user/project/src:")
 for f in file_list.files:
     kind = "[DIR] " if f.is_dir else "      "
@@ -82,10 +82,10 @@ for f in file_list.files:
 # 6. Write a config file using multipart upload
 # ---------------------------------------------------------------------------
 config_content = '{"debug": true, "port": 8080}'
-write_result = client.runtime.write(
+write_result = client.runtime.file.upload(
     sid,
-    path="/home/user/project/config.json",
-    data=config_content,
+    "/home/user/project/config.json",
+    config_content,
 )
 print(f"\nMultipart  : wrote {write_result.path}")
 
@@ -98,13 +98,13 @@ entries = [
     WriteEntry(path="/home/user/project/README.md", data="# My Project\n\nA sample project."),
     WriteEntry(path="/home/user/project/run.sh", data="#!/bin/bash\npython src/main.py", mode=0o755),
 ]
-batch_result = client.runtime.write_files(sid, entries=entries)
+batch_result = client.runtime.file.write_many(sid, entries)
 print(f"Batch write: {len(batch_result.files)} files written")
 
 # ---------------------------------------------------------------------------
 # 8. List the project directory
 # ---------------------------------------------------------------------------
-file_list = client.runtime.list_files(sid, path="/home/user/project")
+file_list = client.runtime.file.list(sid, "/home/user/project")
 print(f"\nFiles in /home/user/project:")
 for f in file_list.files:
     kind = "[DIR] " if f.is_dir else "      "
@@ -113,14 +113,14 @@ for f in file_list.files:
 # ---------------------------------------------------------------------------
 # 9. Download a file from the runtime
 # ---------------------------------------------------------------------------
-downloaded = client.runtime.download_file(sid, path="/home/user/hello.txt")
+downloaded = client.runtime.file.download_file(sid, "/home/user/hello.txt")
 print(f"\nDownloaded : {len(downloaded)} bytes")
 print(f"Content    : {downloaded.decode('utf-8')}")
 
 # ---------------------------------------------------------------------------
 # 10. Delete a file
 # ---------------------------------------------------------------------------
-client.runtime.delete_file(sid, path="/home/user/hello.txt")
+client.runtime.file.delete(sid, "/home/user/hello.txt")
 print("\nDeleted    : /home/user/hello.txt")
 
 # ---------------------------------------------------------------------------

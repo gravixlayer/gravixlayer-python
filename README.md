@@ -64,11 +64,26 @@ print(result.text)
 client.runtime.kill(runtime.runtime_id)
 ```
 
+### File operations
+
+Use **`client.runtime.file`** with short names: **`read`**, **`write`** (JSON text write), **`delete`**, **`list`**, **`upload`** (multipart bytes), **`write_many`** (batch multipart), plus **`create_directory`**, **`get_info`**, **`set_permissions`**. File operations live only under **`file.*`** (not on **`client.runtime`** directly).
+
+With a **`Runtime`** instance, use **`runtime.file`** — same methods, without passing **`runtime_id`** each time:
+
+```python
+runtime = client.runtime.create(template="python-3.14-base-small")
+runtime.file.write("/workspace/note.txt", "hello\n")
+text = runtime.file.read("/workspace/out.txt").content
+client.runtime.kill(runtime.runtime_id)
+```
+
+See **[examples/runtimes/07_file_operations.py](examples/runtimes/07_file_operations.py)** for a full walkthrough.
+
 ## Examples (runnable)
 
 | Area | What you’ll learn |
 |------|-------------------|
-| **[examples/runtimes/](examples/runtimes/)** | Create runtimes, run code & shell, files, metrics, SSH, context manager — **15 scripts** |
+| **[examples/runtimes/](examples/runtimes/)** | Create runtimes, run code & shell, files, metrics, SSH, context manager, Git — **16 scripts** |
 | **[examples/templates/](examples/templates/)** | Build custom templates (Docker image, Git, Dockerfile) — **6 scripts** |
 
 Start here: **[examples/README.md](examples/README.md)** (task table + quick reference).

@@ -244,32 +244,32 @@ class TestRuntimeInstanceMethods:
         result = rt.run_command("echo hi")
         assert isinstance(result, Execution)
 
-    def test_write_file_delegates(self):
+    def test_file_write_delegates(self):
         rt, mock_client = self._make_runtime_with_client()
-        rt.write_file("/tmp/test.py", "print('hello')")
-        mock_client.runtime.write_file.assert_called_once_with(
-            rt.runtime_id, path="/tmp/test.py", content="print('hello')"
+        rt.file.write("/tmp/test.py", "print('hello')")
+        mock_client.runtime.file.write.assert_called_once_with(
+            rt.runtime_id, "/tmp/test.py", "print('hello')"
         )
 
-    def test_read_file_delegates(self):
+    def test_file_read_delegates(self):
         rt, mock_client = self._make_runtime_with_client()
-        mock_client.runtime.read_file.return_value = FileReadResponse(content="hello world")
-        content = rt.read_file("/tmp/test.txt")
-        assert content == "hello world"
+        mock_client.runtime.file.read.return_value = FileReadResponse(content="hello world")
+        result = rt.file.read("/tmp/test.txt")
+        assert result.content == "hello world"
 
-    def test_list_files_delegates(self):
+    def test_file_list_delegates(self):
         rt, mock_client = self._make_runtime_with_client()
-        mock_client.runtime.list_files.return_value = FileListResponse(
+        mock_client.runtime.file.list.return_value = FileListResponse(
             files=[FileInfo(name="file.py", size=100, is_dir=False)]
         )
-        files = rt.list_files()
-        assert len(files) == 1
-        assert files[0].name == "file.py"
+        listing = rt.file.list()
+        assert len(listing.files) == 1
+        assert listing.files[0].name == "file.py"
 
-    def test_delete_file_delegates(self):
+    def test_file_delete_delegates(self):
         rt, mock_client = self._make_runtime_with_client()
-        rt.delete_file("/tmp/test.py")
-        mock_client.runtime.delete_file.assert_called_once()
+        rt.file.delete("/tmp/test.py")
+        mock_client.runtime.file.delete.assert_called_once()
 
     def test_kill_marks_not_alive(self):
         rt, mock_client = self._make_runtime_with_client()
@@ -331,20 +331,20 @@ class TestRuntimeInstanceMethods:
         rt.resume()
         mock_client.runtime.resume.assert_called_once_with(rt.runtime_id)
 
-    def test_write_delegates(self):
+    def test_file_upload_delegates(self):
         rt, mock_client = self._make_runtime_with_client()
-        mock_client.runtime.write.return_value = WriteResult(path="/tmp/f.py", name="f.py", type="file")
-        result = rt.write("/tmp/f.py", "content")
+        mock_client.runtime.file.upload.return_value = WriteResult(path="/tmp/f.py", name="f.py", type="file")
+        result = rt.file.upload("/tmp/f.py", "content")
         assert result.path == "/tmp/f.py"
 
-    def test_write_files_delegates(self):
+    def test_file_write_many_delegates(self):
         rt, mock_client = self._make_runtime_with_client()
         entries = [WriteEntry(path="/tmp/a.py", data="code")]
-        mock_client.runtime.write_files.return_value = WriteFilesResponse(
+        mock_client.runtime.file.write_many.return_value = WriteFilesResponse(
             files=[WriteResult(path="/tmp/a.py", name="a.py", type="file")],
             partial_failure=False,
         )
-        resp = rt.write_files(entries)
+        resp = rt.file.write_many(entries)
         assert len(resp.files) == 1
 
 

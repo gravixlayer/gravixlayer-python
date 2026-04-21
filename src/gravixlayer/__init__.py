@@ -11,6 +11,7 @@ from .client import GravixLayer
 from .types.async_client import AsyncGravixLayer
 from .types.runtime import (
     Runtime,
+    RuntimeFileBound,
     RuntimeList,
     RuntimeMetrics,
     RuntimeTimeoutResponse,
@@ -18,6 +19,8 @@ from .types.runtime import (
     FileReadResponse,
     FileWriteResponse,
     FileInfo,
+    FileGetInfoResponse,
+    SetPermissionsResponse,
     DirectoryCreateResponse,
     CommandRunResponse,
     CodeRunResponse,
@@ -100,6 +103,7 @@ __all__ = [
     "GravixLayer",
     "AsyncGravixLayer",
     "Runtime",
+    "RuntimeFileBound",
     "RuntimeList",
     "RuntimeMetrics",
     "RuntimeTimeoutResponse",
@@ -117,6 +121,8 @@ __all__ = [
     "FileReadResponse",
     "FileWriteResponse",
     "FileInfo",
+    "FileGetInfoResponse",
+    "SetPermissionsResponse",
     "DirectoryCreateResponse",
     "CommandRunResponse",
     "CodeRunResponse",

@@ -80,7 +80,7 @@ r = client.runtime.git.delete_branch(sid, clone_path, demo_branch)
 print("delete_branch:", r.success, r.exit_code)
 
 # Write a new file inside the repository directory.
-client.runtime.write_file(sid, f"{clone_path}/note.txt", "hello\n")
+client.runtime.file.write(sid, f"{clone_path}/note.txt", "hello\n")
 
 # Stage files (omit paths=… to stage everything).
 r = client.runtime.git.add(sid, clone_path, paths=["note.txt"])

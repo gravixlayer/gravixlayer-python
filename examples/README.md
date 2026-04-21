@@ -32,7 +32,7 @@ export GRAVIXLAYER_REGION="eastus2"
 | **Env vars & metadata** on a runtime | [`runtimes/03_runtime_with_env_vars.py`](runtimes/03_runtime_with_env_vars.py) |
 | **Run Python / JS code** in a runtime | [`runtimes/04_run_python_code.py`](runtimes/04_run_python_code.py), [`runtimes/05_run_node_code.py`](runtimes/05_run_node_code.py) |
 | **Run shell commands** | [`runtimes/06_run_shell_commands.py`](runtimes/06_run_shell_commands.py) |
-| **Files** (read/write/upload/list) | [`runtimes/07_file_operations.py`](runtimes/07_file_operations.py) |
+| **Files** (`read` / `write` / `delete` / `list` / `upload` / `write_many` …) | [`runtimes/07_file_operations.py`](runtimes/07_file_operations.py) |
 | **Persistent code state** (contexts) | [`runtimes/08_code_contexts.py`](runtimes/08_code_contexts.py) |
 | **Metrics** (CPU, memory, disk, network) | [`runtimes/09_runtime_metrics.py`](runtimes/09_runtime_metrics.py) |
 | **Timeouts** | [`runtimes/10_timeout_management.py`](runtimes/10_timeout_management.py) |
@@ -49,7 +49,7 @@ export GRAVIXLAYER_REGION="eastus2"
 
 | Folder | Contents |
 |--------|----------|
-| [`runtimes/`](runtimes/) | **15** scripts — lifecycle, code execution, shell, files, metrics, SSH, context manager. |
+| [`runtimes/`](runtimes/) | **16** scripts — lifecycle, code execution, shell, files, metrics, SSH, context manager, Git. |
 | [`templates/`](templates/) | **6** scripts — `TemplateBuilder`: Docker image, Git, Dockerfile, list/delete. |
 
 ---

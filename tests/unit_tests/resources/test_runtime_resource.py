@@ -2,8 +2,8 @@
 Tests for sync and async runtime resources.
 
 Covers: create, list, get, kill, connect, set_timeout, get_metrics,
-get_host_url, file operations, git (``client.runtime.git.*``), command/code execution,
-SSH, pause/resume, write/write_files (multipart), code contexts.
+get_host_url, ``client.runtime.file.*``, git (``client.runtime.git.*``), command/code execution,
+SSH, pause/resume, code contexts.
 """
 
 import io
@@ -290,14 +290,14 @@ class TestSyncRuntimeFiles:
         mock_api.post(f"{SB}/{VALID_UUID}/files/read").mock(
             return_value=httpx.Response(200, json={"content": "hello world", "path": "/tmp/f.txt"})
         )
-        result = client.runtime.read_file(VALID_UUID, "/tmp/f.txt")
+        result = client.runtime.file.read(VALID_UUID, "/tmp/f.txt")
         assert result.content == "hello world"
 
     def test_write_file(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/files/write").mock(
             return_value=httpx.Response(200, json={"message": "Written", "path": "/tmp/f.txt"})
         )
-        result = client.runtime.write_file(VALID_UUID, "/tmp/f.txt", "content")
+        result = client.runtime.file.write(VALID_UUID, "/tmp/f.txt", "content")
         assert result.message == "Written"
 
     def test_list_files(self, client, mock_api):
@@ -309,7 +309,7 @@ class TestSyncRuntimeFiles:
                 ]
             })
         )
-        result = client.runtime.list_files(VALID_UUID, "/home/user")
+        result = client.runtime.file.list(VALID_UUID, "/home/user")
         assert len(result.files) == 2
         assert result.files[0].name == "main.py"
         assert result.files[1].is_dir is True
@@ -318,14 +318,21 @@ class TestSyncRuntimeFiles:
         mock_api.post(f"{SB}/{VALID_UUID}/files/delete").mock(
             return_value=httpx.Response(200, json={"message": "Deleted", "path": "/tmp/f.txt"})
         )
-        result = client.runtime.delete_file(VALID_UUID, "/tmp/f.txt")
+        result = client.runtime.file.delete(VALID_UUID, "/tmp/f.txt")
         assert result.message == "Deleted"
 
     def test_make_directory(self, client, mock_api):
-        mock_api.post(f"{SB}/{VALID_UUID}/files/mkdir").mock(
-            return_value=httpx.Response(200, json={"message": "Created", "path": "/tmp/newdir"})
+        mock_api.post(f"{SB}/{VALID_UUID}/files/create-directory").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "message": "Created",
+                    "path": "/tmp/newdir",
+                },
+            )
         )
-        result = client.runtime.make_directory(VALID_UUID, "/tmp/newdir")
+        result = client.runtime.file.create_directory(VALID_UUID, "/tmp/newdir")
         assert result.message == "Created"
 
     def test_upload_file(self, client, mock_api):
@@ -333,23 +340,23 @@ class TestSyncRuntimeFiles:
             return_value=httpx.Response(200, json={"message": "Uploaded", "path": "/tmp/upload.bin"})
         )
         f = io.BytesIO(b"binary data")
-        result = client.runtime.upload_file(VALID_UUID, file=f, path="/tmp/upload.bin")
+        result = client.runtime.file.upload_file(VALID_UUID, file=f, path="/tmp/upload.bin")
         assert result.message == "Uploaded"
 
     def test_download_file(self, client, mock_api):
         mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/download").mock(
             return_value=httpx.Response(200, content=b"file bytes")
         )
-        result = client.runtime.download_file(VALID_UUID, "/tmp/f.bin")
+        result = client.runtime.file.download_file(VALID_UUID, "/tmp/f.bin")
         assert result == b"file bytes"
 
     def test_path_validation_empty(self, client, mock_api):
         with pytest.raises(ValueError, match="must not be empty"):
-            client.runtime.read_file(VALID_UUID, "")
+            client.runtime.file.read(VALID_UUID, "")
 
     def test_path_validation_relative_traversal(self, client, mock_api):
         with pytest.raises(ValueError, match="traversal"):
-            client.runtime.read_file(VALID_UUID, "../../../etc/passwd")
+            client.runtime.file.read(VALID_UUID, "../../../etc/passwd")
 
 
 # ===================================================================
@@ -362,7 +369,7 @@ class TestSyncRuntimeWrite:
         mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
             return_value=httpx.Response(200, json=[{"path": "/tmp/f.py", "name": "f.py", "type": "file"}])
         )
-        result = client.runtime.write(VALID_UUID, "/tmp/f.py", "print('hi')")
+        result = client.runtime.file.upload(VALID_UUID, "/tmp/f.py", "print('hi')")
         assert isinstance(result, WriteResult)
         assert result.path == "/tmp/f.py"
 
@@ -370,7 +377,7 @@ class TestSyncRuntimeWrite:
         mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
             return_value=httpx.Response(200, json=[{"path": "/tmp/data.bin", "name": "data.bin", "type": "file"}])
         )
-        result = client.runtime.write(VALID_UUID, "/tmp/data.bin", b"\x00\x01\x02")
+        result = client.runtime.file.upload(VALID_UUID, "/tmp/data.bin", b"\x00\x01\x02")
         assert result.name == "data.bin"
 
     def test_write_file_like(self, client, mock_api):
@@ -378,14 +385,14 @@ class TestSyncRuntimeWrite:
             return_value=httpx.Response(200, json=[{"path": "/tmp/f.txt", "name": "f.txt", "type": "file"}])
         )
         f = io.BytesIO(b"file content")
-        result = client.runtime.write(VALID_UUID, "/tmp/f.txt", f)
+        result = client.runtime.file.upload(VALID_UUID, "/tmp/f.txt", f)
         assert result.type == "file"
 
     def test_write_with_mode_and_user(self, client, mock_api):
         mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
             return_value=httpx.Response(200, json=[{"path": "/tmp/run.sh", "name": "run.sh", "type": "file"}])
         )
-        result = client.runtime.write(VALID_UUID, "/tmp/run.sh", "#!/bin/bash", user="root", mode=0o755)
+        result = client.runtime.file.upload(VALID_UUID, "/tmp/run.sh", "#!/bin/bash", user="root", mode=0o755)
         assert result is not None
 
     def test_write_files_multiple(self, client, mock_api):
@@ -399,12 +406,12 @@ class TestSyncRuntimeWrite:
             WriteEntry(path="/tmp/a.py", data="code_a"),
             WriteEntry(path="/tmp/b.py", data="code_b"),
         ]
-        resp = client.runtime.write_files(VALID_UUID, entries)
+        resp = client.runtime.file.write_many(VALID_UUID, entries)
         assert isinstance(resp, WriteFilesResponse)
         assert len(resp.files) == 2
 
     def test_write_files_empty_list(self, client, mock_api):
-        resp = client.runtime.write_files(VALID_UUID, [])
+        resp = client.runtime.file.write_many(VALID_UUID, [])
         assert resp.files == []
         assert resp.partial_failure is False
 
@@ -419,14 +426,15 @@ class TestSyncRuntimeWrite:
             WriteEntry(path="/tmp/ok.py", data="ok"),
             WriteEntry(path="/tmp/fail.py", data="fail"),
         ]
-        resp = client.runtime.write_files(VALID_UUID, entries)
+        resp = client.runtime.file.write_many(VALID_UUID, entries)
         assert resp.partial_failure is True
         assert resp.files[1].error == "permission denied"
 
     def test_coerce_invalid_type_raises(self, client):
-        from gravixlayer.resources.runtime import Runtimes
+        from gravixlayer.resources.runtime_files import RuntimeFileResource
+
         with pytest.raises(TypeError, match="Expected str, bytes"):
-            Runtimes._coerce_to_bytes(12345)
+            RuntimeFileResource._coerce_to_bytes(12345)
 
 
 # ===================================================================
@@ -711,7 +719,7 @@ class TestAsyncRuntimeFiles:
             return_value=httpx.Response(200, json={"content": "async content"})
         )
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
-            result = await client.runtime.read_file(VALID_UUID, "/tmp/f.txt")
+            result = await client.runtime.file.read(VALID_UUID, "/tmp/f.txt")
             assert result.content == "async content"
 
     @pytest.mark.asyncio
@@ -720,7 +728,7 @@ class TestAsyncRuntimeFiles:
             return_value=httpx.Response(200, json={"message": "Written"})
         )
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
-            result = await client.runtime.write_file(VALID_UUID, "/tmp/f.txt", "data")
+            result = await client.runtime.file.write(VALID_UUID, "/tmp/f.txt", "data")
             assert result.message == "Written"
 
     @pytest.mark.asyncio
@@ -808,7 +816,7 @@ class TestAsyncRuntimeWrite:
             return_value=httpx.Response(200, json=[{"path": "/tmp/f.py", "name": "f.py", "type": "file"}])
         )
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
-            result = await client.runtime.write(VALID_UUID, "/tmp/f.py", "code")
+            result = await client.runtime.file.upload(VALID_UUID, "/tmp/f.py", "code")
             assert result.path == "/tmp/f.py"
 
     @pytest.mark.asyncio
@@ -820,11 +828,11 @@ class TestAsyncRuntimeWrite:
         )
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             entries = [WriteEntry(path="/tmp/a.py", data="code")]
-            resp = await client.runtime.write_files(VALID_UUID, entries)
+            resp = await client.runtime.file.write_many(VALID_UUID, entries)
             assert len(resp.files) == 1
 
     @pytest.mark.asyncio
     async def test_write_files_empty(self, mock_api):
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
-            resp = await client.runtime.write_files(VALID_UUID, [])
+            resp = await client.runtime.file.write_many(VALID_UUID, [])
             assert resp.files == []

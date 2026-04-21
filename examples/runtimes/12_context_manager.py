@@ -48,13 +48,13 @@ with Runtime.create(
     execution = rt.run_cmd("python", args=["--version"])
     print(f"Python     : {execution.stdout.strip()}")
 
-    # File operations
-    rt.write_file("/tmp/greeting.txt", "Hello, World!")
-    content = rt.read_file("/tmp/greeting.txt")
+    # File operations (same names as client.runtime.file.*)
+    rt.file.write("/tmp/greeting.txt", "Hello, World!")
+    content = rt.file.read("/tmp/greeting.txt").content
     print(f"File       : {content}")
 
     # List files
-    files = rt.list_files("/tmp")
+    files = rt.file.list("/tmp").files
     print(f"Files in /tmp: {files}")
 
 print("Runtime auto-terminated on exit.\n")
@@ -73,7 +73,7 @@ with Runtime.create(
     execution = rt.run_cmd("node", args=["--version"])
     print(f"Node.js    : {execution.stdout.strip()}")
 
-    rt.write_file("/home/user/app.js", "console.log('Hello from Node.js runtime');")
+    rt.file.write("/home/user/app.js", "console.log('Hello from Node.js runtime');")
     execution = rt.run_cmd("node", args=["/home/user/app.js"])
     print(f"Output     : {execution.stdout.strip()}")
 

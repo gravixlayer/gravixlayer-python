@@ -9,7 +9,7 @@ import dataclasses
 import inspect
 import os
 import re
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, BinaryIO, Dict, List, Optional, Union
 from dataclasses import dataclass, field
 
 
@@ -221,88 +221,6 @@ class Runtime:
             command=command, args=args, working_dir=working_dir, timeout=timeout
         )
 
-    def write_file(self, path: str, content: str) -> None:
-        """Write content to a file in the runtime"""
-        self._require_alive()
-        self._client.runtime.write_file(self.runtime_id, path=path, content=content)
-
-    def read_file(self, path: str) -> str:
-        """Read content from a file in the runtime"""
-        self._require_alive()
-        response = self._client.runtime.read_file(self.runtime_id, path=path)
-        return response.content
-
-    def list_files(self, path: str = "/home/user") -> "List[FileInfo]":
-        """List files in a directory.
-
-        Returns:
-            List of FileInfo objects with name, size, is_dir, modified_at, mode.
-        """
-        self._require_alive()
-        response = self._client.runtime.list_files(self.runtime_id, path=path)
-        return response.files
-
-    def delete_file(self, path: str) -> None:
-        """Delete a file in the runtime"""
-        self._require_alive()
-        self._client.runtime.delete_file(self.runtime_id, path=path)
-
-    def upload_file(self, local_path: str, remote_path: str) -> None:
-        """Upload a local file to the runtime"""
-        self._require_alive()
-        with open(local_path, "rb") as f:
-            self._client.runtime.upload_file(self.runtime_id, file=f, path=remote_path)
-
-    def write(
-        self,
-        path: str,
-        data: Union[str, bytes, Any],
-        user: Optional[str] = None,
-        mode: Optional[int] = None,
-    ) -> "WriteResult":
-        """Write a file to the runtime using multipart upload (no base64).
-
-        Args:
-            path: Destination path (absolute or relative to /home/user/)
-            data: Content as str, bytes, or file-like object
-            user: Optional owner username
-            mode: Optional file permissions as octal int (e.g. 0o755)
-
-        Example:
-            >>> runtime.write("/home/user/hello.py", "print('hello')")
-            >>> runtime.write("data.bin", b"\\x00\\x01\\x02")
-            >>> with open("local.txt", "rb") as f:
-            ...     runtime.write("/tmp/remote.txt", f)
-        """
-        self._require_alive()
-        return self._client.runtime.write(
-            self.runtime_id, path=path, data=data, user=user, mode=mode
-        )
-
-    def write_files(
-        self,
-        entries: "List[WriteEntry]",
-        user: Optional[str] = None,
-    ) -> "WriteFilesResponse":
-        """Write multiple files in a single multipart upload (no base64).
-
-        Args:
-            entries: List of WriteEntry(path, data, mode) objects
-            user: Optional default owner username for all files
-
-        Example:
-            >>> from gravixlayer.types.runtime import WriteEntry
-            >>> runtime.write_files([
-            ...     WriteEntry(path="main.py", data="print('hello')"),
-            ...     WriteEntry(path="config.json", data=b'{"key": "val"}'),
-            ...     WriteEntry(path="/tmp/run.sh", data="#!/bin/bash\\necho hi", mode=0o755),
-            ... ])
-        """
-        self._require_alive()
-        return self._client.runtime.write_files(
-            self.runtime_id, entries=entries, user=user
-        )
-
     def kill(self) -> None:
         """Terminate the runtime and clean up resources."""
         if self._alive and self._client is not None:
@@ -385,6 +303,85 @@ class Runtime:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - automatically terminate runtime"""
         self.kill()
+
+    @property
+    def file(self) -> "RuntimeFileBound":
+        """Filesystem API for this runtime (same as ``client.runtime.file``, without ``runtime_id``)."""
+        return RuntimeFileBound(self)
+
+
+class RuntimeFileBound:
+    """Bound view of :attr:`Runtime.file` — mirrors ``client.runtime.file.*`` signatures minus ``runtime_id``."""
+
+    __slots__ = ("_runtime",)
+
+    def __init__(self, runtime: "Runtime") -> None:
+        object.__setattr__(self, "_runtime", runtime)
+
+    def _rc(self) -> tuple[str, Any]:
+        r = object.__getattribute__(self, "_runtime")
+        r._require_alive()
+        return r.runtime_id, r._client
+
+    def read(self, path: str) -> "FileReadResponse":
+        rid, client = self._rc()
+        return client.runtime.file.read(rid, path)
+
+    def write(self, path: str, content: str) -> "FileWriteResponse":
+        rid, client = self._rc()
+        return client.runtime.file.write(rid, path, content)
+
+    def delete(self, path: str) -> "FileDeleteResponse":
+        rid, client = self._rc()
+        return client.runtime.file.delete(rid, path)
+
+    def list(self, path: str = "/home/user") -> "FileListResponse":
+        rid, client = self._rc()
+        return client.runtime.file.list(rid, path)
+
+    def upload(
+        self,
+        path: str,
+        data: Union[str, bytes, Any],
+        user: Optional[str] = None,
+        mode: Optional[int] = None,
+    ) -> "WriteResult":
+        rid, client = self._rc()
+        return client.runtime.file.upload(rid, path, data, user=user, mode=mode)
+
+    def write_many(
+        self,
+        entries: List["WriteEntry"],
+        user: Optional[str] = None,
+    ) -> "WriteFilesResponse":
+        rid, client = self._rc()
+        return client.runtime.file.write_many(rid, entries, user=user)
+
+    def create_directory(
+        self,
+        path: str,
+        *,
+        recursive: bool = True,
+        mode: Optional[str] = None,
+    ) -> "DirectoryCreateResponse":
+        rid, client = self._rc()
+        return client.runtime.file.create_directory(rid, path, recursive=recursive, mode=mode)
+
+    def get_info(self, path: str) -> "FileGetInfoResponse":
+        rid, client = self._rc()
+        return client.runtime.file.get_info(rid, path)
+
+    def set_permissions(self, path: str, mode: str) -> "SetPermissionsResponse":
+        rid, client = self._rc()
+        return client.runtime.file.set_permissions(rid, path, mode)
+
+    def upload_file(self, file: BinaryIO, path: Optional[str] = None) -> "FileUploadResponse":
+        rid, client = self._rc()
+        return client.runtime.file.upload_file(rid, file, path=path)
+
+    def download_file(self, path: str) -> bytes:
+        rid, client = self._rc()
+        return client.runtime.file.download_file(rid, path)
 
 
 @dataclass
@@ -492,6 +489,8 @@ class FileInfo:
     is_dir: bool
     modified_at: str = ""
     mode: Optional[str] = None
+    path: Optional[str] = None
+    permissions: Optional[str] = None
 
 
 @dataclass
@@ -515,6 +514,23 @@ class DirectoryCreateResponse:
 
     message: str
     path: Optional[str] = None
+    success: Optional[bool] = None
+
+
+@dataclass
+class FileGetInfoResponse:
+    """Response from ``runtime.file.get_info`` (native stat)."""
+
+    exists: bool
+    info: Optional["FileInfo"] = None
+
+
+@dataclass
+class SetPermissionsResponse:
+    """Response from ``runtime.file.set_permissions``."""
+
+    message: str
+    success: bool = True
 
 
 @dataclass
@@ -738,7 +754,7 @@ class WriteResult:
 
 @dataclass
 class WriteFilesResponse:
-    """Response from write/write_files operations"""
+    """Response from multipart ``upload`` / ``write_many`` operations."""
 
     files: List[WriteResult]
     partial_failure: bool = False

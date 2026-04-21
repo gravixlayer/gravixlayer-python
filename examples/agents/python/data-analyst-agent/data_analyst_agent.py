@@ -292,7 +292,7 @@ def download_charts(runtime: Runtime, local_dir: str = LOCAL_CHARTS_DIR) -> None
     os.makedirs(local_dir, exist_ok=True)
 
     try:
-        files = runtime.list_files(CHARTS_DIR)
+        files = runtime.file.list(CHARTS_DIR).files
         chart_files = [f for f in files if f.name.endswith(".png")]
 
         if not chart_files:
@@ -302,9 +302,7 @@ def download_charts(runtime: Runtime, local_dir: str = LOCAL_CHARTS_DIR) -> None
         print(f"\nDownloading {len(chart_files)} chart(s) to ./{local_dir}/")
         for fi in chart_files:
             remote_path = f"{CHARTS_DIR}/{fi.name}"
-            data = runtime._client.runtime.download_file(
-                runtime.runtime_id, path=remote_path
-            )
+            data = runtime.file.download_file(remote_path)
             local_path = os.path.join(local_dir, fi.name)
             with open(local_path, "wb") as f:
                 f.write(data)
