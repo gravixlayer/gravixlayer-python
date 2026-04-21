@@ -14,8 +14,6 @@ Usage:
     python examples/runtimes/11_list_and_manage.py
 """
 
-import os
-
 from gravixlayer import GravixLayer
 
 client = GravixLayer()

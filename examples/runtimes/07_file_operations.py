@@ -1,41 +1,20 @@
 #!/usr/bin/env python3
-"""File operations in an agent runtime
+"""Runtime filesystem: read/write, list, mkdir, upload, write_many, get_info, set_permissions, download, delete.
 
-Shows the main filesystem APIs on ``client.runtime.file``:
-
-  - **write** / **read** — text via the JSON API
-  - **list** — directory listing (names, sizes, permission strings when available)
-  - **create_directory** — create nested directories (recursive by default)
-  - **upload** — single-file multipart (binary or text)
-  - **write_many** — batch multipart with optional file mode (e.g. executable script)
-  - **get_info** — stat-style metadata (size, mode, mtime, permissions text)
-  - **set_permissions** — chmod using an octal string (e.g. ``\"644\"``, ``\"0755\"``)
-  - **download_file** / **delete** — pull bytes from the VM or remove a path
-
-Prerequisites: ``pip install gravixlayer``, ``export GRAVIXLAYER_API_KEY=...``.
-Optional: ``GRAVIXLAYER_TEMPLATE`` selects the image (defaults to a small Python template).
-
-Usage:
+    export GRAVIXLAYER_API_KEY=...
     python examples/runtimes/07_file_operations.py
 
-To run the SDK unit tests from a checkout: ``pytest tests/unit_tests -v`` (repo root:
-``gravixlayer-python``).
+Optional: ``GRAVIXLAYER_TEMPLATE`` (default ``python-3.14-base-small``).
 """
 
-from __future__ import annotations
-
 import os
-import tempfile
+from io import BytesIO
 
-from gravixlayer import GravixLayer, GravixLayerBadRequestError, GravixLayerServerError
-from gravixlayer.examples_env import python_runtime_template
+from gravixlayer import GravixLayer
 from gravixlayer.types.runtime import WriteEntry
 
-# Public API key from the environment (see README in the repo root).
 client = GravixLayer()
-
-# Template name: override with GRAVIXLAYER_TEMPLATE; legacy python-3.12 names are remapped.
-TEMPLATE = python_runtime_template()
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
 
 runtime = client.runtime.create(template=TEMPLATE)
 sid = runtime.runtime_id
@@ -101,39 +80,30 @@ entries = [
     WriteEntry(path="/home/user/project/run.sh", data="#!/bin/bash\npython src/main.py", mode=0o755),
 ]
 batch_result = client.runtime.file.write_many(sid, entries)
-print(f"Batch write: {len(batch_result.files)} file(s) reported")
-for wf in batch_result.files:
-    if wf.error:
-        print(f"  (warn) {wf.path}: {wf.error}")
+print(f"Batch write: {len(batch_result.files)} file(s)")
 
 # ---------------------------------------------------------------------------
-# 7–8. Stat + chmod (needs API routes POST .../files/info and .../files/set-mode)
+# 7–8. Stat + chmod
 # ---------------------------------------------------------------------------
 STAT_PATH = "/home/user/project/config.json"  # exists from step 5
 CHMOD_PATH = "/home/user/project/README.md"  # from batch write
-try:
-    info_run = client.runtime.file.get_info(sid, STAT_PATH)
-    if info_run.exists and info_run.info:
-        fi = info_run.info
-        print(
-            f"\nget_info   : {STAT_PATH} size={fi.size} mode={fi.mode!r} "
-            f"perms={fi.permissions!r} mtime={fi.modified_at!r}"
-        )
-    else:
-        print(f"\nget_info   : path not found ({STAT_PATH})")
-
-    perm_resp = client.runtime.file.set_permissions(sid, CHMOD_PATH, "600")
-    print(f"chmod      : {CHMOD_PATH} -> {perm_resp.message!r} ok={perm_resp.success}")
-
-    info_after = client.runtime.file.get_info(sid, CHMOD_PATH)
-    if info_after.exists and info_after.info:
-        i2 = info_after.info
-        print(f"get_info   : after chmod mode={i2.mode!r} perms={i2.permissions!r}")
-except (GravixLayerBadRequestError, GravixLayerServerError):
+info_run = client.runtime.file.get_info(sid, STAT_PATH)
+if info_run.exists and info_run.info:
+    fi = info_run.info
     print(
-        "\nNote: Skipping get_info / set_permissions (API returned an error). "
-        "Use a gravixlayer + backend version that supports POST .../files/info and .../files/set-mode."
+        f"\nget_info   : {STAT_PATH} size={fi.size} mode={fi.mode!r} "
+        f"perms={fi.permissions!r} mtime={fi.modified_at!r}"
     )
+else:
+    print(f"\nget_info   : path not found ({STAT_PATH})")
+
+perm_resp = client.runtime.file.set_permissions(sid, CHMOD_PATH, "600")
+print(f"chmod      : {CHMOD_PATH} -> {perm_resp.message!r} ok={perm_resp.success}")
+
+info_after = client.runtime.file.get_info(sid, CHMOD_PATH)
+if info_after.exists and info_after.info:
+    i2 = info_after.info
+    print(f"get_info   : after chmod mode={i2.mode!r} perms={i2.permissions!r}")
 
 # ---------------------------------------------------------------------------
 # 9. List project tree
@@ -145,17 +115,12 @@ for f in file_list.files:
     print(f"  {kind}{f.name}")
 
 # ---------------------------------------------------------------------------
-# 10. Upload from a file on this machine
+# 10. Upload from bytes (e.g. local file: open(..., "rb") as fh)
 # ---------------------------------------------------------------------------
-with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as tmp:
-    tmp.write("uploaded from laptop\n")
-    local_path = tmp.name
-try:
-    with open(local_path, "rb") as fh:
-        up = client.runtime.file.upload_file(sid, fh, path="/home/user/from_local.txt")
-    print(f"\nLocal file : uploaded to {up.path!r} ({up.message})")
-finally:
-    os.unlink(local_path)
+up = client.runtime.file.upload_file(
+    sid, BytesIO(b"uploaded from laptop\n"), path="/home/user/from_local.txt"
+)
+print(f"\nLocal file : uploaded to {up.path!r} ({up.message})")
 
 # ---------------------------------------------------------------------------
 # 11. Download bytes from the runtime

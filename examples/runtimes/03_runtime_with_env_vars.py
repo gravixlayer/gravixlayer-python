@@ -12,11 +12,10 @@ Usage:
 
 import os
 from gravixlayer import GravixLayer
-from gravixlayer.examples_env import python_runtime_template
 
 client = GravixLayer()
 
-TEMPLATE = python_runtime_template()
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
 
 # ---------------------------------------------------------------------------
 # Create an agent runtime with env vars and metadata

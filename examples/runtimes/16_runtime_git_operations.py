@@ -1,28 +1,16 @@
 #!/usr/bin/env python3
-"""Runtime Git API — ``client.runtime.git``
+"""``client.runtime.git``: clone, status, branches, fetch, checkout, add, commit, pull, push.
 
-Runs through: clone → status → branches → fetch → checkout → create/delete branch →
-add/commit → pull → push.
-Uses a tiny public repo by default; set ``GIT_BRANCH`` if your repo’s default differs.
-
-    export GRAVIXLAYER_API_KEY="your-api-key"
+    export GRAVIXLAYER_API_KEY=...
     python examples/runtimes/16_runtime_git_operations.py
 
-Optional (your Git remote and paths inside the runtime):
-
-    export GIT_CLONE_URL="https://github.com/org/repo.git"
-    export GIT_BRANCH="main"
-    export GIT_CLONE_PATH="/home/user/my-repo"
-
-Private clone (HTTPS): ``export GIT_AUTH_TOKEN=...``  
-Push (optional): ``export GIT_USERNAME=...`` and ``export GIT_PASSWORD=...`` (e.g. token as password).
-
+Environment (optional): ``GIT_CLONE_URL``, ``GIT_BRANCH``, ``GIT_CLONE_PATH``, ``GIT_AUTH_TOKEN``,
+``GIT_USERNAME`` / ``GIT_PASSWORD`` (for push). Defaults clone a small public repo.
 """
 
 import os
 
 from gravixlayer import GravixLayer
-from gravixlayer.examples_env import python_runtime_template
 
 clone_url = os.environ.get(
     "GIT_CLONE_URL",
@@ -34,8 +22,8 @@ clone_path = os.environ.get("GIT_CLONE_PATH", "/home/user/git-demo")
 
 client = GravixLayer()
 
-# Create an agent runtime to run git inside (template from env + legacy remap).
-rt = client.runtime.create(template=python_runtime_template())
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+rt = client.runtime.create(template=TEMPLATE)
 sid = rt.runtime_id
 token = os.environ.get("GIT_AUTH_TOKEN")
 

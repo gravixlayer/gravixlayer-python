@@ -1,36 +1,21 @@
-"""Disable SSH for an agent runtime.
+#!/usr/bin/env python3
+"""Enable SSH, then disable it, and print status before/after.
 
-Public tutorial goal:
-- Enable SSH first.
-- Disable SSH access.
-- Verify status after disable.
+Environment:
+    GRAVIXLAYER_API_KEY   required
+    GRAVIXLAYER_TEMPLATE  optional (default: python-3.14-base-small)
 """
 
-from gravixlayer import GravixLayer
+import os
 
+from gravixlayer.types.runtime import Runtime
 
-def main() -> None:
-    client = GravixLayer()
-    runtime = None
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
 
-    try:
-        runtime = client.runtime.create(template="python-3.14-base-small", timeout=1800)
-        runtime_id = runtime.runtime_id
-
-        client.runtime.enable_ssh(runtime_id)
-        before = client.runtime.ssh_status(runtime_id)
-        print(f"Before disable -> enabled: {before.enabled}, daemon_running: {before.daemon_running}")
-
-        client.runtime.disable_ssh(runtime_id)
-
-        after = client.runtime.ssh_status(runtime_id)
-        print(f"After disable -> enabled: {after.enabled}, daemon_running: {after.daemon_running}")
-
-    finally:
-        if runtime is not None:
-            client.runtime.kill(runtime.runtime_id)
-        client.close()
-
-
-if __name__ == "__main__":
-    main()
+with Runtime.create(template=TEMPLATE, timeout=1800) as rt:
+    rt.enable_ssh()
+    before = rt.ssh_status()
+    print(f"before disable: enabled={before.enabled} daemon_running={before.daemon_running}")
+    rt.disable_ssh()
+    after = rt.ssh_status()
+    print(f"after disable:  enabled={after.enabled} daemon_running={after.daemon_running}")

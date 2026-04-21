@@ -13,13 +13,13 @@ Usage:
     python examples/runtimes/01_create_python_runtime.py
 """
 
+import os
+
 from gravixlayer import GravixLayer
-from gravixlayer.examples_env import python_runtime_template
 
 client = GravixLayer()
 
-# Override with GRAVIXLAYER_TEMPLATE; legacy python-3.12-base-* names are remapped.
-TEMPLATE = python_runtime_template()
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
 
 # ---------------------------------------------------------------------------
 # Create an agent runtime from a Python template

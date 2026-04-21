@@ -15,8 +15,7 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer()
 
-# Node image: GRAVIXLAYER_TEMPLATE should name a Node template (default is public).
-TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "node-20-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "node-20-base-small")
 
 runtime = client.runtime.create(template=TEMPLATE)
 sid = runtime.runtime_id

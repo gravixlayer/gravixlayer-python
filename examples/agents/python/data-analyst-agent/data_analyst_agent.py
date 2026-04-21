@@ -22,7 +22,6 @@ import time
 from dataclasses import dataclass, field
 
 from openai import OpenAI
-from gravixlayer.examples_env import python_runtime_template
 from gravixlayer.types.runtime import Runtime
 
 
@@ -157,11 +156,7 @@ STDERR_FILTERS = [
 def execute_code_in_runtime(runtime: Runtime, code: str) -> tuple[str, float]:
     """Execute Python code in the Agent Runtime and return (output, elapsed_ms)."""
     t0 = time.perf_counter()
-    try:
-        result = runtime.run_code(code)
-    except Exception as exc:
-        elapsed = (time.perf_counter() - t0) * 1000
-        return f"[runtime error]: {exc}", elapsed
+    result = runtime.run_code(code)
     elapsed = (time.perf_counter() - t0) * 1000
 
     parts = []
@@ -287,25 +282,19 @@ def run_analysis(openai_client: OpenAI, runtime: Runtime) -> None:
 def download_charts(runtime: Runtime, local_dir: str = LOCAL_CHARTS_DIR) -> None:
     """Download generated charts from the Agent Runtime to the local machine."""
     os.makedirs(local_dir, exist_ok=True)
-
-    try:
-        files = runtime.file.list(CHARTS_DIR).files
-        chart_files = [f for f in files if f.name.endswith(".png")]
-
-        if not chart_files:
-            print("\nNo charts were generated.")
-            return
-
-        print(f"\nDownloading {len(chart_files)} chart(s) to ./{local_dir}/")
-        for fi in chart_files:
-            remote_path = f"{CHARTS_DIR}/{fi.name}"
-            data = runtime.file.download_file(remote_path)
-            local_path = os.path.join(local_dir, fi.name)
-            with open(local_path, "wb") as f:
-                f.write(data)
-            print(f"  {local_path} ({len(data):,} bytes)")
-    except Exception as e:
-        print(f"\nFailed to download charts: {e}")
+    files = runtime.file.list(CHARTS_DIR).files
+    chart_files = [f for f in files if f.name.endswith(".png")]
+    if not chart_files:
+        print("\nNo charts were generated.")
+        return
+    print(f"\nDownloading {len(chart_files)} chart(s) to ./{local_dir}/")
+    for fi in chart_files:
+        remote_path = f"{CHARTS_DIR}/{fi.name}"
+        data = runtime.file.download_file(remote_path)
+        local_path = os.path.join(local_dir, fi.name)
+        with open(local_path, "wb") as f:
+            f.write(data)
+        print(f"  {local_path} ({len(data):,} bytes)")
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +323,7 @@ def main():
     print("Creating Agent Runtime...")
 
     with Runtime.create(
-        template=python_runtime_template("python-3.14-base-medium"),
+        template=os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-medium"),
         timeout=int(os.getenv("GRAVIXLAYER_TIMEOUT", "600")),
     ) as runtime:
         print(f"Runtime ready: {runtime.runtime_id}")

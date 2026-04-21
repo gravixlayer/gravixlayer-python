@@ -1,27 +1,16 @@
 #!/usr/bin/env python3
-"""
-Runtime Context Manager — Automatic Cleanup
+"""Use ``with Runtime.create(...)`` so the runtime is stopped when the block ends.
 
-The Runtime class supports Python's 'with' statement. When the block
-exits (normally or via an exception), the runtime is automatically
-terminated. This guarantees you never leave orphaned runtimes running.
-
-The Runtime.create() class method creates the client internally,
-so you only need an API key.
-
-Usage:
-    export GRAVIXLAYER_API_KEY="your-api-key"
+    export GRAVIXLAYER_API_KEY=...
     python examples/runtimes/12_context_manager.py
 """
 
 import os
 
-from gravixlayer.examples_env import python_runtime_template
 from gravixlayer.types.runtime import Runtime
 
-# Python image: GRAVIXLAYER_TEMPLATE (+ legacy name remap). Node: separate env var.
-PYTHON_TEMPLATE = python_runtime_template()
-NODE_TEMPLATE = os.environ.get("GRAVIXLAYER_NODE_TEMPLATE", "node-20-base-small")
+PYTHON_TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+NODE_TEMPLATE = os.getenv("GRAVIXLAYER_NODE_TEMPLATE", "node-20-base-small")
 
 # ---------------------------------------------------------------------------
 # 1. Basic usage — runtime is killed when the block exits
@@ -75,22 +64,3 @@ with Runtime.create(
     print(f"Output     : {execution.stdout.strip()}")
 
 print("Runtime auto-terminated on exit.\n")
-
-# ---------------------------------------------------------------------------
-# 3. Exception safety — runtime is cleaned up even if an error occurs
-# ---------------------------------------------------------------------------
-print("--- Exception Safety ---")
-
-try:
-    with Runtime.create(
-        template=PYTHON_TEMPLATE,
-        timeout=120,
-    ) as rt:
-        print(f"Runtime ID : {rt.runtime_id}")
-        # Simulate an error
-        raise ValueError("Something went wrong")
-except ValueError as e:
-    print(f"Caught     : {e}")
-    print("Runtime was still auto-terminated despite the error.")
-
-print("\nDone.")
