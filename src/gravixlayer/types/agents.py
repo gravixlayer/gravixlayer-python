@@ -58,12 +58,21 @@ class AgentHealthStatus(str, Enum):
 class AgentFramework(str, Enum):
     """Supported agent frameworks."""
     LANGGRAPH = "langgraph"
+    LANGCHAIN = "langchain"
     CREWAI = "crewai"
     GOOGLE_ADK = "google-adk"
-    OPENAI = "openai"
+    OPENAI_AGENTS = "openai-agents"
+    OPENAI = "openai-agents"
     ANTHROPIC = "anthropic"
-    A2A = "a2a"
+    STRANDS = "strands"
     PYTHON = "python"
+
+
+class AgentProtocol(str, Enum):
+    """Supported agent transport and interoperability protocols."""
+    HTTP = "http"
+    A2A = "a2a"
+    MCP = "mcp"
 
 
 # ---------------------------------------------------------------------------

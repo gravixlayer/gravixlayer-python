@@ -202,7 +202,11 @@ class GravixApp:
         try:
             # Framework adapter takes priority
             if self._adapter is not None:
-                result = await self._adapter.handle_invoke(input_data, config_data)
+                if hasattr(self._adapter, "handle_request"):
+                    result = await self._adapter.handle_request(body)
+                    return JSONResponse(result)
+                else:
+                    result = await self._adapter.handle_invoke(input_data, config_data)
             elif self._handler is not None:
                 result = await self._call_handler(self._handler, input_data, config_data)
             else:

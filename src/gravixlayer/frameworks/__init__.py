@@ -4,13 +4,24 @@ from __future__ import annotations
 
 from typing import Any
 
-AVAILABLE_FRAMEWORKS = ["langgraph", "crewai", "openai_agents", "google_adk"]
+AVAILABLE_FRAMEWORKS = [
+    "langgraph",
+    "langchain",
+    "crewai",
+    "openai_agents",
+    "google_adk",
+    "anthropic",
+    "strands",
+]
 
 _ADAPTER_MAP = {
     "langgraph": ("gravixlayer.frameworks.langgraph", "LangGraphAdapter"),
+    "langchain": ("gravixlayer.frameworks.langchain", "LangChainAdapter"),
     "crewai": ("gravixlayer.frameworks.crewai", "CrewAIAdapter"),
     "openai_agents": ("gravixlayer.frameworks.openai_agents", "OpenAIAgentsAdapter"),
     "google_adk": ("gravixlayer.frameworks.google_adk", "GoogleADKAdapter"),
+    "anthropic": ("gravixlayer.frameworks.anthropic", "AnthropicAdapter"),
+    "strands": ("gravixlayer.frameworks.strands", "StrandsAdapter"),
 }
 
 

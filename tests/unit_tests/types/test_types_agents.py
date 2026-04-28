@@ -4,6 +4,7 @@ from gravixlayer.types.agents import (
     AgentBuildStatus,
     AgentBuildPhase,
     AgentFramework,
+    AgentProtocol,
     AgentSkill,
     AgentCapabilities,
     AgentCard,
@@ -176,4 +177,8 @@ class TestAgentCapabilities:
 class TestEnums:
     def test_agent_framework_values(self):
         assert AgentFramework.LANGGRAPH.value == "langgraph"
-        assert AgentFramework.A2A.value == "a2a"
+        assert AgentFramework.LANGCHAIN.value == "langchain"
+        assert AgentFramework.GOOGLE_ADK.value == "google-adk"
+        assert AgentFramework.OPENAI_AGENTS.value == "openai-agents"
+        assert AgentFramework.STRANDS.value == "strands"
+        assert AgentProtocol.A2A.value == "a2a"

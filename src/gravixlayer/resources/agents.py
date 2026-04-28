@@ -15,6 +15,7 @@ API endpoints:
 import io
 import json
 import os
+import shlex
 import sys
 import tarfile
 import time
@@ -29,25 +30,159 @@ def _load_dotenv(source_dir: Path) -> Dict[str, str]:
     Supports KEY=VALUE lines, quoted values, and comments. Skips blank lines
     and lines starting with '#'. Does NOT modify ``os.environ``.
     """
-    env_file = source_dir / ".env"
-    if not env_file.is_file():
-        return {}
     result: Dict[str, str] = {}
-    for line in env_file.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
+    for env_file in (source_dir / ".env", source_dir / "gravixlayer" / ".env.local"):
+        if not env_file.is_file():
             continue
-        if "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip()
-        # Strip surrounding quotes (single or double)
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-            value = value[1:-1]
-        if key:
-            result[key] = value
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                value = value[1:-1]
+            if key:
+                result[key] = value
     return result
+
+
+def _normalize_framework(framework: str) -> str:
+    normalized = framework.strip().lower().replace("_", "-")
+    if normalized in {"a2a", "a2a-native"}:
+        raise ValueError(
+            "a2a is a protocol, not an agent framework; use framework langgraph, "
+            "langchain, google-adk, or python and enable A2A separately"
+        )
+    aliases = {
+        "google-adk": "google-adk",
+        "google_adk": "google-adk",
+        "openai": "openai-agents",
+        "openai-agents": "openai-agents",
+        "claude": "anthropic",
+        "claude-agent": "anthropic",
+        "claude-agent-sdk": "anthropic",
+        "strands-agents": "strands",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _infer_agent_source(source_dir: Path) -> Dict[str, Any]:
+    inferred: Dict[str, Any] = {"ports": []}
+    langgraph = _read_langgraph_config(source_dir)
+    if langgraph:
+        inferred.update(langgraph)
+        inferred["framework"] = "langgraph"
+
+    deps = _read_dependency_names(source_dir)
+    if not inferred.get("framework"):
+        inferred["framework"] = _infer_framework_from_dependencies(deps)
+    if not inferred.get("ports") and inferred.get("framework") in {"langgraph", "langchain", "google-adk"}:
+        inferred["ports"] = [8000]
+    return inferred
+
+
+def _read_langgraph_config(source_dir: Path) -> Dict[str, Any]:
+    path = source_dir / "langgraph.json"
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text())
+    result: Dict[str, Any] = {}
+    python_version = str(data.get("python_version") or "").strip()
+    if python_version:
+        result["python_version"] = ".".join(python_version.split(".")[:2])
+    graphs = data.get("graphs") or {}
+    if isinstance(graphs, dict):
+        selected = graphs.get("agent") if "agent" in graphs else next(iter(graphs.values()), None)
+        target = _target_from_langgraph_value(selected)
+        if target:
+            result["target"] = target
+    return result
+
+
+def _target_from_langgraph_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        return str(value.get("path") or "").strip()
+    return ""
+
+
+def _read_dependency_names(source_dir: Path) -> list[str]:
+    deps: list[str] = []
+    requirements = source_dir / "requirements.txt"
+    if requirements.is_file():
+        for line in requirements.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("-"):
+                continue
+            deps.append(_normalize_dependency_name(line))
+    pyproject = source_dir / "pyproject.toml"
+    if pyproject.is_file():
+        raw = pyproject.read_text().lower()
+        for dep in (
+            "langgraph",
+            "langchain",
+            "langchain-core",
+            "crewai",
+            "google-adk",
+            "openai-agents",
+            "anthropic",
+            "claude-agent-sdk",
+            "strands-agents",
+        ):
+            if dep in raw:
+                deps.append(dep)
+    return sorted(set(deps))
+
+
+def _normalize_dependency_name(spec: str) -> str:
+    name = spec.strip().split("[")[0]
+    for marker in (">", "<", "=", "!", "~", ";", " "):
+        name = name.split(marker)[0]
+    return name.lower().replace("_", "-")
+
+
+def _infer_framework_from_dependencies(deps: list[str]) -> str:
+    if "langgraph" in deps:
+        return "langgraph"
+    if "crewai" in deps:
+        return "crewai"
+    if "google-adk" in deps:
+        return "google-adk"
+    if "openai-agents" in deps:
+        return "openai-agents"
+    if "strands-agents" in deps:
+        return "strands"
+    if "claude-agent-sdk" in deps:
+        return "anthropic"
+    if any(dep == "langchain" or dep.startswith("langchain-") for dep in deps):
+        return "langchain"
+    return "python"
+
+
+def _native_autoserve_entrypoint(framework: str, ports: Optional[list], target: str = "") -> str:
+    canonical = _normalize_framework(framework)
+    if canonical not in {"langgraph", "langchain", "google-adk"}:
+        return ""
+    port = ports[0] if ports else 8000
+    command = [
+        "python",
+        "-m",
+        "gravixlayer.runtime.autoserve",
+        "--framework",
+        canonical,
+        "--host",
+        "0.0.0.0",
+        "--port",
+        str(port),
+    ]
+    if canonical == "langgraph" and target:
+        command.extend(["--target", target])
+    return " ".join(shlex.quote(part) for part in command)
 
 
 from .._cli_progress import AGENT_BUILD_PHASE_LABELS, PhaseSpinner, fmt_duration
@@ -219,6 +354,7 @@ class Agents:
         ready_cmd: str = "",
         ready_timeout_secs: int = 0,
         tags: Optional[Dict[str, str]] = None,
+        target: str = "",
     ) -> AgentBuildResponse:
         """Start an agent template build from local project source.
 
@@ -245,7 +381,16 @@ class Agents:
         Returns:
             AgentBuildResponse with build_id for status polling.
         """
-        archive_bytes = _create_source_archive(source)
+        source_path = Path(source).resolve()
+        inferred = _infer_agent_source(source_path)
+        framework = framework or inferred.get("framework", "")
+        framework = _normalize_framework(framework) if framework else ""
+        python_version = python_version or inferred.get("python_version", "")
+        ports = ports or inferred.get("ports", [])
+        target = target or inferred.get("target", "")
+        entrypoint = entrypoint or _native_autoserve_entrypoint(framework, ports, target)
+
+        archive_bytes = _create_source_archive(source_path)
 
         metadata = AgentBuildRequest(
             name=name,
@@ -407,6 +552,7 @@ class Agents:
         ready_cmd: str = "",
         ready_timeout_secs: int = 0,
         tags: Optional[Dict[str, str]] = None,
+        target: str = "",
         entry_point: str = "",
         http_port: int = 0,
         a2a_port: int = 0,
@@ -482,6 +628,13 @@ class Agents:
             # Auto-load .env file from source directory. Explicit environment
             # variables take precedence over .env values.
             source_path = Path(source).resolve()
+            inferred = _infer_agent_source(source_path)
+            framework = framework or inferred.get("framework", "")
+            framework = _normalize_framework(framework) if framework else ""
+            python_version = python_version or inferred.get("python_version", "")
+            ports = ports or inferred.get("ports", [])
+            target = target or inferred.get("target", "")
+            entrypoint = entrypoint or _native_autoserve_entrypoint(framework, ports, target)
             dotenv_vars = _load_dotenv(source_path)
             if dotenv_vars:
                 merged = {**dotenv_vars, **(environment or {})}
@@ -509,6 +662,7 @@ class Agents:
                 ready_cmd=ready_cmd,
                 ready_timeout_secs=ready_timeout_secs,
                 tags=tags,
+                target=target,
             )
 
             build_status = self.wait_for_build(
@@ -579,6 +733,7 @@ class Agents:
         input: Optional[Dict[str, Any]] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        resume: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Invoke a deployed agent synchronously.
 
@@ -601,6 +756,8 @@ class Agents:
             payload["input"] = input
         if session_id is not None:
             payload["session_id"] = session_id
+        if resume is not None:
+            payload["resume"] = resume
         if metadata is not None:
             payload["metadata"] = metadata
 
@@ -619,6 +776,7 @@ class Agents:
         input: Optional[Dict[str, Any]] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        resume: Optional[Any] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Invoke a deployed agent with streaming response.
 
@@ -641,6 +799,8 @@ class Agents:
             payload["input"] = input
         if session_id is not None:
             payload["session_id"] = session_id
+        if resume is not None:
+            payload["resume"] = resume
         if metadata is not None:
             payload["metadata"] = metadata
 

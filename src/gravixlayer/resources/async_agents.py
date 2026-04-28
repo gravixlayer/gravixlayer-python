@@ -37,7 +37,10 @@ from ..types.agents import (
 from .agents import (
     _ARCHIVE_EXCLUDE_PATTERNS,
     _create_source_archive,
+    _infer_agent_source,
     _load_dotenv,
+    _native_autoserve_entrypoint,
+    _normalize_framework,
 )
 
 logger = logging.getLogger(__name__)
@@ -129,6 +132,7 @@ class AsyncAgents:
         ready_cmd: str = "",
         ready_timeout_secs: int = 0,
         tags: Optional[Dict[str, str]] = None,
+        target: str = "",
     ) -> AgentBuildResponse:
         """Start an agent template build from local project source.
 
@@ -155,7 +159,16 @@ class AsyncAgents:
         Returns:
             AgentBuildResponse with build_id for status polling.
         """
-        archive_bytes = _create_source_archive(source)
+        source_path = Path(source).resolve()
+        inferred = _infer_agent_source(source_path)
+        framework = framework or inferred.get("framework", "")
+        framework = _normalize_framework(framework) if framework else ""
+        python_version = python_version or inferred.get("python_version", "")
+        ports = ports or inferred.get("ports", [])
+        target = target or inferred.get("target", "")
+        entrypoint = entrypoint or _native_autoserve_entrypoint(framework, ports, target)
+
+        archive_bytes = _create_source_archive(source_path)
 
         metadata = AgentBuildRequest(
             name=name,
@@ -317,6 +330,7 @@ class AsyncAgents:
         ready_cmd: str = "",
         ready_timeout_secs: int = 0,
         tags: Optional[Dict[str, str]] = None,
+        target: str = "",
         entry_point: str = "",
         http_port: int = 0,
         a2a_port: int = 0,
@@ -392,6 +406,13 @@ class AsyncAgents:
             # Auto-load .env file from source directory. Explicit environment
             # variables take precedence over .env values.
             source_path = Path(source).resolve()
+            inferred = _infer_agent_source(source_path)
+            framework = framework or inferred.get("framework", "")
+            framework = _normalize_framework(framework) if framework else ""
+            python_version = python_version or inferred.get("python_version", "")
+            ports = ports or inferred.get("ports", [])
+            target = target or inferred.get("target", "")
+            entrypoint = entrypoint or _native_autoserve_entrypoint(framework, ports, target)
             dotenv_vars = _load_dotenv(source_path)
             if dotenv_vars:
                 merged = {**dotenv_vars, **(environment or {})}
@@ -419,6 +440,7 @@ class AsyncAgents:
                 ready_cmd=ready_cmd,
                 ready_timeout_secs=ready_timeout_secs,
                 tags=tags,
+                target=target,
             )
 
             build_status = await self.wait_for_build(
@@ -491,6 +513,7 @@ class AsyncAgents:
         input: Optional[Dict[str, Any]] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        resume: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Invoke a deployed agent.
 
@@ -513,6 +536,8 @@ class AsyncAgents:
             payload["input"] = input
         if session_id is not None:
             payload["session_id"] = session_id
+        if resume is not None:
+            payload["resume"] = resume
         if metadata is not None:
             payload["metadata"] = metadata
 
@@ -531,6 +556,7 @@ class AsyncAgents:
         input: Optional[Dict[str, Any]] = None,
         session_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        resume: Optional[Any] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Invoke a deployed agent with streaming response.
 
@@ -553,6 +579,8 @@ class AsyncAgents:
             payload["input"] = input
         if session_id is not None:
             payload["session_id"] = session_id
+        if resume is not None:
+            payload["resume"] = resume
         if metadata is not None:
             payload["metadata"] = metadata
 

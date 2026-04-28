@@ -88,6 +88,14 @@ class TestLoadDotenv:
         assert d["KEY"] == "value"
         assert d["QUOTED"] == "hello world"
 
+    def test_env_local_overrides_root_env(self, tmp_path):
+        (tmp_path / ".env").write_text("KEY=root\n")
+        env_dir = tmp_path / "gravixlayer"
+        env_dir.mkdir()
+        (env_dir / ".env.local").write_text("KEY=local\nEXTRA=1\n")
+
+        assert _load_dotenv(tmp_path) == {"KEY": "local", "EXTRA": "1"}
+
     def test_skips_lines_without_equals(self, tmp_path):
         (tmp_path / ".env").write_text("noequals\nA=1\n")
         assert _load_dotenv(tmp_path) == {"A": "1"}
@@ -138,6 +146,22 @@ class TestSyncAgentsAPI:
         req = mock_api.calls[-1].request
         assert req.method == "POST"
         assert "multipart/form-data" in req.headers.get("content-type", "")
+
+    def test_build_infers_langgraph_autoserve_entrypoint(self, client, mock_api, tmp_path):
+        (tmp_path / "requirements.txt").write_text("langgraph>=1.0\n")
+        (tmp_path / "langgraph.json").write_text(
+            json.dumps({"graphs": {"travel_planner": "./agent/graph.py:graph"}})
+        )
+        mock_api.post(f"{AGENTS_BASE}/template/build-agent").mock(
+            return_value=httpx.Response(202, json=_sample_build_json())
+        )
+
+        client.agents.build(tmp_path, name="travel-planner")
+
+        body = mock_api.calls[-1].request.content
+        assert b"gravixlayer.runtime.autoserve" in body
+        assert b"--target" in body
+        assert b"./agent/graph.py:graph" in body
 
     def test_get_build_status(self, client, mock_api):
         mock_api.get(f"{AGENTS_BASE}/template/builds/build-agent-1/status").mock(
@@ -216,8 +240,11 @@ class TestSyncAgentsAPI:
         mock_api.post("https://agent.example.com/invoke").mock(
             return_value=httpx.Response(200, json={"ok": True, "out": "hi"})
         )
-        out = client.agents.invoke("ag-1", input={"prompt": "hello"})
+        out = client.agents.invoke("ag-1", input={"prompt": "hello"}, session_id="thread-1", resume="continue")
         assert out["ok"] is True
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["session_id"] == "thread-1"
+        assert body["resume"] == "continue"
 
 
 # ===================================================================
