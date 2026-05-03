@@ -412,7 +412,13 @@ class AsyncAgents:
             python_version = python_version or inferred.get("python_version", "")
             ports = ports or inferred.get("ports", [])
             target = target or inferred.get("target", "")
-            entrypoint = entrypoint or _native_autoserve_entrypoint(framework, ports, target)
+            protocols = protocols or []
+            entrypoint = entrypoint or _native_autoserve_entrypoint(
+                framework,
+                ports,
+                target,
+                protocols,
+            )
             dotenv_vars = _load_dotenv(source_path)
             if dotenv_vars:
                 merged = {**dotenv_vars, **(environment or {})}

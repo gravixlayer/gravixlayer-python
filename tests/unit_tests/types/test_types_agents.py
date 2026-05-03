@@ -92,13 +92,17 @@ class TestAgentDeployRequestToDict:
             name="c",
             description="d",
             version="1",
-            skills=[AgentSkill(id="s1", name="Skill")],
+            skills=[AgentSkill(id="s1", name="Skill", input_modes=["text/plain"])],
+            default_input_modes=["text/plain"],
+            default_output_modes=["text/plain"],
         )
         d = AgentDeployRequest(template_id="t", agent_card=card).to_dict()
         assert d["template_id"] == "t"
         assert "agent_card" in d
         assert d["agent_card"]["name"] == "c"
+        assert d["agent_card"]["defaultInputModes"] == ["text/plain"]
         assert d["agent_card"]["skills"][0]["id"] == "s1"
+        assert d["agent_card"]["skills"][0]["inputModes"] == ["text/plain"]
 
 
 class TestParsers:
@@ -169,9 +173,10 @@ class TestAgentCapabilities:
         assert AgentCapabilities().to_dict() == {}
 
     def test_to_dict_includes_true_flags(self):
-        d = AgentCapabilities(streaming=True, push_notifications=True).to_dict()
+        d = AgentCapabilities(streaming=True, push_notifications=True, extended_agent_card=True).to_dict()
         assert d["streaming"] is True
-        assert d["push_notifications"] is True
+        assert d["pushNotifications"] is True
+        assert d["extendedAgentCard"] is True
 
 
 class TestEnums:

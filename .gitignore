@@ -29,10 +29,10 @@ pip-delete-this-directory.txt
 
 *.log
 
-# Internal / draft docs (not shipped in this repo). Keep reference material locally only.
+# Local notes that are not shipped in this repo.
 docs/
 
-# Pre-release agent samples (not published); keep locally under examples/agents/internal/
+# Local agent samples that are not shipped in this repo.
 examples/agents/internal/
 
 # PyBuilder

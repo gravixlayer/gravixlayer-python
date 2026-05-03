@@ -60,6 +60,8 @@ class GravixApp:
         self._tools: dict[str, Callable] = {}
         self._framework_name = framework
         self._starlette_app: Any = None
+        self._a2a_enabled = False
+        self._a2a_agent_card: Any = None
 
     # ------------------------------------------------------------------
     # Decorators
@@ -116,6 +118,12 @@ class GravixApp:
         self._framework_name = framework_name
         logger.info("Mounted framework adapter: %s", framework_name)
 
+    def enable_a2a(self, agent_card: Any | None = None) -> None:
+        """Expose this app through the platform-managed A2A protocol."""
+        self._a2a_enabled = True
+        self._a2a_agent_card = agent_card
+        self._starlette_app = None
+
     # ------------------------------------------------------------------
     # ASGI app construction
     # ------------------------------------------------------------------
@@ -141,6 +149,16 @@ class GravixApp:
         if self._adapter is not None:
             adapter_routes = self._adapter.get_routes()
             routes.extend(adapter_routes)
+
+        if self._a2a_enabled:
+            from gravixlayer.a2a import create_gravix_app_a2a_routes
+
+            routes.extend(
+                create_gravix_app_a2a_routes(
+                    self,
+                    agent_card=self._a2a_agent_card,
+                )
+            )
 
         async def on_startup() -> None:
             if self._adapter is not None:
@@ -289,7 +307,7 @@ class GravixApp:
             return handler(*args)
         else:
             # Sync function — run in executor
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             return await loop.run_in_executor(None, lambda: handler(*args))
 
     # ------------------------------------------------------------------

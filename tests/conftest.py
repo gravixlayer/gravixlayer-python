@@ -11,8 +11,7 @@ Shared constants and response factories live in :mod:`tests.utils`.
 import pytest
 import respx
 
-# Better assertion messages if we add custom assert helpers in tests.utils
-# (same pattern as openai-python's tests.utils).
+# Better assertion messages if custom assert helpers are added to tests.utils.
 pytest.register_assert_rewrite("tests.utils")
 
 from tests.utils import TEST_API_KEY, TEST_BASE_URL

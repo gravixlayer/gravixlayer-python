@@ -9,13 +9,14 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
-
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class AgentBuildStatus(str, Enum):
     """Build lifecycle status values."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -24,6 +25,7 @@ class AgentBuildStatus(str, Enum):
 
 class AgentBuildPhase(str, Enum):
     """Build phases reported by the backend."""
+
     INITIALIZING = "initializing"
     PREPARING = "preparing"
     BUILDING = "building"
@@ -33,6 +35,7 @@ class AgentBuildPhase(str, Enum):
 
 class AgentDeployStatus(str, Enum):
     """Agent deployment status values."""
+
     STARTING = "starting"
     ACTIVE = "active"
     DELETING = "deleting"
@@ -41,6 +44,7 @@ class AgentDeployStatus(str, Enum):
 
 class AgentDNSStatus(str, Enum):
     """DNS propagation status."""
+
     PENDING = "pending"
     PROPAGATING = "propagating"
     ACTIVE = "active"
@@ -49,6 +53,7 @@ class AgentDNSStatus(str, Enum):
 
 class AgentHealthStatus(str, Enum):
     """Agent health status values."""
+
     STARTING = "starting"
     HEALTHY = "healthy"
     UNHEALTHY = "unhealthy"
@@ -57,6 +62,7 @@ class AgentHealthStatus(str, Enum):
 
 class AgentFramework(str, Enum):
     """Supported agent frameworks."""
+
     LANGGRAPH = "langgraph"
     LANGCHAIN = "langchain"
     CREWAI = "crewai"
@@ -70,6 +76,7 @@ class AgentFramework(str, Enum):
 
 class AgentProtocol(str, Enum):
     """Supported agent transport and interoperability protocols."""
+
     HTTP = "http"
     A2A = "a2a"
     MCP = "mcp"
@@ -79,14 +86,19 @@ class AgentProtocol(str, Enum):
 # Agent Card types (A2A v1.0 protocol)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AgentSkill:
     """A skill advertised by an agent in its A2A Agent Card."""
+
     id: str
     name: str
     description: str = ""
     tags: List[str] = field(default_factory=list)
     examples: List[str] = field(default_factory=list)
+    input_modes: List[str] = field(default_factory=list)
+    output_modes: List[str] = field(default_factory=list)
+    security_requirements: List[Dict[str, List[str]]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         result: Dict[str, Any] = {"id": self.id, "name": self.name}
@@ -96,30 +108,41 @@ class AgentSkill:
             result["tags"] = self.tags
         if self.examples:
             result["examples"] = self.examples
+        if self.input_modes:
+            result["inputModes"] = self.input_modes
+        if self.output_modes:
+            result["outputModes"] = self.output_modes
+        if self.security_requirements:
+            result["securityRequirements"] = self.security_requirements
         return result
 
 
 @dataclass
 class AgentCapabilities:
     """Agent capabilities declaration (A2A spec)."""
+
     streaming: bool = False
     push_notifications: bool = False
     state_transition_history: bool = False
+    extended_agent_card: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         result: Dict[str, Any] = {}
         if self.streaming:
             result["streaming"] = self.streaming
         if self.push_notifications:
-            result["push_notifications"] = self.push_notifications
+            result["pushNotifications"] = self.push_notifications
         if self.state_transition_history:
-            result["state_transition_history"] = self.state_transition_history
+            result["stateTransitionHistory"] = self.state_transition_history
+        if self.extended_agent_card:
+            result["extendedAgentCard"] = self.extended_agent_card
         return result
 
 
 @dataclass
 class AgentCard:
     """A2A Agent Card describing agent capabilities."""
+
     name: str
     description: str
     version: str = ""
@@ -137,9 +160,9 @@ class AgentCard:
         caps = self.capabilities or AgentCapabilities()
         result["capabilities"] = caps.to_dict()
         if self.default_input_modes:
-            result["default_input_modes"] = self.default_input_modes
+            result["defaultInputModes"] = self.default_input_modes
         if self.default_output_modes:
-            result["default_output_modes"] = self.default_output_modes
+            result["defaultOutputModes"] = self.default_output_modes
         return result
 
 
@@ -147,12 +170,14 @@ class AgentCard:
 # Build request/response types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AgentBuildRequest:
     """Parameters for POST /v1/agents/template/build-agent (multipart).
 
     Used by ``Agents.build()`` to upload agent project source.
     """
+
     name: str
     description: str = ""
     entrypoint: str = ""
@@ -202,6 +227,7 @@ class AgentBuildRequest:
 @dataclass
 class AgentBuildResponse:
     """Response from POST /v1/agents/template/build-agent (202 Accepted)."""
+
     build_id: str
     template_id: str
     status: str
@@ -211,6 +237,7 @@ class AgentBuildResponse:
 @dataclass
 class AgentBuildStatusResponse:
     """Response from GET /v1/agents/template/builds/:build_id/status."""
+
     build_id: str
     template_id: str
     status: str
@@ -236,9 +263,11 @@ class AgentBuildStatusResponse:
 # Deploy request/response types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AgentDeployRequest:
     """Parameters for POST /v1/agents/deploy."""
+
     template_id: str
     framework: str = ""
     entry_point: str = ""
@@ -279,6 +308,7 @@ class AgentDeployRequest:
 @dataclass
 class AgentDeployResponse:
     """Response from POST /v1/agents/deploy (201 Created)."""
+
     agent_id: str
     runtime_id: str
     endpoint: str
@@ -293,6 +323,7 @@ class AgentDeployResponse:
 @dataclass
 class AgentEndpoint:
     """Response from GET /v1/agents/:agent_id/endpoint."""
+
     agent_id: str
     endpoint: str
     internal_endpoint: str
@@ -305,6 +336,7 @@ class AgentEndpoint:
 @dataclass
 class AgentDestroyResponse:
     """Response from DELETE /v1/agents/:agent_id."""
+
     agent_id: str
     status: str
 
@@ -312,6 +344,7 @@ class AgentDestroyResponse:
 # ---------------------------------------------------------------------------
 # API response parsers
 # ---------------------------------------------------------------------------
+
 
 def _parse_build_response(data: Dict[str, Any]) -> AgentBuildResponse:
     return AgentBuildResponse(

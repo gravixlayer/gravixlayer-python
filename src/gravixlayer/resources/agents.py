@@ -164,22 +164,40 @@ def _infer_framework_from_dependencies(deps: list[str]) -> str:
     return "python"
 
 
-def _native_autoserve_entrypoint(framework: str, ports: Optional[list], target: str = "") -> str:
+# Production runtime is invoked as a Python module so it resolves through the
+# same interpreter that installed `gravixlayer` (no shell wrapper, no console
+# script dependency, no PATH ambiguity).
+_AGENT_RUNTIME_PREFIX = ("python", "-m", "gravixlayer.runtime.autoserve")
+
+
+def _native_autoserve_entrypoint(
+    framework: str,
+    ports: Optional[list],
+    target: str = "",
+    protocols: Optional[list] = None,
+) -> str:
     canonical = _normalize_framework(framework)
     if canonical not in {"langgraph", "langchain", "google-adk"}:
         return ""
     port = ports[0] if ports else 8000
     command = [
-        "python",
-        "-m",
-        "gravixlayer.runtime.autoserve",
+        *_AGENT_RUNTIME_PREFIX,
         "--framework",
         canonical,
+        "--root",
+        "/app",
         "--host",
         "0.0.0.0",
         "--port",
         str(port),
     ]
+    protocol_values = []
+    for protocol in protocols or []:
+        value = str(protocol).strip().lower()
+        if value and value not in protocol_values:
+            protocol_values.append(value)
+    if protocol_values:
+        command.extend(["--protocols", ",".join(protocol_values)])
     if canonical == "langgraph" and target:
         command.extend(["--target", target])
     return " ".join(shlex.quote(part) for part in command)
@@ -634,7 +652,13 @@ class Agents:
             python_version = python_version or inferred.get("python_version", "")
             ports = ports or inferred.get("ports", [])
             target = target or inferred.get("target", "")
-            entrypoint = entrypoint or _native_autoserve_entrypoint(framework, ports, target)
+            protocols = protocols or []
+            entrypoint = entrypoint or _native_autoserve_entrypoint(
+                framework,
+                ports,
+                target,
+                protocols,
+            )
             dotenv_vars = _load_dotenv(source_path)
             if dotenv_vars:
                 merged = {**dotenv_vars, **(environment or {})}

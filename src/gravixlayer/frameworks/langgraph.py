@@ -155,8 +155,11 @@ def _extract_resume(input_data: Any, body: dict[str, Any]) -> Any:
 def _resume_command(value: Any) -> Any:
     try:
         Command = getattr(importlib.import_module("langgraph.types"), "Command")
-    except (ImportError, AttributeError):
-        return {"resume": value}
+    except (ImportError, AttributeError) as exc:
+        raise RuntimeError(
+            "LangGraph resume requires langgraph.types.Command from the official langgraph package. "
+            "Install or upgrade with: pip install 'langgraph>=1.0.0'"
+        ) from exc
     return Command(resume=value)
 
 

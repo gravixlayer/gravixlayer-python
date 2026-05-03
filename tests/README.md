@@ -1,13 +1,13 @@
 # GravixLayer SDK tests
 
-Layout matches common Python OSS conventions (see e.g. LangChain partner packages: `tests/unit_tests`, `tests/integration_tests`, and the [standard tests](https://docs.langchain.com/oss/python/contributing/standard-tests-langchain) documentation).
+Layout follows common Python SDK testing conventions with fast mocked unit tests and optional live integration tests.
 
 | Directory | Purpose |
 |-----------|---------|
 | `unit_tests/` | Fast, isolated tests. HTTP is mocked with **respx**; safe for every CI run. |
 | `integration_tests/` | Optional live API tests. Require credentials; skipped when unset. |
 
-Shared **fixtures** live in [`conftest.py`](conftest.py) (project-wide). Shared **constants and response factories** live in [`utils.py`](utils.py) — import as `from tests.utils import ...` (same naming pattern as [openai-python’s `tests/utils.py`](https://github.com/openai/openai-python/blob/main/tests/utils.py)).
+Shared **fixtures** live in [`conftest.py`](conftest.py) (project-wide). Shared **constants and response factories** live in [`utils.py`](utils.py) — import as `from tests.utils import ...`.
 
 ### `unit_tests/` subfolders (mirror `src/gravixlayer/`)
 

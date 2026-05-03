@@ -1,9 +1,4 @@
-"""
-Type definitions for Runtime API.
-
-Aligned with the backend Go types in internal/agents/types.go and
-internal/agents/runtime_api_handlers.go.
-"""
+"""Type definitions for the Runtime API."""
 
 import dataclasses
 import inspect

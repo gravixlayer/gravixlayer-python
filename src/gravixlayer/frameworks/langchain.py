@@ -19,11 +19,12 @@ class LangChainAdapter(BaseFrameworkAdapter):
     async def handle_invoke(self, input_data: Any, config: Any) -> Any:
         runnable = self._app
         first_error: Exception | None = None
+        runnable_config = _build_runnable_config(config)
 
         payloads = _build_payload_candidates(input_data)
         for index, payload in enumerate(payloads):
             try:
-                result = await _invoke_runnable(runnable, payload, config)
+                result = await _invoke_runnable(runnable, payload, runnable_config)
                 return _extract_output(result)
             except Exception as exc:
                 if first_error is None:
@@ -38,14 +39,15 @@ class LangChainAdapter(BaseFrameworkAdapter):
     async def handle_stream(self, input_data: Any, config: Any):
         runnable = self._app
         payload = _build_payload_candidates(input_data)[0]
+        runnable_config = _build_runnable_config(config)
 
         if hasattr(runnable, "astream"):
-            async for chunk in runnable.astream(payload, config=config or None):
+            async for chunk in runnable.astream(payload, config=runnable_config):
                 yield _extract_output(chunk)
             return
 
         if hasattr(runnable, "stream"):
-            for chunk in runnable.stream(payload, config=config or None):
+            for chunk in runnable.stream(payload, config=runnable_config):
                 yield _extract_output(chunk)
             return
 
@@ -82,6 +84,26 @@ async def _invoke_runnable(runnable: Any, payload: Any, config: Any) -> Any:
             return await result
         return result
     raise TypeError("LangChain adapter requires an agent, chain, runnable, or callable")
+
+
+def _build_runnable_config(config: Any) -> Any:
+    if not isinstance(config, dict):
+        return None
+
+    from langchain_core.runnables.config import ensure_config  # type: ignore[import-not-found]
+
+    runnable_config = dict(config)
+    configurable = dict(runnable_config.get("configurable") or {})
+    thread_id = (
+        runnable_config.get("thread_id")
+        or runnable_config.get("session_id")
+        or configurable.get("thread_id")
+    )
+    if thread_id:
+        configurable["thread_id"] = str(thread_id)
+    if configurable:
+        runnable_config["configurable"] = configurable
+    return ensure_config(runnable_config)
 
 
 def _build_payload_candidates(input_data: Any) -> list[Any]:

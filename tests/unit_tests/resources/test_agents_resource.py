@@ -159,7 +159,9 @@ class TestSyncAgentsAPI:
         client.agents.build(tmp_path, name="travel-planner")
 
         body = mock_api.calls[-1].request.content
-        assert b"gravixlayer.runtime.autoserve" in body
+        assert b"python -m gravixlayer.runtime.autoserve" in body
+        assert b"--root" in body
+        assert b"/app" in body
         assert b"--target" in body
         assert b"./agent/graph.py:graph" in body
 
@@ -211,6 +213,42 @@ class TestSyncAgentsAPI:
         assert "agent.example.com" in dep.endpoint
         body = json.loads(mock_api.calls[-1].request.content)
         assert body["template_id"] == "tmpl-xyz"
+
+    def test_deploy_source_langgraph_entrypoint_includes_protocols(
+        self,
+        client,
+        mock_api,
+        tmp_path,
+    ):
+        (tmp_path / "langgraph.json").write_text(
+            json.dumps({"graphs": {"agent": "./agent.py:graph"}})
+        )
+        (tmp_path / "agent.py").write_text("graph = object()\n")
+        mock_api.post(f"{AGENTS_BASE}/template/build-agent").mock(
+            return_value=httpx.Response(202, json=_sample_build_json())
+        )
+        mock_api.get(f"{AGENTS_BASE}/template/builds/build-agent-1/status").mock(
+            return_value=httpx.Response(
+                200,
+                json=_sample_status_json(status="completed", phase="completed"),
+            )
+        )
+        mock_api.post(f"{AGENTS_BASE}/deploy").mock(
+            return_value=httpx.Response(201, json=_sample_deploy_json())
+        )
+
+        client.agents.deploy(
+            tmp_path,
+            name="native-langgraph",
+            protocols=["http", "a2a"],
+            on_build_status=lambda status: None,
+        )
+
+        build_body = mock_api.calls[0].request.content
+        assert b"--protocols" in build_body
+        assert b"http,a2a" in build_body
+        deploy_body = json.loads(mock_api.calls[-1].request.content)
+        assert deploy_body["protocols"] == ["http", "a2a"]
 
     def test_deploy_validation_errors(self, client):
         with pytest.raises(ValueError, match="Either"):
@@ -284,6 +322,39 @@ class TestAsyncAgentsAPI:
             assert dep.agent_id == "ag-1"
             out = await client.agents.invoke(dep.agent_id, input={})
             assert out["async"] is True
+
+    @pytest.mark.asyncio
+    async def test_deploy_source_langgraph_entrypoint_includes_protocols(self, mock_api, tmp_path):
+        (tmp_path / "langgraph.json").write_text(
+            json.dumps({"graphs": {"agent": "./agent.py:graph"}})
+        )
+        (tmp_path / "agent.py").write_text("graph = object()\n")
+        mock_api.post(f"{AGENTS_BASE}/template/build-agent").mock(
+            return_value=httpx.Response(202, json=_sample_build_json())
+        )
+        mock_api.get(f"{AGENTS_BASE}/template/builds/build-agent-1/status").mock(
+            return_value=httpx.Response(
+                200,
+                json=_sample_status_json(status="completed", phase="completed"),
+            )
+        )
+        mock_api.post(f"{AGENTS_BASE}/deploy").mock(
+            return_value=httpx.Response(201, json=_sample_deploy_json())
+        )
+
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            await client.agents.deploy(
+                tmp_path,
+                name="native-langgraph",
+                protocols=["http", "a2a"],
+                on_build_status=lambda status: None,
+            )
+
+        build_body = mock_api.calls[0].request.content
+        assert b"--protocols" in build_body
+        assert b"http,a2a" in build_body
+        deploy_body = json.loads(mock_api.calls[-1].request.content)
+        assert deploy_body["protocols"] == ["http", "a2a"]
 
 
 # ===================================================================

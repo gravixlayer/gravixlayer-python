@@ -1,0 +1,24 @@
+{
+  "framework": "google-adk",
+  "protocols": ["http", "a2a"],
+  "agent_card": {
+    "protocolVersion": "1.0",
+    "name": "time_agent",
+    "description": "Answers questions about the current time and date.",
+    "version": "0.1.0",
+    "preferredTransport": "JSONRPC",
+    "capabilities": {
+      "streaming": true
+    },
+    "defaultInputModes": ["text/plain"],
+    "defaultOutputModes": ["text/plain"],
+    "skills": [
+      {
+        "id": "get_current_time",
+        "name": "Get current time",
+        "description": "Returns the current time in any IANA timezone.",
+        "tags": ["time", "date", "timezone"]
+      }
+    ]
+  }
+}

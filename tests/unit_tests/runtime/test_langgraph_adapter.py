@@ -1,9 +1,10 @@
 import json
+import importlib
 
 import pytest
 
 from gravixlayer.runtime import GravixApp
-from gravixlayer.frameworks.langgraph import LangGraphAdapter
+from gravixlayer.frameworks.langgraph import LangGraphAdapter, _resume_command
 
 
 class _State:
@@ -133,6 +134,20 @@ async def test_langgraph_adapter_supports_resume_decision_payload():
     assert result["status"] == "completed"
     assert result["thread_id"] == "thread-4"
     assert graph.input_data.resume == resume
+
+
+def test_langgraph_resume_requires_official_command(monkeypatch):
+    real_import_module = importlib.import_module
+
+    def fake_import_module(name):
+        if name == "langgraph.types":
+            raise ImportError("missing langgraph")
+        return real_import_module(name)
+
+    monkeypatch.setattr(importlib, "import_module", fake_import_module)
+
+    with pytest.raises(RuntimeError, match="langgraph.types.Command"):
+        _resume_command("continue")
 
 
 @pytest.mark.asyncio

@@ -1,61 +1,27 @@
 """
-GravixLayer A2A Runtime — Server-side glue for A2A protocol compliance.
+GravixLayer A2A Runtime.
 
-Provides ``run_a2a()`` and ``create_a2a_app()`` to expose any agent framework
-(LangGraph, CrewAI, Google ADK, OpenAI Agents SDK, Anthropic, AWS Strands, or
-plain Python) as a fully A2A-compliant server on GravixLayer.
+For native GravixLayer agent deployments, A2A is platform-managed: users write
+LangGraph, LangChain, or Google ADK code and enable the ``a2a`` protocol at
+deploy time. The runtime then serves ``/.well-known/agent-card.json`` and
+``/a2a`` without user-authored wrapper code.
 
-Requires the ``a2a`` optional dependency group::
-
-    pip install "gravixlayer[a2a]"
-
-Architecture:
-
-    ┌─────────────────────────────────────────────────────┐
-    │  GravixLayer Runtime                                │
-    │                                                     │
-    │  ┌──────────────┐   ┌────────────────────────────┐  │
-    │  │ Agent Code   │   │ run_a2a()                  │  │
-    │  │ (any         │──→│  Starlette + uvicorn       │  │
-    │  │  framework)  │   │  Port 8000 (default)       │  │
-    │  └──────────────┘   │  /.well-known/agent-card   │  │
-    │                     │  /  (JSON-RPC: message/send │  │
-    │                     │      message/stream,        │  │
-    │                     │      tasks/get)             │  │
-    │                     │  /health                    │  │
-    │                     └────────────────────────────┘  │
-    └───────────────────────────┬──────────────────────────┘
-                                │
-    ┌───────────────────────────▼──────────────────────────┐
-    │  GravixLayer Edge   TLS :443                         │
-    │  /a2a/*  → a2a_port (8000)                           │
-    │  /.well-known/agent-card.json → a2a_port (8000)      │
-    └──────────────────────────────────────────────────────┘
-
-Usage::
-
-    from gravixlayer.a2a import run_a2a
-
-    class MyExecutor(AgentExecutor):
-        async def execute(self, context, event_queue):
-            user_msg = context.get_user_input()
-            result = await my_agent.invoke(user_msg)
-            await event_queue.enqueue_event(
-                context.new_agent_message(parts=[{"text": result}])
-            )
-
-    run_a2a(
-        executor=MyExecutor(),
-        agent_card=my_agent_card,
-    )
+``create_a2a_app()`` and ``run_a2a()`` remain available for advanced users who
+need to bring their own A2A AgentExecutor.
 """
 
 from gravixlayer.a2a._runtime import (
     create_a2a_app,
+    create_a2a_routes,
+    create_gravix_app_a2a_routes,
+    create_gravix_app_executor,
     run_a2a,
 )
 
 __all__ = [
     "create_a2a_app",
+    "create_a2a_routes",
+    "create_gravix_app_a2a_routes",
+    "create_gravix_app_executor",
     "run_a2a",
 ]

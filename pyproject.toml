@@ -27,13 +27,17 @@ dependencies = [
     "httpx[http2]>=0.24.0",
 ]
 
+[project.scripts]
+gravixlayer-runtime = "gravixlayer.runtime.autoserve:main"
+
 [project.optional-dependencies]
 runtime = [
     "starlette>=0.38.0",
     "uvicorn[standard]>=0.30.0",
 ]
 a2a = [
-    "a2a-sdk[http-server]>=0.2.7",
+    "a2a-sdk[http-server]>=1.0.0",
+    "protobuf<7",
     "uvicorn[standard]>=0.30.0",
     "starlette>=0.38.0",
 ]
@@ -44,12 +48,14 @@ langgraph = [
     "langgraph>=1.0.0",
 ]
 google-adk = [
-    "google-adk>=1.0.0",
+    "google-adk[a2a]>=1.0.0",
 ]
 agents = [
     "starlette>=0.38.0",
     "uvicorn[standard]>=0.30.0",
-    "google-adk>=1.0.0",
+    "a2a-sdk[http-server]>=1.0.0",
+    "protobuf<7",
+    "google-adk[a2a]>=1.0.0",
     "langchain>=1.0",
     "langgraph>=1.0.0",
 ]

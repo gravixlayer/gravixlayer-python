@@ -2,8 +2,7 @@
 Shared test utilities for the GravixLayer SDK.
 
 Constants and API response factories for unit tests. Import as
-``from tests.utils import ...`` (aligned with common SDK layouts such as
-`openai-python <https://github.com/openai/openai-python/tree/main/tests>`__).
+``from tests.utils import ...``.
 
 Fixtures stay in :file:`tests/conftest.py` — do not import ``conftest``.
 
