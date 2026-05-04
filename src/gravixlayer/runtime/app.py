@@ -160,21 +160,26 @@ class GravixApp:
                 )
             )
 
-        async def on_startup() -> None:
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def lifespan(_app: Any):
+            # Startup
             if self._adapter is not None:
                 await self._adapter.setup()
             self.health.status = HealthStatus.READY
             logger.info("GravixApp '%s' ready", self.name)
-
-        async def on_shutdown() -> None:
-            self.health.status = HealthStatus.DRAINING
-            if self._adapter is not None:
-                await self._adapter.cleanup()
+            try:
+                yield
+            finally:
+                # Shutdown
+                self.health.status = HealthStatus.DRAINING
+                if self._adapter is not None:
+                    await self._adapter.cleanup()
 
         app = Starlette(
             routes=routes,
-            on_startup=[on_startup],
-            on_shutdown=[on_shutdown],
+            lifespan=lifespan,
         )
 
         # Apply middleware
