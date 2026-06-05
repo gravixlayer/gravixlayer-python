@@ -39,6 +39,7 @@ from .config import RuntimeConfig
 from .health import HealthManager, HealthStatus
 from .middleware import CORSMiddleware, RequestMiddleware
 from .server import RuntimeServer
+from .. import telemetry
 
 logger = logging.getLogger("gravixlayer.runtime")
 
@@ -130,6 +131,10 @@ class GravixApp:
 
     def _build_app(self) -> Any:
         """Build the Starlette ASGI application."""
+        # Activate telemetry at serve time (not construction) so importing or
+        # unit-testing the SDK never starts a background exporter. No-op unless the
+        # [observability] extra is installed and OBSERVABILITY_ENABLED is on.
+        telemetry.configure_for_agent(self.name)
         try:
             from starlette.applications import Starlette
             from starlette.responses import JSONResponse
@@ -223,20 +228,22 @@ class GravixApp:
         config_data = body.get("config", {})
 
         try:
-            # Framework adapter takes priority
-            if self._adapter is not None:
-                if hasattr(self._adapter, "handle_request"):
-                    result = await self._adapter.handle_request(body)
-                    return JSONResponse(result)
+            system = self._framework_name or "gravixlayer"
+            with telemetry.genai_span("invoke", system=system):
+                # Framework adapter takes priority
+                if self._adapter is not None:
+                    if hasattr(self._adapter, "handle_request"):
+                        result = await self._adapter.handle_request(body)
+                        return JSONResponse(result)
+                    else:
+                        result = await self._adapter.handle_invoke(input_data, config_data)
+                elif self._handler is not None:
+                    result = await self._call_handler(self._handler, input_data, config_data)
                 else:
-                    result = await self._adapter.handle_invoke(input_data, config_data)
-            elif self._handler is not None:
-                result = await self._call_handler(self._handler, input_data, config_data)
-            else:
-                return JSONResponse(
-                    {"error": "No handler registered. Use @app.entrypoint or app.mount_framework()"},
-                    status_code=500,
-                )
+                    return JSONResponse(
+                        {"error": "No handler registered. Use @app.entrypoint or app.mount_framework()"},
+                        status_code=500,
+                    )
 
             return JSONResponse({"output": result})
 

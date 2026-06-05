@@ -26,6 +26,7 @@ from ..types.exceptions import (
 from ..resources.async_runtime import AsyncRuntimeResource
 from ..resources.async_templates import AsyncTemplates
 from ..resources.async_agents import AsyncAgents
+from .. import telemetry
 
 class AsyncGravixLayer:
     """Async client for GravixLayer.
@@ -73,6 +74,11 @@ class AsyncGravixLayer:
         self.timeout = timeout
         self.max_retries = max_retries
         self._retry_attempts = range(self.max_retries + 1)
+
+        # Activate client tracing only when an OTLP endpoint is explicitly set (env or
+        # a prior configure_otel call), so a bare client never starts a background
+        # exporter. traceparent is propagated whenever a tracer provider exists.
+        telemetry.maybe_configure_from_env()
 
         self._logger = logging.getLogger("gravixlayer-async")
 
@@ -138,6 +144,19 @@ class AsyncGravixLayer:
         url = build_url(endpoint, _service, self._service_urls, self.base_url)
         prepare_request_kwargs(data, kwargs)
 
+        with telemetry.client_span(method, url) as span:
+            if span is not None:
+                headers = dict(kwargs.get("headers") or {})
+                telemetry.inject(headers)
+                kwargs["headers"] = headers
+            resp = await self._send_with_retries(method, url, kwargs)
+            if span is not None:
+                span.set_attribute("http.response.status_code", resp.status_code)
+            return resp
+
+    async def _send_with_retries(
+        self, method: str, url: str, kwargs: Dict[str, Any]
+    ) -> httpx.Response:
         last_exc: Optional[Exception] = None
         logger_warning = self._logger.warning
         sleep = asyncio.sleep

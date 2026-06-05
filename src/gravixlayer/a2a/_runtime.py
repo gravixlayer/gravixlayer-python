@@ -31,7 +31,6 @@ _DEFAULT_A2A_PORT = 8000
 _DEFAULT_HOST = "0.0.0.0"
 _DEFAULT_A2A_PATH = "/a2a"
 _AGENT_CARD_WELL_KNOWN_PATH = "/.well-known/agent-card.json"
-_AGENT_METADATA_PATH = "/var/run/gravixlayer/agent-id"
 _AGENT_DOMAIN = "agents.gravixlayer.ai"
 
 
@@ -64,21 +63,12 @@ def _check_a2a_sdk_available() -> None:
         )
 
 
-def _read_agent_id() -> Optional[str]:
-    try:
-        with open(_AGENT_METADATA_PATH, encoding="utf-8") as f:
-            value = f.read().strip()
-            return value if value else None
-    except (FileNotFoundError, PermissionError, OSError):
-        return None
-
-
 def _platform_agent_url() -> Optional[str]:
     explicit_url = os.environ.get("GRAVIXLAYER_AGENT_URL")
     if explicit_url:
         return explicit_url.rstrip("/")
 
-    agent_id = os.environ.get("GRAVIXLAYER_AGENT_ID") or _read_agent_id()
+    agent_id = os.environ.get("GRAVIXLAYER_AGENT_ID")
     if agent_id:
         return f"https://{agent_id}.{_AGENT_DOMAIN}"
     return None

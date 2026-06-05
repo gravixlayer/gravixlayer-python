@@ -91,6 +91,12 @@ from .resources.async_agents import (
     AsyncAgentBuildError,
     AsyncAgentBuildTimeoutError,
 )
+from .telemetry import (
+    GravixLayerTelemetryConfig,
+    configure_otel,
+    init_telemetry,
+    is_enabled as telemetry_enabled,
+)
 from .types.exceptions import (
     GravixLayerError,
     GravixLayerAuthenticationError,
@@ -180,4 +186,9 @@ __all__ = [
     "GravixLayerServerError",
     "GravixLayerBadRequestError",
     "GravixLayerConnectionError",
+    # Observability (optional extra)
+    "GravixLayerTelemetryConfig",
+    "configure_otel",
+    "init_telemetry",
+    "telemetry_enabled",
 ]

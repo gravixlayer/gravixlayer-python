@@ -19,6 +19,7 @@ from ._request_utils import (
 from .resources.runtime import RuntimeResource
 from .resources.templates import Templates
 from .resources.agents import Agents
+from . import telemetry
 from .types.exceptions import (
     GravixLayerError,
     GravixLayerAuthenticationError,
@@ -84,6 +85,12 @@ class GravixLayer:
         self.timeout = timeout
         self.max_retries = max_retries
         self._retry_attempts = range(self.max_retries + 1)
+
+        # Activate client tracing only when an OTLP endpoint is explicitly set (env or
+        # a prior configure_otel call), so a bare `GravixLayer()` never starts a
+        # background exporter. Either way, traceparent is propagated into the control
+        # plane whenever a tracer provider exists. No-op without the [observability] extra.
+        telemetry.maybe_configure_from_env()
 
         self._logger = logging.getLogger("gravixlayer")
 
@@ -163,6 +170,19 @@ class GravixLayer:
         url = build_url(endpoint, _service, self._service_urls, self.base_url)
         prepare_request_kwargs(data, kwargs)
 
+        with telemetry.client_span(method, url) as span:
+            if span is not None:
+                headers = dict(kwargs.get("headers") or {})
+                telemetry.inject(headers)
+                kwargs["headers"] = headers
+            resp = self._send_with_retries(method, url, stream, kwargs)
+            if span is not None:
+                span.set_attribute("http.response.status_code", resp.status_code)
+            return resp
+
+    def _send_with_retries(
+        self, method: str, url: str, stream: bool, kwargs: Dict[str, Any]
+    ) -> httpx.Response:
         last_exc: Optional[Exception] = None
         logger_warning = self._logger.warning
         sleep = time.sleep

@@ -7,6 +7,8 @@ import time
 import uuid
 from typing import Any
 
+from .. import telemetry
+
 logger = logging.getLogger("gravixlayer.runtime")
 
 
@@ -23,9 +25,17 @@ class RequestMiddleware:
 
         request_id = str(uuid.uuid4())[:8]
         start = time.monotonic()
+        method = scope.get("method", "")
+        path = scope.get("path", "")
+        carrier = {
+            key.decode("latin-1"): value.decode("latin-1")
+            for key, value in scope.get("headers", [])
+        }
+        status_holder = {"code": 0}
 
         async def send_wrapper(message: dict) -> None:
             if message["type"] == "http.response.start":
+                status_holder["code"] = message.get("status", 0)
                 headers = list(message.get("headers", []))
                 headers.append((b"x-request-id", request_id.encode()))
                 elapsed = time.monotonic() - start
@@ -35,9 +45,16 @@ class RequestMiddleware:
                 message["headers"] = headers
             await send(message)
 
-        path = scope.get("path", "")
-        logger.debug("[%s] %s %s", request_id, scope.get("method", ""), path)
-        await self.app(scope, receive, send_wrapper)
+        span_name = f"{method} {path}" if method else path
+        with telemetry.server_span(span_name, carrier) as span:
+            if span is not None:
+                span.set_attribute("http.request.method", method)
+                span.set_attribute("url.path", path)
+                span.set_attribute("gravixlayer.request_id", request_id)
+            logger.debug("[%s] %s %s", request_id, method, path)
+            await self.app(scope, receive, send_wrapper)
+            if span is not None and status_holder["code"]:
+                span.set_attribute("http.response.status_code", status_holder["code"])
 
 
 class CORSMiddleware:
