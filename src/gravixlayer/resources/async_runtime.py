@@ -138,6 +138,7 @@ class AsyncRuntimes:
             },
             attributes={
                 "runtime.template": template or "",
+                "gravixlayer.template": template or "",
                 "runtime.provider": resolved_provider,
                 "runtime.region": resolved_region,
             },
