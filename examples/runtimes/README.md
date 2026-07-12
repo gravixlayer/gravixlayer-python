@@ -37,6 +37,7 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 17 | [17_runtime_git_operations.py](17_runtime_git_operations.py) | `runtime.git` |
 | 18 | [18_stream_command_output.py](18_stream_command_output.py) | Stream `run_cmd` output via `on_stdout` / `on_stderr` / `on_exit` |
 | 19 | [19_runtime_lifecycle.py](19_runtime_lifecycle.py) | Full lifecycle: create → pause → resume → kill |
+| 20 | [20_observability_verify.py](20_observability_verify.py) | Enable tracing for runtime operations |
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py

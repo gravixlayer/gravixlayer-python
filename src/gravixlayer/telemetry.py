@@ -66,7 +66,10 @@ _SENSITIVE_KEYS = frozenset(
 # when the collector lives elsewhere — e.g. a local collector at http://localhost:4318
 # or a compute host exporting to a specific platform host.
 DEFAULT_OTLP_ENDPOINT = "http://otel.gravixlayer.ai:4318"
-DEFAULT_SDK_SERVICE_NAME = "gravixlayer-sdk"
+# Default service.name for application/client processes.
+# Override with GRAVIXLAYER_SERVICE_NAME or enable_telemetry(service_name=...).
+DEFAULT_APP_SERVICE_NAME = "my-app"
+DEFAULT_SDK_SERVICE_NAME = DEFAULT_APP_SERVICE_NAME  # backward-compatible alias
 DEFAULT_AGENT_SERVICE_NAME = "gravixlayer-agent"
 
 _logger = logging.getLogger("gravixlayer.telemetry")
@@ -189,9 +192,49 @@ def _truthy(value: Optional[str], default: bool = False) -> bool:
 
 
 def observability_enabled() -> bool:
-    """Honor the platform-wide ``OBSERVABILITY_ENABLED`` master toggle (default on),
-    matching the Go control plane, cellfabric, and cellcore semantics (§8)."""
+    """Whether SDK/agent telemetry may activate.
+
+    Precedence:
+
+    * ``GRAVIXLAYER_ENABLE_TELEMETRY=false`` → hard off for this process
+    * ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` → hard on (client one-shot opt-in)
+    * else ``OBSERVABILITY_ENABLED`` (default on) — platform cell/agent toggle
+    """
+    if "GRAVIXLAYER_ENABLE_TELEMETRY" in os.environ:
+        return _truthy(os.environ.get("GRAVIXLAYER_ENABLE_TELEMETRY"), default=False)
     return _truthy(os.environ.get("OBSERVABILITY_ENABLED"), default=True)
+
+
+def gravixlayer_telemetry_opted_in() -> bool:
+    """Return True when the user opted into SDK telemetry via env.
+
+    ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` enables export with the managed collector
+    default — no separate endpoint env required. Legacy path: an explicit
+    ``GRAVIX_OTEL_ENDPOINT`` / ``OTEL_EXPORTER_OTLP_ENDPOINT`` still opts in.
+    """
+    if _truthy(os.environ.get("GRAVIXLAYER_ENABLE_TELEMETRY"), default=False):
+        return True
+    return bool(
+        os.environ.get("GRAVIX_OTEL_ENDPOINT") or os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    )
+
+
+def resolve_service_name(
+    explicit: Optional[str] = None,
+    *,
+    default: str = DEFAULT_APP_SERVICE_NAME,
+) -> str:
+    """Resolve ``service.name`` for OTLP resource attributes.
+
+    Order: explicit arg → ``GRAVIXLAYER_SERVICE_NAME`` → ``OTEL_SERVICE_NAME``
+    (compat) → ``default``.
+    """
+    return (
+        (explicit.strip() if isinstance(explicit, str) and explicit.strip() else None)
+        or os.environ.get("GRAVIXLAYER_SERVICE_NAME")
+        or os.environ.get("OTEL_SERVICE_NAME")
+        or default
+    )
 
 
 def resolve_endpoint(explicit: Optional[str] = None) -> str:
@@ -226,7 +269,7 @@ class GravixLayerTelemetryConfig:
     ``configure_otel()`` with no arguments. Env vars override the defaults."""
 
     endpoint: Optional[str] = None
-    service_name: str = DEFAULT_SDK_SERVICE_NAME
+    service_name: str = DEFAULT_APP_SERVICE_NAME
     service_version: Optional[str] = None
     deployment_environment: Optional[str] = None
 
@@ -235,7 +278,7 @@ class GravixLayerTelemetryConfig:
         """Build a config from env vars, applying the static defaults."""
         return cls(
             endpoint=resolve_endpoint(),
-            service_name=os.environ.get("OTEL_SERVICE_NAME") or service_name or DEFAULT_SDK_SERVICE_NAME,
+            service_name=resolve_service_name(service_name),
             service_version=os.environ.get("OTEL_SERVICE_VERSION") or _sdk_version(),
             deployment_environment=os.environ.get("DEPLOYMENT_ENVIRONMENT"),
         )
@@ -260,7 +303,7 @@ def configure_otel(
     config: Union[GravixLayerTelemetryConfig, None] = None,
     *,
     endpoint: Optional[str] = None,
-    service_name: str = DEFAULT_SDK_SERVICE_NAME,
+    service_name: str = DEFAULT_APP_SERVICE_NAME,
     service_version: Optional[str] = None,
     silent: bool = False,
 ) -> bool:
@@ -322,20 +365,74 @@ def configure_otel(
     return True
 
 
-def init_telemetry(service_name: str = DEFAULT_SDK_SERVICE_NAME, service_version: Optional[str] = None) -> bool:
+def init_telemetry(service_name: str = DEFAULT_APP_SERVICE_NAME, service_version: Optional[str] = None) -> bool:
     """Backward-compatible alias for :func:`configure_otel`."""
     return configure_otel(service_name=service_name, service_version=service_version)
 
 
-def maybe_configure_from_env() -> bool:
-    """Configure OTLP export when observability is enabled and an endpoint env var
-    is explicitly set. Kept for backward compatibility; agent serving paths should
-    use :func:`configure_for_agent`."""
+def enable_telemetry(
+    *,
+    service_name: Optional[str] = None,
+    endpoint: Optional[str] = None,
+    silent: bool = True,
+) -> bool:
+    """One-shot enable for traces.
+
+    Equivalent to setting ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` and configuring
+    the managed OTLP exporter. Also installs httpx/requests auto-instrumentation
+    when available so outbound HTTP (LLM APIs, tools) becomes nested spans.
+
+    Example::
+
+        from gravixlayer import GravixLayer, enable_telemetry
+
+        enable_telemetry(service_name="my-app")  # or set GRAVIXLAYER_ENABLE_TELEMETRY=true
+        client = GravixLayer()
+
+    Returns ``True`` when a tracer provider is available for export (newly
+    configured or already present). Returns ``False`` when the
+    ``[observability]`` extra is missing or observability is hard-disabled.
+    """
+    if not _ENABLED:
+        return False
+    os.environ.setdefault("GRAVIXLAYER_ENABLE_TELEMETRY", "true")
     if not observability_enabled():
         return False
-    if not (os.environ.get("GRAVIX_OTEL_ENDPOINT") or os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")):
+
+    configured = configure_otel(
+        endpoint=endpoint,
+        service_name=resolve_service_name(service_name),
+        silent=silent,
+    )
+    _install_auto_instrumentation()
+    if configured:
+        return True
+    try:
+        from opentelemetry.sdk.trace import TracerProvider
+
+        return isinstance(otel_trace.get_tracer_provider(), TracerProvider)
+    except Exception:  # noqa: BLE001
+        return _ENABLED
+
+
+def maybe_configure_from_env() -> bool:
+    """Configure OTLP export when the user opted in via env.
+
+    Opt-in (either):
+
+    * ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` (preferred; uses managed collector default)
+    * ``GRAVIX_OTEL_ENDPOINT`` / ``OTEL_EXPORTER_OTLP_ENDPOINT`` set (legacy)
+
+    Called from ``GravixLayer()`` / ``AsyncGravixLayer()`` construction. Agent
+    serving paths should use :func:`configure_for_agent` / :func:`enable_telemetry`.
+    """
+    if not observability_enabled():
         return False
-    return configure_otel(GravixLayerTelemetryConfig.from_env(), silent=True)
+    if not gravixlayer_telemetry_opted_in():
+        return False
+    configured = configure_otel(GravixLayerTelemetryConfig.from_env(), silent=True)
+    _install_auto_instrumentation()
+    return configured
 
 
 def _span_path(url: str) -> str:
@@ -397,7 +494,7 @@ def _redact_sensitive(value: Any) -> Any:
 
 
 def _bind_inputs(fn: Callable[..., Any], args: tuple, kwargs: dict) -> Dict[str, Any]:
-    """Bind call arguments to parameter names (LangSmith ``_get_inputs`` analogue)."""
+    """Bind call arguments to parameter names for span inputs."""
     try:
         signature = inspect.signature(fn)
         bound = signature.bind_partial(*args, **kwargs)
@@ -417,10 +514,11 @@ def trace(
     process_inputs: Optional[Callable[[Any], Any]] = None,
     process_outputs: Optional[Callable[[Any], Any]] = None,
 ) -> Iterator[Any]:
-    """Manual span context manager (LangSmith ``trace()`` analogue).
+    """Optional manual span context manager for application logic.
 
     Yields the active OTel span (or ``None`` when disabled). Callers may set
     additional attributes or record outputs via :func:`record_outputs`.
+    Not required for SDK ``runtime.*`` spans — those are emitted automatically.
     """
     if not _ENABLED:
         yield None
@@ -484,11 +582,12 @@ def traced(
     process_outputs: Optional[Callable[[Any], Any]] = None,
     attributes: Optional[Mapping[str, Any]] = None,
 ) -> Any:
-    """Decorator that emits an OTel span around a function (LangSmith ``@traceable``).
+    """Optional decorator that emits an OTel span around a function.
 
     Captures bound inputs and return value as ``gravixlayer.inputs`` /
     ``gravixlayer.outputs`` attributes. Works for sync, async, generator, and
     async-generator callables. No-op when OpenTelemetry is not installed.
+    Not required for SDK ``runtime.*`` spans — those are emitted automatically.
     """
 
     def decorator(fn: F) -> F:
@@ -611,10 +710,12 @@ def runtime_span(
         return
 
     span_name = name or f"runtime.{operation}"
-    with _tracer.start_as_current_span(span_name, kind=SpanKind.CLIENT) as span:
+    # INTERNAL: product/runtime operations (not wire CLIENT/SERVER). UI shows run_type.
+    with _tracer.start_as_current_span(span_name, kind=SpanKind.INTERNAL) as span:
         span.set_attribute(ATTR_RUN_TYPE, "runtime")
         span.set_attribute(ATTR_OPERATION, operation)
-        span.set_attribute(ATTR_RUNTIME_ID, runtime_id)
+        if runtime_id:
+            span.set_attribute(ATTR_RUNTIME_ID, runtime_id)
         if inputs is not None:
             span.set_attribute(ATTR_INPUTS, serialize_for_span(dict(inputs)))
         if attributes:
@@ -708,16 +809,16 @@ def configure_for_agent(service_name: Optional[str] = None) -> bool:
 
     # Prefer runtime UUID as service.name when present (sandbox identity), else
     # the agent app name, else the default agent service name.
+    env_service = os.environ.get("GRAVIXLAYER_SERVICE_NAME") or os.environ.get("OTEL_SERVICE_NAME")
     resolved_name = (
-        os.environ.get("OTEL_SERVICE_NAME")
+        env_service
         or service_name
         or resolve_runtime_id()
         or DEFAULT_AGENT_SERVICE_NAME
     )
     config = GravixLayerTelemetryConfig.from_env(service_name=resolved_name)
-    # from_env already prefers OTEL_SERVICE_NAME; ensure explicit arg wins when
-    # the env var is unset.
-    if not os.environ.get("OTEL_SERVICE_NAME") and service_name:
+    # from_env prefers GRAVIXLAYER_SERVICE_NAME; ensure explicit arg wins when unset.
+    if not env_service and service_name:
         config.service_name = service_name
 
     configured = configure_otel(config, silent=True)

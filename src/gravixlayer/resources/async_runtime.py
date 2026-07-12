@@ -124,11 +124,41 @@ class AsyncRuntimes:
         if agent_id is not None:
             data["agent_id"] = agent_id
 
-        response = await self._make_agents_request("POST", "runtime", data)
-        result = self._apply_defaults(response.json(), template=template)
-        rt = Runtime.from_api(result)
-        rt._client = self.client
-        return rt
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "create",
+            "",
+            inputs={
+                "provider": resolved_provider,
+                "region": resolved_region,
+                "template": template,
+                "timeout": timeout,
+                "agent_id": agent_id,
+            },
+            attributes={
+                "runtime.template": template or "",
+                "runtime.provider": resolved_provider,
+                "runtime.region": resolved_region,
+            },
+        ) as span:
+            response = await self._make_agents_request("POST", "runtime", data)
+            result = self._apply_defaults(response.json(), template=template)
+            rt = Runtime.from_api(result)
+            rt._client = self.client
+            if span is not None:
+                rid = getattr(rt, "runtime_id", None) or ""
+                if rid:
+                    span.set_attribute(telemetry.ATTR_RUNTIME_ID, rid)
+                telemetry.record_outputs(
+                    span,
+                    {
+                        "runtime_id": rid,
+                        "status": getattr(rt, "status", None),
+                        "template": getattr(rt, "template", template),
+                    },
+                )
+            return rt
 
     async def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> RuntimeList:
         """List all runtimes."""
@@ -157,9 +187,25 @@ class AsyncRuntimes:
     async def kill(self, runtime_id: str) -> RuntimeKillResponse:
         """Terminate a running runtime immediately."""
         _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("DELETE", f"runtime/{runtime_id}")
-        result = response.json()
-        return RuntimeKillResponse(**result)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "kill",
+            runtime_id,
+            inputs={"runtime_id": runtime_id},
+        ) as span:
+            response = await self._make_agents_request("DELETE", f"runtime/{runtime_id}")
+            result = response.json()
+            killed = RuntimeKillResponse(**result)
+            if span is not None:
+                telemetry.record_outputs(
+                    span,
+                    {
+                        "runtime_id": getattr(killed, "runtime_id", None) or runtime_id,
+                        "message": getattr(killed, "message", None),
+                    },
+                )
+            return killed
 
     async def connect(self, runtime_id: str) -> Dict[str, Any]:
         """Connect to an existing runtime.
@@ -243,6 +289,15 @@ class AsyncRuntimes:
             result = CommandRunResponse(**response.json())
             if span is not None:
                 span.set_attribute("process.exit_code", int(getattr(result, "exit_code", 0) or 0))
+                telemetry.record_outputs(
+                    span,
+                    {
+                        "exit_code": getattr(result, "exit_code", None),
+                        "success": getattr(result, "success", True),
+                        "stdout_preview": (getattr(result, "stdout", "") or "")[:500],
+                        "stderr_preview": (getattr(result, "stderr", "") or "")[:500],
+                    },
+                )
                 if not getattr(result, "success", True):
                     telemetry.mark_span_error(span, f"exit_code={result.exit_code}")
             return result
@@ -296,8 +351,17 @@ class AsyncRuntimes:
         ) as span:
             response = await self._make_agents_request("POST", f"runtime/{runtime_id}/code/run", data)
             result = CodeRunResponse.from_api(response.json())
-            if span is not None and getattr(result, "error", None):
-                telemetry.mark_span_error(span, str(result.error))
+            if span is not None:
+                text = getattr(result, "text", None) or getattr(result, "stdout", "") or ""
+                telemetry.record_outputs(
+                    span,
+                    {
+                        "text_preview": (text[:500] + "...") if len(text) > 500 else text,
+                        "error": getattr(result, "error", None),
+                    },
+                )
+                if getattr(result, "error", None):
+                    telemetry.mark_span_error(span, str(result.error))
             return result
 
     async def create_context(
