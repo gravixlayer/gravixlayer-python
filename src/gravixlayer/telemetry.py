@@ -37,7 +37,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 # Attribute keys shared with the platform query API / Traces UI.
 ATTR_RUN_TYPE = "gravixlayer.run_type"
-ATTR_RUNTIME_ID = "tensorgrid.runtime.id"
+ATTR_RUNTIME_ID = "gravixlayer.runtime.id"
 ATTR_OPERATION = "gravixlayer.operation"
 ATTR_INPUTS = "gravixlayer.inputs"
 ATTR_OUTPUTS = "gravixlayer.outputs"
@@ -308,10 +308,9 @@ def configure_otel(
     deployment_env = config.deployment_environment or os.environ.get("DEPLOYMENT_ENVIRONMENT")
     if deployment_env:
         attributes["deployment.environment"] = deployment_env
-    runtime_id = os.environ.get("GRAVIXLAYER_RUNTIME_ID") or os.environ.get("GRAVIXLAYER_AGENT_ID")
+    runtime_id = resolve_runtime_id()
     if runtime_id:
         attributes[ATTR_RUNTIME_ID] = runtime_id
-        attributes["gravixlayer.runtime.id"] = runtime_id
 
     if silent:
         _quiet_exporter_logs()
@@ -605,7 +604,7 @@ def runtime_span(
     """Semantic span for a sandbox runtime operation (code/cmd/file/git).
 
     Distinct from generic HTTP ``client_span`` so Traces UI can filter by
-    ``gravixlayer.operation`` and group by ``tensorgrid.runtime.id``.
+    ``gravixlayer.operation`` and group by ``gravixlayer.runtime.id``.
     """
     if not _ENABLED:
         yield None
@@ -650,6 +649,47 @@ def _install_auto_instrumentation() -> None:
         _logger.debug("requests auto-instrumentation unavailable", exc_info=True)
 
 
+def resolve_runtime_id() -> Optional[str]:
+    """Resolve the active runtime UUID for span identity.
+
+    Order: ``GRAVIXLAYER_RUNTIME_ID`` → ``GRAVIXLAYER_AGENT_ID`` →
+    ``/run/gravixlayer/runtime_id`` (written by cellcore ``Health.Init`` after
+    snapshot resume, so agents that started before Init still learn their id).
+    """
+    for key in ("GRAVIXLAYER_RUNTIME_ID", "GRAVIXLAYER_AGENT_ID"):
+        value = os.environ.get(key)
+        if value and value.strip():
+            return value.strip()
+    try:
+        with open("/run/gravixlayer/runtime_id", encoding="utf-8") as fh:
+            value = fh.read().strip()
+            if value:
+                return value
+    except OSError:
+        pass
+    return None
+
+
+def _load_run_otel_env() -> None:
+    """Best-effort load of ``/run/gravixlayer/otel.env`` into ``os.environ``.
+
+    Written by cellcore Init after snapshot resume. Only fills missing keys so
+    explicit process env always wins.
+    """
+    try:
+        with open("/run/gravixlayer/otel.env", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                if key and key not in os.environ:
+                    os.environ[key] = value.strip().strip('"').strip("'")
+    except OSError:
+        pass
+
+
 def configure_for_agent(service_name: Optional[str] = None) -> bool:
     """Activate telemetry for an agent/runtime server process.
 
@@ -664,12 +704,14 @@ def configure_for_agent(service_name: Optional[str] = None) -> bool:
     if not _ENABLED or not observability_enabled():
         return False
 
+    _load_run_otel_env()
+
     # Prefer runtime UUID as service.name when present (sandbox identity), else
     # the agent app name, else the default agent service name.
     resolved_name = (
         os.environ.get("OTEL_SERVICE_NAME")
         or service_name
-        or os.environ.get("GRAVIXLAYER_RUNTIME_ID")
+        or resolve_runtime_id()
         or DEFAULT_AGENT_SERVICE_NAME
     )
     config = GravixLayerTelemetryConfig.from_env(service_name=resolved_name)
@@ -678,7 +720,6 @@ def configure_for_agent(service_name: Optional[str] = None) -> bool:
     if not os.environ.get("OTEL_SERVICE_NAME") and service_name:
         config.service_name = service_name
 
-    # Stamp runtime identity on the resource when available.
     configured = configure_otel(config, silent=True)
     _install_auto_instrumentation()
     # True when we configured a provider OR when one already existed and we
