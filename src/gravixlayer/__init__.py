@@ -94,8 +94,14 @@ from .resources.async_agents import (
 from .telemetry import (
     GravixLayerTelemetryConfig,
     configure_otel,
+    configure_for_agent,
+    genai_span,
     init_telemetry,
     is_enabled as telemetry_enabled,
+    record_outputs,
+    runtime_span,
+    trace,
+    traced,
 )
 from .types.exceptions import (
     GravixLayerError,
@@ -189,6 +195,12 @@ __all__ = [
     # Observability (optional extra)
     "GravixLayerTelemetryConfig",
     "configure_otel",
+    "configure_for_agent",
     "init_telemetry",
     "telemetry_enabled",
+    "traced",
+    "trace",
+    "genai_span",
+    "runtime_span",
+    "record_outputs",
 ]

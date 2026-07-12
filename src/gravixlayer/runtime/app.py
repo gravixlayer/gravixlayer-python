@@ -229,11 +229,19 @@ class GravixApp:
 
         try:
             system = self._framework_name or "gravixlayer"
-            with telemetry.genai_span("invoke", system=system):
+            with telemetry.genai_span(
+                "invoke",
+                system=system,
+                attributes={
+                    "gravixlayer.run_type": "chain",
+                    "gravixlayer.agent.name": self.name,
+                },
+            ) as span:
                 # Framework adapter takes priority
                 if self._adapter is not None:
                     if hasattr(self._adapter, "handle_request"):
                         result = await self._adapter.handle_request(body)
+                        telemetry.record_outputs(span, result)
                         return JSONResponse(result)
                     else:
                         result = await self._adapter.handle_invoke(input_data, config_data)
@@ -245,6 +253,7 @@ class GravixApp:
                         status_code=500,
                     )
 
+                telemetry.record_outputs(span, result)
             return JSONResponse({"output": result})
 
         except Exception as exc:

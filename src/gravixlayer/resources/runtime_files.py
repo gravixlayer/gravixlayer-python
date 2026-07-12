@@ -55,42 +55,74 @@ class RuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         data = {"path": path}
-        response = self._req("POST", f"runtime/{runtime_id}/files/read", data)
-        result = response.json()
-        content = result.get("content", "")
-        if result.get("path") is None:
-            result["path"] = path
-        if result.get("size") is None and isinstance(content, str):
-            result["size"] = len(content.encode("utf-8"))
-        return FileReadResponse(**result)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.read",
+            runtime_id,
+            inputs={"path": path},
+            attributes={"file.path": path},
+        ):
+            response = self._req("POST", f"runtime/{runtime_id}/files/read", data)
+            result = response.json()
+            content = result.get("content", "")
+            if result.get("path") is None:
+                result["path"] = path
+            if result.get("size") is None and isinstance(content, str):
+                result["size"] = len(content.encode("utf-8"))
+            return FileReadResponse(**result)
 
     def write(self, runtime_id: str, path: str, content: str) -> FileWriteResponse:
         """Write text content via JSON API (``POST .../files/write``)."""
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path, "content": content}
-        response = self._req("POST", f"runtime/{runtime_id}/files/write", payload)
-        result = response.json()
-        return FileWriteResponse(**result)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.write",
+            runtime_id,
+            inputs={"path": path, "size": len(content)},
+            attributes={"file.path": path},
+        ):
+            response = self._req("POST", f"runtime/{runtime_id}/files/write", payload)
+            result = response.json()
+            return FileWriteResponse(**result)
 
     def delete(self, runtime_id: str, path: str) -> FileDeleteResponse:
         """Delete a file or directory."""
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        response = self._req("POST", f"runtime/{runtime_id}/files/delete", payload)
-        result = response.json()
-        return FileDeleteResponse(**result)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.delete",
+            runtime_id,
+            inputs={"path": path},
+            attributes={"file.path": path},
+        ):
+            response = self._req("POST", f"runtime/{runtime_id}/files/delete", payload)
+            result = response.json()
+            return FileDeleteResponse(**result)
 
     def list(self, runtime_id: str, path: str) -> FileListResponse:
         """List files and directories at ``path``."""
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        response = self._req("POST", f"runtime/{runtime_id}/files/list", payload)
-        result = response.json()
-        files = [_file_info_from_dict(f) for f in result.get("files", ())]
-        return FileListResponse(files=files)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.list",
+            runtime_id,
+            inputs={"path": path},
+            attributes={"file.path": path},
+        ):
+            response = self._req("POST", f"runtime/{runtime_id}/files/list", payload)
+            result = response.json()
+            files = [_file_info_from_dict(f) for f in result.get("files", ())]
+            return FileListResponse(files=files)
 
     def upload(
         self,
@@ -253,39 +285,71 @@ class AsyncRuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        response = await self._req("POST", f"runtime/{runtime_id}/files/read", payload)
-        result = response.json()
-        content = result.get("content", "")
-        if result.get("path") is None:
-            result["path"] = path
-        if result.get("size") is None and isinstance(content, str):
-            result["size"] = len(content.encode("utf-8"))
-        return FileReadResponse(**result)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.read",
+            runtime_id,
+            inputs={"path": path},
+            attributes={"file.path": path},
+        ):
+            response = await self._req("POST", f"runtime/{runtime_id}/files/read", payload)
+            result = response.json()
+            content = result.get("content", "")
+            if result.get("path") is None:
+                result["path"] = path
+            if result.get("size") is None and isinstance(content, str):
+                result["size"] = len(content.encode("utf-8"))
+            return FileReadResponse(**result)
 
     async def write(self, runtime_id: str, path: str, content: str) -> FileWriteResponse:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path, "content": content}
-        response = await self._req("POST", f"runtime/{runtime_id}/files/write", payload)
-        result = response.json()
-        return FileWriteResponse(**result)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.write",
+            runtime_id,
+            inputs={"path": path, "size": len(content)},
+            attributes={"file.path": path},
+        ):
+            response = await self._req("POST", f"runtime/{runtime_id}/files/write", payload)
+            result = response.json()
+            return FileWriteResponse(**result)
 
     async def delete(self, runtime_id: str, path: str) -> FileDeleteResponse:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        response = await self._req("POST", f"runtime/{runtime_id}/files/delete", payload)
-        result = response.json()
-        return FileDeleteResponse(**result)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.delete",
+            runtime_id,
+            inputs={"path": path},
+            attributes={"file.path": path},
+        ):
+            response = await self._req("POST", f"runtime/{runtime_id}/files/delete", payload)
+            result = response.json()
+            return FileDeleteResponse(**result)
 
     async def list(self, runtime_id: str, path: str) -> FileListResponse:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        response = await self._req("POST", f"runtime/{runtime_id}/files/list", payload)
-        result = response.json()
-        files = [_file_info_from_dict(f) for f in result.get("files", ())]
-        return FileListResponse(files=files)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.list",
+            runtime_id,
+            inputs={"path": path},
+            attributes={"file.path": path},
+        ):
+            response = await self._req("POST", f"runtime/{runtime_id}/files/list", payload)
+            result = response.json()
+            files = [_file_info_from_dict(f) for f in result.get("files", ())]
+            return FileListResponse(files=files)
 
     async def upload(
         self,

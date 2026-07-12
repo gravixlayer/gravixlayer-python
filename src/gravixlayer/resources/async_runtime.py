@@ -231,9 +231,21 @@ class AsyncRuntimes:
         if timeout is not None:
             data["timeout"] = timeout * 1000
 
-        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/commands/run", data)
-        result = response.json()
-        return CommandRunResponse(**result)
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "command.run",
+            runtime_id,
+            inputs={"command": command, "args": args or [], "working_dir": working_dir},
+            attributes={"process.command": command},
+        ) as span:
+            response = await self._make_agents_request("POST", f"runtime/{runtime_id}/commands/run", data)
+            result = CommandRunResponse(**response.json())
+            if span is not None:
+                span.set_attribute("process.exit_code", int(getattr(result, "exit_code", 0) or 0))
+                if not getattr(result, "success", True):
+                    telemetry.mark_span_error(span, f"exit_code={result.exit_code}")
+            return result
 
     # Code Execution Methods
 
@@ -267,8 +279,26 @@ class AsyncRuntimes:
         if timeout is not None:
             data["timeout"] = timeout
 
-        response = await self._make_agents_request("POST", f"runtime/{runtime_id}/code/run", data)
-        return CodeRunResponse.from_api(response.json())
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "code.run",
+            runtime_id,
+            inputs={
+                "language": language or "python",
+                "context_id": context_id,
+                "code_preview": (code[:500] + "...") if len(code) > 500 else code,
+            },
+            attributes={
+                "code.language": language or "python",
+                "code.context_id": context_id or "",
+            },
+        ) as span:
+            response = await self._make_agents_request("POST", f"runtime/{runtime_id}/code/run", data)
+            result = CodeRunResponse.from_api(response.json())
+            if span is not None and getattr(result, "error", None):
+                telemetry.mark_span_error(span, str(result.error))
+            return result
 
     async def create_context(
         self, runtime_id: str, language: Optional[str] = "python", cwd: Optional[str] = None
