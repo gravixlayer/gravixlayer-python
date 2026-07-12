@@ -25,6 +25,11 @@ classifiers = [
 ]
 dependencies = [
     "httpx[http2]>=0.24.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "opentelemetry-instrumentation-httpx>=0.41b0",
+    "opentelemetry-instrumentation-requests>=0.41b0",
 ]
 
 [project.scripts]
@@ -65,13 +70,9 @@ strands = [
 anthropic = [
     "claude-agent-sdk>=0.1.0",
 ]
-observability = [
-    "opentelemetry-api>=1.20.0",
-    "opentelemetry-sdk>=1.20.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
-    "opentelemetry-instrumentation-httpx>=0.41b0",
-    "opentelemetry-instrumentation-requests>=0.41b0",
-]
+# Observability ships in core dependencies. Extra kept empty for install scripts
+# that still request ``gravixlayer[observability]``.
+observability = []
 dev = [
     "pylint>=3.0.0",
     "flake8>=6.0.0",

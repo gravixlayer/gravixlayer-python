@@ -132,8 +132,8 @@ class GravixApp:
     def _build_app(self) -> Any:
         """Build the Starlette ASGI application."""
         # Activate telemetry at serve time (not construction) so importing or
-        # unit-testing the SDK never starts a background exporter. No-op unless the
-        # [observability] extra is installed and OBSERVABILITY_ENABLED is on.
+        # unit-testing the SDK never starts a background exporter. Honors
+        # OBSERVABILITY_ENABLED / GRAVIXLAYER_ENABLE_TELEMETRY.
         telemetry.configure_for_agent(self.name)
         try:
             from starlette.applications import Starlette

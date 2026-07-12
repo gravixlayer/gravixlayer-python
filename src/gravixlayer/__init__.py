@@ -98,7 +98,6 @@ from .telemetry import (
     enable_telemetry,
     genai_span,
     init_telemetry,
-    is_enabled as telemetry_enabled,
     record_outputs,
     runtime_span,
     trace,
@@ -193,13 +192,12 @@ __all__ = [
     "GravixLayerServerError",
     "GravixLayerBadRequestError",
     "GravixLayerConnectionError",
-    # Observability (optional extra)
+    # Observability
     "GravixLayerTelemetryConfig",
     "configure_otel",
     "configure_for_agent",
     "enable_telemetry",
     "init_telemetry",
-    "telemetry_enabled",
     "traced",
     "trace",
     "genai_span",

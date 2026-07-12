@@ -75,9 +75,9 @@ class AsyncGravixLayer:
         self.max_retries = max_retries
         self._retry_attempts = range(self.max_retries + 1)
 
-        # Activate client tracing only when an OTLP endpoint is explicitly set (env or
-        # a prior configure_otel call), so a bare client never starts a background
-        # exporter. traceparent is propagated whenever a tracer provider exists.
+        # Activate client tracing when GRAVIXLAYER_ENABLE_TELEMETRY is set (or a
+        # prior enable_telemetry / configure_otel call). A bare client never
+        # starts a background exporter without the flag.
         telemetry.maybe_configure_from_env()
 
         self._logger = logging.getLogger("gravixlayer-async")

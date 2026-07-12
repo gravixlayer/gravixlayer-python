@@ -3,8 +3,7 @@
 
 Shows how to:
 
-  1. Install observability extras and call ``enable_telemetry()``
-     (or set ``GRAVIXLAYER_ENABLE_TELEMETRY=true``)
+  1. Call ``enable_telemetry()`` (or set ``GRAVIXLAYER_ENABLE_TELEMETRY=true``)
   2. Use the SDK normally — ``runtime.create`` / ``run_code`` / ``file.*`` /
      ``kill`` emit ``runtime.*`` spans automatically
   3. Optionally wrap your own app logic with ``@traced`` / ``trace()``
@@ -17,7 +16,6 @@ After the script finishes, open the Tracing UI and filter by the printed
 Usage::
 
     export GRAVIXLAYER_API_KEY="gl_..."
-    pip install "gravixlayer[observability]"
 
     # One-shot enable (either is enough):
     #   export GRAVIXLAYER_ENABLE_TELEMETRY=true
@@ -26,7 +24,6 @@ Usage::
     # Optional:
     #   GRAVIXLAYER_TEMPLATE=python-3.14-base-small
     #   GRAVIXLAYER_SERVICE_NAME=my-app
-    #   GRAVIX_OTEL_ENDPOINT=http://otel.gravixlayer.ai:4318
     #   KEEP_RUNTIME=1
 
     python examples/runtimes/20_observability_verify.py
@@ -42,7 +39,6 @@ from typing import Any
 from gravixlayer import (
     GravixLayer,
     enable_telemetry,
-    telemetry_enabled,
     # Optional: only for your own application spans (not required for SDK runtime.*).
     trace,
     traced,
@@ -55,10 +51,8 @@ def _require_api_key() -> None:
 
 
 def _setup_otel() -> None:
-    if not telemetry_enabled():
-        print("WARN: OpenTelemetry not installed. Run: pip install 'gravixlayer[observability]'")
-        return
     # Prefer GRAVIXLAYER_SERVICE_NAME; falls back to default "my-app".
+    # Export targets the managed collector by default.
     service = os.getenv("GRAVIXLAYER_SERVICE_NAME", "my-app")
     ok = enable_telemetry(service_name=service, silent=True)
     print(f"tracing enabled={ok} service={service}")

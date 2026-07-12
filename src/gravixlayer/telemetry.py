@@ -1,16 +1,14 @@
-"""Optional OpenTelemetry instrumentation for the GravixLayer SDK.
+"""OpenTelemetry instrumentation for the GravixLayer SDK.
 
-This module is import-safe even when OpenTelemetry is not installed: every
-public function degrades to a no-op so the SDK carries zero hard dependency on
-telemetry. Install the optional extra to enable it::
+OpenTelemetry ships with the SDK. Export is off by default for client processes
+and is toggled with ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` or
+:func:`enable_telemetry`. Agent/runtime serve paths use
+:func:`configure_for_agent` (honors ``OBSERVABILITY_ENABLED``).
 
-    pip install "gravixlayer[observability]"
-
-The SDK only *emits* spans into whatever tracer provider the host application
-has configured (via :func:`opentelemetry.trace.set_tracer_provider` or the
-``opentelemetry-instrument`` launcher). For turnkey OTLP export driven by the
-``GRAVIX_OTEL_ENDPOINT`` / ``OTEL_EXPORTER_OTLP_ENDPOINT`` environment variables,
-or call :func:`configure_otel` once at process start.
+OTLP/HTTP export defaults to the managed collector
+(:data:`DEFAULT_OTLP_ENDPOINT`). Override with ``OTEL_EXPORTER_OTLP_ENDPOINT``
+or an explicit ``endpoint=`` argument to :func:`configure_otel` /
+:func:`enable_telemetry`.
 """
 
 from __future__ import annotations
@@ -60,11 +58,8 @@ _SENSITIVE_KEYS = frozenset(
 )
 
 # Platform-wide default OTLP/HTTP collector endpoint. Points at the managed GravixLayer
-# OTel Collector (see OBSERVABILITY_ARCHITECTURE.md §8), so an agent/runtime needs zero
-# configuration: telemetry ships to the platform collector out of the box. Override
-# per-process with GRAVIX_OTEL_ENDPOINT (or the standard OTEL_EXPORTER_OTLP_ENDPOINT)
-# when the collector lives elsewhere — e.g. a local collector at http://localhost:4318
-# or a compute host exporting to a specific platform host.
+# OTel Collector so an agent/runtime needs zero configuration. Override per-process with
+# OTEL_EXPORTER_OTLP_ENDPOINT when the collector lives elsewhere.
 DEFAULT_OTLP_ENDPOINT = "http://otel.gravixlayer.ai:4318"
 # Default service.name for application/client processes.
 # Override with GRAVIXLAYER_SERVICE_NAME or enable_telemetry(service_name=...).
@@ -74,7 +69,7 @@ DEFAULT_AGENT_SERVICE_NAME = "gravixlayer-agent"
 
 _logger = logging.getLogger("gravixlayer.telemetry")
 
-try:  # OpenTelemetry is an optional dependency.
+try:
     from opentelemetry import propagate
     from opentelemetry import trace as otel_trace
     from opentelemetry.trace import SpanKind, Status, StatusCode
@@ -89,11 +84,6 @@ except Exception:  # noqa: BLE001 - any import failure must disable telemetry.
     SpanKind = None  # type: ignore[assignment]
     Status = None  # type: ignore[assignment]
     StatusCode = None  # type: ignore[assignment]
-
-
-def is_enabled() -> bool:
-    """Return True when OpenTelemetry is importable and instrumentation is active."""
-    return _ENABLED
 
 
 def inject(carrier: Dict[str, str]) -> Dict[str, str]:
@@ -206,17 +196,12 @@ def observability_enabled() -> bool:
 
 
 def gravixlayer_telemetry_opted_in() -> bool:
-    """Return True when the user opted into SDK telemetry via env.
+    """Return True when the user opted into SDK client telemetry via env.
 
-    ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` enables export with the managed collector
-    default — no separate endpoint env required. Legacy path: an explicit
-    ``GRAVIX_OTEL_ENDPOINT`` / ``OTEL_EXPORTER_OTLP_ENDPOINT`` still opts in.
+    ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` enables export to the managed collector
+    default (or ``OTEL_EXPORTER_OTLP_ENDPOINT`` when set).
     """
-    if _truthy(os.environ.get("GRAVIXLAYER_ENABLE_TELEMETRY"), default=False):
-        return True
-    return bool(
-        os.environ.get("GRAVIX_OTEL_ENDPOINT") or os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-    )
+    return _truthy(os.environ.get("GRAVIXLAYER_ENABLE_TELEMETRY"), default=False)
 
 
 def resolve_service_name(
@@ -240,13 +225,10 @@ def resolve_service_name(
 def resolve_endpoint(explicit: Optional[str] = None) -> str:
     """Resolve the OTLP endpoint with a static, zero-config default.
 
-    Order: explicit arg → ``GRAVIX_OTEL_ENDPOINT`` → ``OTEL_EXPORTER_OTLP_ENDPOINT``
-    → :data:`DEFAULT_OTLP_ENDPOINT`. The default means a runtime/agent on a
-    GravixLayer host "just works"; the env vars exist only for when the collector
-    is not on ``localhost`` (e.g. compute host → platform host)."""
+    Order: explicit arg → ``OTEL_EXPORTER_OTLP_ENDPOINT`` → :data:`DEFAULT_OTLP_ENDPOINT`.
+    """
     return (
         explicit
-        or os.environ.get("GRAVIX_OTEL_ENDPOINT")
         or os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
         or DEFAULT_OTLP_ENDPOINT
     )
@@ -310,10 +292,10 @@ def configure_otel(
     """Configure a global tracer provider with an OTLP/HTTP span exporter.
 
     Endpoint resolution uses the static default (:data:`DEFAULT_OTLP_ENDPOINT`,
-    ``http://otel.gravixlayer.ai:4318``) unless overridden via arg,
-    ``GRAVIX_OTEL_ENDPOINT``, or ``OTEL_EXPORTER_OTLP_ENDPOINT``.
-    Idempotent and best-effort: returns ``False`` when the optional dependencies are
-    not installed or when an SDK provider is already configured. Export failures are
+    ``http://otel.gravixlayer.ai:4318``) unless overridden via arg or
+    ``OTEL_EXPORTER_OTLP_ENDPOINT``.
+    Idempotent and best-effort: returns ``False`` when OpenTelemetry cannot be
+    imported or when an SDK provider is already configured. Export failures are
     swallowed by the exporter and never block the caller."""
     if not _ENABLED:
         return False
@@ -390,8 +372,8 @@ def enable_telemetry(
         client = GravixLayer()
 
     Returns ``True`` when a tracer provider is available for export (newly
-    configured or already present). Returns ``False`` when the
-    ``[observability]`` extra is missing or observability is hard-disabled.
+    configured or already present). Returns ``False`` when observability is
+    hard-disabled.
     """
     if not _ENABLED:
         return False
@@ -416,12 +398,7 @@ def enable_telemetry(
 
 
 def maybe_configure_from_env() -> bool:
-    """Configure OTLP export when the user opted in via env.
-
-    Opt-in (either):
-
-    * ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` (preferred; uses managed collector default)
-    * ``GRAVIX_OTEL_ENDPOINT`` / ``OTEL_EXPORTER_OTLP_ENDPOINT`` set (legacy)
+    """Configure OTLP export when ``GRAVIXLAYER_ENABLE_TELEMETRY=true``.
 
     Called from ``GravixLayer()`` / ``AsyncGravixLayer()`` construction. Agent
     serving paths should use :func:`configure_for_agent` / :func:`enable_telemetry`.
