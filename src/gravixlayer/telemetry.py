@@ -68,6 +68,7 @@ DEFAULT_SDK_SERVICE_NAME = DEFAULT_APP_SERVICE_NAME  # backward-compatible alias
 DEFAULT_AGENT_SERVICE_NAME = "gravixlayer-agent"
 
 _logger = logging.getLogger("gravixlayer.telemetry")
+_AUTO_INSTRUMENTED = False
 
 try:
     from opentelemetry import propagate
@@ -709,22 +710,40 @@ def runtime_span(
 def _install_auto_instrumentation() -> None:
     """Best-effort install of httpx/requests CLIENT instrumentation.
 
-    Captures outbound HTTP from user/agent code (LLM APIs, tools, webhooks)
-    with zero application changes. Missing optional packages are silently skipped.
+    Idempotent: safe to call from ``enable_telemetry``, ``maybe_configure_from_env``,
+    and ``configure_for_agent`` without double-wrapping (which previously printed
+    ``Attempting to instrument while already instrumented`` and duplicated POST spans).
     """
+    global _AUTO_INSTRUMENTED
+    if _AUTO_INSTRUMENTED or not _ENABLED:
+        return
+
+    httpx_ok = False
+    requests_ok = False
+
     try:
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
-        HTTPXClientInstrumentor().instrument()
+        instrumentor = HTTPXClientInstrumentor()
+        if not instrumentor.is_instrumented_by_opentelemetry:
+            instrumentor.instrument()
+        httpx_ok = True
     except Exception:  # noqa: BLE001
         _logger.debug("httpx auto-instrumentation unavailable", exc_info=True)
 
     try:
         from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
-        RequestsInstrumentor().instrument()
+        instrumentor = RequestsInstrumentor()
+        if not instrumentor.is_instrumented_by_opentelemetry:
+            instrumentor.instrument()
+        requests_ok = True
     except Exception:  # noqa: BLE001
         _logger.debug("requests auto-instrumentation unavailable", exc_info=True)
+
+    # Mark done even if one library is missing so we do not retry/warn every call.
+    if httpx_ok or requests_ok:
+        _AUTO_INSTRUMENTED = True
 
 
 def resolve_runtime_id() -> Optional[str]:

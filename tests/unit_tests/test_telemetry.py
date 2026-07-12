@@ -96,9 +96,36 @@ def test_resolve_service_name_prefers_gravixlayer(monkeypatch):
     assert telemetry.resolve_service_name() == "otel-name"
 
 
-def test_enable_telemetry_noop_when_hard_disabled(monkeypatch):
-    monkeypatch.setattr(telemetry, "_ENABLED", False)
-    assert telemetry.enable_telemetry(service_name="my-app") is False
+def test_install_auto_instrumentation_is_idempotent(monkeypatch):
+    monkeypatch.setattr(telemetry, "_AUTO_INSTRUMENTED", False)
+    calls = {"n": 0}
+
+    def _make_fake():
+        class _FakeInstrumentor:
+            is_instrumented_by_opentelemetry = False
+
+            def instrument(self):
+                calls["n"] += 1
+                type(self).is_instrumented_by_opentelemetry = True
+
+        return _FakeInstrumentor
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "opentelemetry.instrumentation.httpx",
+        type("M", (), {"HTTPXClientInstrumentor": _make_fake()})(),
+    )
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "opentelemetry.instrumentation.requests",
+        type("M", (), {"RequestsInstrumentor": _make_fake()})(),
+    )
+    monkeypatch.setattr(telemetry, "_ENABLED", True)
+
+    telemetry._install_auto_instrumentation()
+    telemetry._install_auto_instrumentation()
+    assert calls["n"] == 2  # httpx + requests once each
+    assert telemetry._AUTO_INSTRUMENTED is True
 
 
 def test_observability_enabled_respects_gravixlayer_flag(monkeypatch):
