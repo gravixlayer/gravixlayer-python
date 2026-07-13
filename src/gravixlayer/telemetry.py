@@ -36,9 +36,24 @@ F = TypeVar("F", bound=Callable[..., Any])
 # Attribute keys shared with the platform query API / Traces UI.
 ATTR_RUN_TYPE = "gravixlayer.run_type"
 ATTR_RUNTIME_ID = "gravixlayer.runtime.id"
+ATTR_ACCOUNT_ID = "gravixlayer.account.id"
+ATTR_PROJECT_ID = "gravixlayer.project.id"
 ATTR_OPERATION = "gravixlayer.operation"
 ATTR_INPUTS = "gravixlayer.inputs"
 ATTR_OUTPUTS = "gravixlayer.outputs"
+
+# First-party log channel + iostream (OpenTelemetry-compatible product labels).
+# Queried by the Logs UI / SearchLogs as log.name and log.iostream.
+ATTR_LOG_NAME = "log.name"
+ATTR_LOG_IOSTREAM = "log.iostream"
+
+# Stable log.name channels (Google reasoning_engine_* parity).
+LOG_CHANNEL_AGENT = "agent"
+LOG_CHANNEL_RUNTIME_STDOUT = "runtime.stdout"
+LOG_CHANNEL_RUNTIME_STDERR = "runtime.stderr"
+LOG_CHANNEL_RUNTIME_PTY = "runtime.pty"
+LOG_CHANNEL_RUNTIME_CONSOLE = "runtime.console"
+LOG_CHANNEL_BUILD = "build"
 
 # Default truncation for serialized inputs/outputs on spans (Collector also redacts
 # known secrets). Keep payloads bounded so high-volume agent traces stay cheap.
@@ -69,6 +84,9 @@ DEFAULT_AGENT_SERVICE_NAME = "gravixlayer-agent"
 
 _logger = logging.getLogger("gravixlayer.telemetry")
 _AUTO_INSTRUMENTED = False
+_LOGS_CONFIGURED = False
+_LOGGING_HANDLER: Optional[logging.Handler] = None
+_STRUCT_LOGGER_NAME = "gravixlayer.agent"
 
 try:
     from opentelemetry import propagate
@@ -277,9 +295,404 @@ def _quiet_exporter_logs() -> None:
         return
     for name in (
         "opentelemetry.exporter.otlp.proto.http.trace_exporter",
+        "opentelemetry.exporter.otlp.proto.http._log_exporter",
         "opentelemetry.sdk.trace.export",
+        "opentelemetry.sdk._logs.export",
     ):
         logging.getLogger(name).setLevel(logging.CRITICAL)
+
+
+def resolve_account_id() -> Optional[str]:
+    """Resolve tenant account id from env / cellcore Init files."""
+    for key in ("GRAVIXLAYER_ACCOUNT_ID",):
+        value = os.environ.get(key)
+        if value and value.strip():
+            return value.strip()
+    try:
+        with open("/run/gravixlayer/account_id", encoding="utf-8") as fh:
+            value = fh.read().strip()
+            if value:
+                return value
+    except OSError:
+        pass
+    return None
+
+
+def resolve_project_id() -> Optional[str]:
+    """Resolve tenant project id from env / cellcore Init files."""
+    for key in ("GRAVIXLAYER_PROJECT_ID",):
+        value = os.environ.get(key)
+        if value and value.strip():
+            return value.strip()
+    try:
+        with open("/run/gravixlayer/project_id", encoding="utf-8") as fh:
+            value = fh.read().strip()
+            if value:
+                return value
+    except OSError:
+        pass
+    return None
+
+
+def _resource_attributes(
+    *,
+    service_name: str,
+    service_version: Optional[str] = None,
+    deployment_environment: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build OTLP resource attributes shared by traces and logs."""
+    attributes: Dict[str, Any] = {"service.name": service_name}
+    version = service_version or _sdk_version()
+    if version:
+        attributes["service.version"] = version
+    deployment_env = deployment_environment or os.environ.get("DEPLOYMENT_ENVIRONMENT")
+    if deployment_env:
+        attributes["deployment.environment"] = deployment_env
+    runtime_id = resolve_runtime_id()
+    if runtime_id:
+        attributes[ATTR_RUNTIME_ID] = runtime_id
+    account_id = resolve_account_id()
+    if account_id:
+        attributes[ATTR_ACCOUNT_ID] = account_id
+    project_id = resolve_project_id()
+    if project_id:
+        attributes[ATTR_PROJECT_ID] = project_id
+    return attributes
+
+
+def _normalize_otlp_signal_url(base: str, signal: str) -> str:
+    """Map a base OTLP endpoint to ``/v1/{traces|logs}``."""
+    url = base.rstrip("/")
+    suffix = f"/v1/{signal}"
+    if url.endswith(suffix):
+        return url
+    if url.endswith("/v1/traces") or url.endswith("/v1/logs"):
+        url = url.rsplit("/v1/", 1)[0]
+    return f"{url}{suffix}"
+
+
+def _ensure_log_pipeline(
+    attributes: Mapping[str, Any],
+    endpoint: str,
+    *,
+    silent: bool = False,
+) -> bool:
+    """Install a global OTLP LoggerProvider + stdlib logging bridge (once).
+
+    Mirrors Google Agent Runtime's Python Logging → Cloud Logging path, but
+    exports OpenTelemetry logs to the GravixLayer collector / in-VM loopback.
+    """
+    global _LOGS_CONFIGURED, _LOGGING_HANDLER
+    if _LOGS_CONFIGURED:
+        return True
+    if not _ENABLED:
+        return False
+
+    try:
+        from opentelemetry import _logs
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+        from opentelemetry.sdk._logs import LoggerProvider
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+        from opentelemetry.sdk.resources import Resource
+    except Exception:  # noqa: BLE001
+        return False
+
+    try:
+        from opentelemetry.sdk._logs import LoggerProvider as SdkLoggerProvider
+
+        current = _logs.get_logger_provider()
+        if not isinstance(current, SdkLoggerProvider):
+            if silent:
+                _quiet_exporter_logs()
+            logs_url = _normalize_otlp_signal_url(endpoint, "logs")
+            provider = LoggerProvider(resource=Resource.create(dict(attributes)))
+            provider.add_log_record_processor(
+                BatchLogRecordProcessor(OTLPLogExporter(endpoint=logs_url))
+            )
+            _logs.set_logger_provider(provider)
+            _logger.debug("OTel logging configured: endpoint=%s", logs_url)
+
+        # Attach a first-party stdlib → OTLP bridge (avoids deprecated SDK LoggingHandler).
+        if _LOGGING_HANDLER is None:
+            handler: logging.Handler = _OTLPLoggingHandler()
+            handler.addFilter(_ProductLogFilter(default_channel=LOG_CHANNEL_AGENT))
+            handler.setLevel(logging.NOTSET)
+            root = logging.getLogger()
+            for existing in list(root.handlers):
+                if isinstance(existing, _OTLPLoggingHandler):
+                    root.removeHandler(existing)
+            root.addHandler(handler)
+            if root.level == logging.NOTSET:
+                root.setLevel(logging.INFO)
+            _LOGGING_HANDLER = handler
+
+        _LOGS_CONFIGURED = True
+        return True
+    except Exception:  # noqa: BLE001 - best-effort; never break the app.
+        _logger.debug("OTel log pipeline setup failed", exc_info=True)
+        return False
+
+
+def _severity_number(sev: str) -> Any:
+    """Map severity text to OTel ``SeverityNumber`` (stable enum values)."""
+    from opentelemetry._logs import SeverityNumber
+
+    return SeverityNumber(_SEVERITY_MAP.get(sev, 9))
+
+
+def _active_trace_fields() -> Dict[str, Any]:
+    """Capture valid W3C trace/span fields for log↔trace correlation."""
+    if not _ENABLED or otel_trace is None:
+        return {}
+    try:
+        span = otel_trace.get_current_span()
+        ctx = span.get_span_context()
+        if ctx is None or not ctx.is_valid:
+            return {}
+        return {
+            "trace_id": ctx.trace_id,
+            "span_id": ctx.span_id,
+            "trace_flags": ctx.trace_flags,
+        }
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _tenant_log_attrs() -> Dict[str, str]:
+    """Stamp current tenant/runtime identity onto each log record.
+
+    Resource attributes are fixed at provider init; env may learn the runtime id
+    later (after ``runtime.create``). Re-reading on emit keeps Logs UI filters
+    (``gravixlayer.runtime.id``) accurate without rebuilding the pipeline.
+    """
+    attrs: Dict[str, str] = {}
+    runtime_id = resolve_runtime_id()
+    if runtime_id:
+        attrs[ATTR_RUNTIME_ID] = runtime_id
+    account_id = resolve_account_id()
+    if account_id:
+        attrs[ATTR_ACCOUNT_ID] = account_id
+    project_id = resolve_project_id()
+    if project_id:
+        attrs[ATTR_PROJECT_ID] = project_id
+    return attrs
+
+
+class _OTLPLoggingHandler(logging.Handler):
+    """stdlib ``logging`` → OpenTelemetry log records (first-party bridge)."""
+
+    _STANDARD = frozenset(
+        {
+            "name",
+            "msg",
+            "args",
+            "levelname",
+            "levelno",
+            "pathname",
+            "filename",
+            "module",
+            "exc_info",
+            "exc_text",
+            "stack_info",
+            "lineno",
+            "funcName",
+            "created",
+            "msecs",
+            "relativeCreated",
+            "thread",
+            "threadName",
+            "processName",
+            "process",
+            "message",
+            "taskName",
+        }
+    )
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            from opentelemetry import _logs
+            from opentelemetry._logs import LogRecord
+        except Exception:  # noqa: BLE001
+            return
+
+        try:
+            sev = record.levelname.upper()
+            if sev == "WARNING":
+                sev = "WARN"
+            attrs: Dict[str, Any] = {}
+            for key, value in record.__dict__.items():
+                if key in self._STANDARD or value is None:
+                    continue
+                if key.startswith("_"):
+                    continue
+                if isinstance(value, (str, int, float, bool)):
+                    attrs[key] = value
+                else:
+                    try:
+                        attrs[key] = json.dumps(value, default=str)
+                    except Exception:  # noqa: BLE001
+                        attrs[key] = str(value)
+
+            body = record.getMessage()
+            attrs.update(_tenant_log_attrs())
+            logger = _logs.get_logger(record.name or "gravixlayer")
+            logger.emit(
+                LogRecord(
+                    body=body,
+                    severity_text=sev,
+                    severity_number=_severity_number(sev),
+                    attributes=attrs or None,
+                    **_active_trace_fields(),
+                )
+            )
+        except Exception:  # noqa: BLE001
+            self.handleError(record)
+
+
+class _ProductLogFilter(logging.Filter):
+    """Stamp first-party ``log.name`` on stdlib records when missing."""
+
+    def __init__(self, default_channel: str = LOG_CHANNEL_AGENT) -> None:
+        super().__init__()
+        self.default_channel = default_channel
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not hasattr(record, ATTR_LOG_NAME):
+            setattr(record, ATTR_LOG_NAME, self.default_channel)
+        return True
+
+
+class _ChannelLabelFilter(logging.Filter):
+    """Stamp ``log.name`` + ``label.*`` for a named product logger."""
+
+    def __init__(
+        self,
+        channel: str = LOG_CHANNEL_AGENT,
+        labels: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        super().__init__()
+        self.channel = channel
+        self.labels = dict(labels or {})
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        setattr(record, ATTR_LOG_NAME, self.channel)
+        for key, value in self.labels.items():
+            if value is None:
+                continue
+            setattr(record, f"label.{key}", str(value))
+        return True
+
+
+def setup_logging(
+    *,
+    channel: str = LOG_CHANNEL_AGENT,
+    level: int = logging.INFO,
+    logger_name: Optional[str] = None,
+    labels: Optional[Mapping[str, str]] = None,
+) -> logging.Logger:
+    """Configure stdlib logging to export structured OTLP logs.
+
+    Example::
+
+        from gravixlayer import enable_telemetry, setup_logging
+
+        enable_telemetry(service_name="my-agent")
+        log = setup_logging(channel="agent", labels={"component": "planner"})
+        log.info("query received", extra={"user_id": "u-1"})
+
+    Records carry ``log.name`` (= channel), optional labels, severity, and the
+    active trace/span context when present.
+    """
+    if observability_enabled():
+        configure_otel(silent=True)
+    name = logger_name or _STRUCT_LOGGER_NAME
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    # Replace prior channel filters on this logger only (stable class identity).
+    logger.filters = [f for f in logger.filters if not isinstance(f, _ChannelLabelFilter)]
+    logger.addFilter(_ChannelLabelFilter(channel=channel, labels=labels))
+    return logger
+
+
+_SEVERITY_MAP = {
+    "TRACE": 1,
+    "DEBUG": 5,
+    "INFO": 9,
+    "WARN": 13,
+    "WARNING": 13,
+    "ERROR": 17,
+    "FATAL": 21,
+    "CRITICAL": 21,
+}
+
+
+def log_struct(
+    payload: Mapping[str, Any],
+    *,
+    severity: str = "INFO",
+    channel: str = LOG_CHANNEL_AGENT,
+    labels: Optional[Mapping[str, str]] = None,
+    iostream: Optional[str] = None,
+) -> bool:
+    """Emit a structured OTLP log record.
+
+    The payload is JSON-encoded as the log body (searchable) and also flattened
+    into ``payload.<key>`` attributes for term filters. Returns ``True`` when
+    the record was handed to the OTLP pipeline.
+    """
+    if not _ENABLED or not observability_enabled():
+        return False
+    configure_otel(silent=True)
+    if not _LOGS_CONFIGURED:
+        return False
+
+    try:
+        from opentelemetry import _logs
+        from opentelemetry._logs import LogRecord
+    except Exception:  # noqa: BLE001
+        return False
+
+    sev = (severity or "INFO").strip().upper()
+    if sev == "WARNING":
+        sev = "WARN"
+
+    attrs: Dict[str, Any] = {ATTR_LOG_NAME: channel}
+    attrs.update(_tenant_log_attrs())
+    if iostream:
+        attrs[ATTR_LOG_IOSTREAM] = iostream
+    if labels:
+        for key, value in labels.items():
+            if value is None:
+                continue
+            attrs[f"label.{key}"] = str(value)
+    for key, value in payload.items():
+        if value is None:
+            continue
+        flat = value if isinstance(value, (str, int, float, bool)) else json.dumps(value, default=str)
+        attrs[f"payload.{key}"] = flat
+
+    body: Any
+    try:
+        body = json.dumps(dict(payload), default=str)
+    except Exception:  # noqa: BLE001
+        body = str(payload)
+
+    try:
+        logger = _logs.get_logger("gravixlayer")
+        logger.emit(
+            LogRecord(
+                body=body,
+                severity_text=sev,
+                severity_number=_severity_number(sev),
+                attributes=attrs,
+                **_active_trace_fields(),
+            )
+        )
+        return True
+    except Exception:  # noqa: BLE001
+        _logger.debug("log_struct emit failed", exc_info=True)
+        return False
 
 
 def configure_otel(
@@ -290,14 +703,15 @@ def configure_otel(
     service_version: Optional[str] = None,
     silent: bool = False,
 ) -> bool:
-    """Configure a global tracer provider with an OTLP/HTTP span exporter.
+    """Configure global OTLP/HTTP exporters for traces **and** logs.
 
     Endpoint resolution uses the static default (:data:`DEFAULT_OTLP_ENDPOINT`,
     ``http://otel.gravixlayer.ai:4318``) unless overridden via arg or
     ``OTEL_EXPORTER_OTLP_ENDPOINT``.
-    Idempotent and best-effort: returns ``False`` when OpenTelemetry cannot be
-    imported or when an SDK provider is already configured. Export failures are
-    swallowed by the exporter and never block the caller."""
+    Idempotent and best-effort: returns ``False`` only when OpenTelemetry cannot
+    be imported. Export failures are swallowed by the exporter and never block
+    the caller.
+    """
     if not _ENABLED:
         return False
 
@@ -309,11 +723,6 @@ def configure_otel(
     except Exception:  # noqa: BLE001 - SDK/exporter not installed.
         return False
 
-    current = otel_trace.get_tracer_provider()
-    if isinstance(current, TracerProvider):
-        # An SDK provider is already installed (by us or the host app); reuse it.
-        return False
-
     if config is None:
         config = GravixLayerTelemetryConfig(
             endpoint=endpoint,
@@ -322,30 +731,31 @@ def configure_otel(
         )
 
     resolved_endpoint = resolve_endpoint(config.endpoint or endpoint)
-    # Normalize a base endpoint to the OTLP/HTTP traces path so a bare host:port works.
-    traces_url = resolved_endpoint.rstrip("/")
-    if not traces_url.endswith("/v1/traces"):
-        traces_url = f"{traces_url}/v1/traces"
-
-    attributes: Dict[str, Any] = {"service.name": config.service_name or service_name}
-    version = config.service_version or service_version or _sdk_version()
-    if version:
-        attributes["service.version"] = version
-    deployment_env = config.deployment_environment or os.environ.get("DEPLOYMENT_ENVIRONMENT")
-    if deployment_env:
-        attributes["deployment.environment"] = deployment_env
-    runtime_id = resolve_runtime_id()
-    if runtime_id:
-        attributes[ATTR_RUNTIME_ID] = runtime_id
+    attributes = _resource_attributes(
+        service_name=config.service_name or service_name,
+        service_version=config.service_version or service_version,
+        deployment_environment=config.deployment_environment,
+    )
 
     if silent:
         _quiet_exporter_logs()
 
-    provider = TracerProvider(resource=Resource.create(attributes))
-    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=traces_url)))
-    otel_trace.set_tracer_provider(provider)
-    _logger.debug("OTel tracing configured: endpoint=%s service=%s", traces_url, attributes["service.name"])
-    return True
+    traces_configured = False
+    current = otel_trace.get_tracer_provider()
+    if not isinstance(current, TracerProvider):
+        traces_url = _normalize_otlp_signal_url(resolved_endpoint, "traces")
+        provider = TracerProvider(resource=Resource.create(attributes))
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=traces_url)))
+        otel_trace.set_tracer_provider(provider)
+        traces_configured = True
+        _logger.debug(
+            "OTel tracing configured: endpoint=%s service=%s",
+            traces_url,
+            attributes["service.name"],
+        )
+
+    logs_configured = _ensure_log_pipeline(attributes, resolved_endpoint, silent=silent)
+    return traces_configured or logs_configured
 
 
 def init_telemetry(service_name: str = DEFAULT_APP_SERVICE_NAME, service_version: Optional[str] = None) -> bool:
@@ -359,17 +769,21 @@ def enable_telemetry(
     endpoint: Optional[str] = None,
     silent: bool = True,
 ) -> bool:
-    """One-shot enable for traces.
+    """One-shot enable for traces **and** structured logs.
 
     Equivalent to setting ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` and configuring
-    the managed OTLP exporter. Also installs httpx/requests auto-instrumentation
-    when available so outbound HTTP (LLM APIs, tools) becomes nested spans.
+    the managed OTLP exporters. Also installs httpx/requests auto-instrumentation
+    when available so outbound HTTP (LLM APIs, tools) becomes nested spans, and
+    bridges stdlib ``logging`` to OTLP logs (Google Agent Runtime logging parity).
 
     Example::
 
-        from gravixlayer import GravixLayer, enable_telemetry
+        from gravixlayer import GravixLayer, enable_telemetry, setup_logging, log_struct
 
         enable_telemetry(service_name="my-app")  # or set GRAVIXLAYER_ENABLE_TELEMETRY=true
+        log = setup_logging(channel="agent")
+        log.info("ready")
+        log_struct({"hello": "world"}, severity="INFO", labels={"foo": "bar"})
         client = GravixLayer()
 
     Returns ``True`` when a tracer provider is available for export (newly

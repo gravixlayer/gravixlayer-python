@@ -19,7 +19,9 @@ python examples/templates/01_python_docker_image.py
 | SSH | `runtimes/13`–`15` |
 | Reconnect to existing runtime | `runtimes/16_connect_existing_runtime.py` |
 | Lifecycle (pause / resume / kill) | `runtimes/19_runtime_lifecycle.py` |
-| Git in VM | `runtimes/16_runtime_git_operations.py` |
+| Observability (traces) | `runtimes/20_observability_verify.py` |
+| Observability (logs) | `runtimes/21_observability_logging.py` |
+| Git in VM | `runtimes/17_runtime_git_operations.py` |
 | Build templates | `templates/` |
 
 Indexes: [runtimes/README.md](runtimes/README.md) · [templates/README.md](templates/README.md) · [tests/README.md](../tests/README.md)
