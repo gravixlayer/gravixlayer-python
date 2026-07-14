@@ -318,6 +318,9 @@ class AgentDeployResponse:
     internal_endpoint: str
     status: str
     dns_status: str
+    name: str = ""
+    framework: str = ""
+    created_at: str = ""
 
 
 @dataclass
@@ -331,6 +334,13 @@ class AgentEndpoint:
     agent_card_url: str
     health: str
     dns_status: str
+    name: str = ""
+    framework: str = ""
+    a2a_endpoint: str = ""
+    mcp_endpoint: str = ""
+    status: str = ""
+    created_at: str = ""
+    updated_at: str = ""
 
 
 @dataclass
@@ -379,18 +389,31 @@ def _parse_deploy_response(data: Dict[str, Any]) -> AgentDeployResponse:
         internal_endpoint=data.get("internal_endpoint", ""),
         status=data.get("status", ""),
         dns_status=data.get("dns_status", ""),
+        name=data.get("name", ""),
+        framework=data.get("framework", ""),
+        created_at=data.get("created_at", ""),
     )
 
 
 def _parse_agent_endpoint(data: Dict[str, Any]) -> AgentEndpoint:
+    protocols = data.get("protocols") or {}
+    a2a_endpoint = data.get("a2a_endpoint") or protocols.get("a2a", "")
+    mcp_endpoint = data.get("mcp_endpoint") or protocols.get("mcp", "")
     return AgentEndpoint(
         agent_id=data["agent_id"],
         endpoint=data.get("endpoint", ""),
         internal_endpoint=data.get("internal_endpoint", ""),
-        protocols=data.get("protocols", {}),
+        protocols=protocols,
         agent_card_url=data.get("agent_card_url", ""),
         health=data.get("health", ""),
         dns_status=data.get("dns_status", ""),
+        name=data.get("name", ""),
+        framework=data.get("framework", ""),
+        a2a_endpoint=a2a_endpoint,
+        mcp_endpoint=mcp_endpoint,
+        status=data.get("status", ""),
+        created_at=data.get("created_at", ""),
+        updated_at=data.get("updated_at", ""),
     )
 
 
