@@ -19,6 +19,7 @@ from ._request_utils import (
 from .resources.runtime import RuntimeResource
 from .resources.templates import Templates
 from .resources.agents import Agents
+from .resources.secret_providers import Providers
 from . import telemetry
 from .types.exceptions import (
     GravixLayerError,
@@ -98,7 +99,14 @@ class GravixLayer:
 
         self._service_urls = {
             svc: f"{self.base_url}/{svc}"
-            for svc in ("v1/inference", "v1/agents", "v1/vectors", "v1/files", "v1/deployments")
+            for svc in (
+                "v1/inference",
+                "v1/agents",
+                "v1/vectors",
+                "v1/files",
+                "v1/deployments",
+                "v1/identity",
+            )
         }
 
         self._http_client = httpx.Client(
@@ -118,6 +126,7 @@ class GravixLayer:
         self.runtime = RuntimeResource(self)
         self.templates = Templates(self)
         self.agents = Agents(self)
+        self.providers = Providers(self)
 
         if warmup_on_init:
             self.warmup()

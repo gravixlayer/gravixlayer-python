@@ -26,6 +26,7 @@ from ..types.exceptions import (
 from ..resources.async_runtime import AsyncRuntimeResource
 from ..resources.async_templates import AsyncTemplates
 from ..resources.async_agents import AsyncAgents
+from ..resources.async_secret_providers import AsyncProviders
 from .. import telemetry
 
 class AsyncGravixLayer:
@@ -87,7 +88,14 @@ class AsyncGravixLayer:
 
         self._service_urls = {
             svc: f"{self.base_url}/{svc}"
-            for svc in ("v1/inference", "v1/agents", "v1/vectors", "v1/files", "v1/deployments")
+            for svc in (
+                "v1/inference",
+                "v1/agents",
+                "v1/vectors",
+                "v1/files",
+                "v1/deployments",
+                "v1/identity",
+            )
         }
 
         self._http_client = httpx.AsyncClient(
@@ -107,6 +115,7 @@ class AsyncGravixLayer:
         self.runtime = AsyncRuntimeResource(self)
         self.templates = AsyncTemplates(self)
         self.agents = AsyncAgents(self)
+        self.providers = AsyncProviders(self)
 
     async def warmup(self) -> None:
         """Same as :meth:`gravixlayer.GravixLayer.warmup` but async.

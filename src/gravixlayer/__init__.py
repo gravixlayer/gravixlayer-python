@@ -81,6 +81,7 @@ from .resources.agents import (
     AgentBuildError,
     AgentBuildTimeoutError,
 )
+from .resources.secret_providers import Providers
 from .resources.async_templates import (
     AsyncTemplates,
     AsyncTemplateBuildError,
@@ -90,6 +91,14 @@ from .resources.async_agents import (
     AsyncAgents,
     AsyncAgentBuildError,
     AsyncAgentBuildTimeoutError,
+)
+from .resources.async_secret_providers import AsyncProviders
+from .types.secret_providers import (
+    SecretInfo,
+    SecretProvider,
+    SecretProviderList,
+    SecretList,
+    SuccessResponse,
 )
 from .telemetry import (
     ATTR_LOG_IOSTREAM,
@@ -195,6 +204,14 @@ __all__ = [
     "AsyncAgents",
     "AsyncAgentBuildError",
     "AsyncAgentBuildTimeoutError",
+    # Secret providers
+    "Providers",
+    "AsyncProviders",
+    "SecretInfo",
+    "SecretProvider",
+    "SecretProviderList",
+    "SecretList",
+    "SuccessResponse",
     # Exceptions
     "GravixLayerError",
     "GravixLayerAuthenticationError",
