@@ -44,7 +44,7 @@ class Providers:
         >>> client = GravixLayer()
         >>> provider = client.identity.providers.create(
         ...     name="OpenAI",
-        ...     provider_type="openai",
+        ...     provider_type="api_key",
         ...     secrets=[{"key": "OPENAI_API_KEY", "value": "sk-..."}],
         ... )
         >>> client.identity.providers.attach(provider.id, runtime_id)
@@ -72,7 +72,7 @@ class Providers:
     def create(
         self,
         name: str,
-        provider_type: str = "custom",
+        provider_type: str = "api_key",
         secrets: Optional[List[Dict[str, str]]] = None,
         project_id: Optional[str] = None,
     ) -> SecretProvider:
@@ -80,7 +80,7 @@ class Providers:
 
         Args:
             name: Display name for the provider.
-            provider_type: Type label (openai, anthropic, google, azure, aws, custom).
+            provider_type: Auth kind. Phase 1 only supports ``api_key`` (default).
             secrets: Optional list of ``{"key": "...", "value": "..."}`` pairs.
             project_id: Optional project scope (query param).
         """

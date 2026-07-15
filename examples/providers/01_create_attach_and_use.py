@@ -31,7 +31,7 @@ def main() -> int:
     print("Creating secret provider…")
     provider = client.identity.providers.create(
         name="demo-openai",
-        provider_type="openai",
+        provider_type="api_key",
         secrets=[{"key": "OPENAI_API_KEY", "value": secret_value}],
     )
     print(f"  provider_id={provider.id} secrets={provider.secret_count}")

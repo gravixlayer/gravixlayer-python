@@ -51,7 +51,7 @@ class SecretProvider:
         return cls(
             id=data["id"],
             name=data["name"],
-            provider_type=data.get("provider_type", "custom"),
+            provider_type=data.get("provider_type", "api_key"),
             account_id=data.get("account_id"),
             project_id=data.get("project_id"),
             is_active=bool(data.get("is_active", True)),

@@ -40,7 +40,7 @@ class AsyncProviders:
     async def create(
         self,
         name: str,
-        provider_type: str = "custom",
+        provider_type: str = "api_key",
         secrets: Optional[List[Dict[str, str]]] = None,
         project_id: Optional[str] = None,
     ) -> SecretProvider:
