@@ -20,6 +20,7 @@ from .resources.runtime import RuntimeResource
 from .resources.templates import Templates
 from .resources.agents import Agents
 from .resources.identity import Identity
+from .resources.network_policies import NetworkPolicies
 from . import telemetry
 from .types.exceptions import (
     GravixLayerError,
@@ -106,6 +107,7 @@ class GravixLayer:
                 "v1/files",
                 "v1/deployments",
                 "v1/identity",
+                "v1/network-policies",
             )
         }
 
@@ -127,6 +129,7 @@ class GravixLayer:
         self.templates = Templates(self)
         self.agents = Agents(self)
         self.identity = Identity(self)
+        self.network_policies = NetworkPolicies(self)
 
         if warmup_on_init:
             self.warmup()

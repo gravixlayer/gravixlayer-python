@@ -83,6 +83,7 @@ from .resources.agents import (
 )
 from .resources.secret_providers import Providers
 from .resources.identity import Identity
+from .resources.network_policies import NetworkPolicies
 from .resources.async_templates import (
     AsyncTemplates,
     AsyncTemplateBuildError,
@@ -95,12 +96,19 @@ from .resources.async_agents import (
 )
 from .resources.async_secret_providers import AsyncProviders
 from .resources.async_identity import AsyncIdentity
+from .resources.async_network_policies import AsyncNetworkPolicies
 from .types.secret_providers import (
     SecretInfo,
     SecretProvider,
     SecretProviderList,
     SecretList,
     SuccessResponse,
+)
+from .types.network_policies import (
+    NetworkPolicy,
+    NetworkPolicyList,
+    NetworkPolicyRule,
+    NetworkPolicyRuleList,
 )
 from .telemetry import (
     ATTR_LOG_IOSTREAM,
@@ -216,6 +224,13 @@ __all__ = [
     "SecretProviderList",
     "SecretList",
     "SuccessResponse",
+    # Network policies
+    "NetworkPolicies",
+    "AsyncNetworkPolicies",
+    "NetworkPolicy",
+    "NetworkPolicyList",
+    "NetworkPolicyRule",
+    "NetworkPolicyRuleList",
     # Exceptions
     "GravixLayerError",
     "GravixLayerAuthenticationError",

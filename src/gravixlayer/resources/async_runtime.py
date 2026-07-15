@@ -85,6 +85,7 @@ class AsyncRuntimes:
         internet_access: Optional[bool] = None,
         agent_id: Optional[str] = None,
         providers: Optional[List[str]] = None,
+        network_policy_ids: Optional[List[str]] = None,
     ) -> Runtime:
         """Create a new runtime instance.
 
@@ -98,6 +99,8 @@ class AsyncRuntimes:
             internet_access: Whether to allow internet access
             agent_id: Agent ID to associate with the runtime
             providers: Optional secret provider IDs to attach at creation
+            network_policy_ids: Optional network policy IDs to attach at creation
+                (the system default is always attached).
         """
         resolved_provider = provider or self.client.cloud
         resolved_region = region or self.client.region
@@ -127,6 +130,8 @@ class AsyncRuntimes:
             data["agent_id"] = agent_id
         if providers is not None:
             data["providers"] = providers
+        if network_policy_ids is not None:
+            data["network_policy_ids"] = network_policy_ids
 
         from .. import telemetry
 

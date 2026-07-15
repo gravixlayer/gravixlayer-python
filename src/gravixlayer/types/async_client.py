@@ -27,6 +27,7 @@ from ..resources.async_runtime import AsyncRuntimeResource
 from ..resources.async_templates import AsyncTemplates
 from ..resources.async_agents import AsyncAgents
 from ..resources.async_identity import AsyncIdentity
+from ..resources.async_network_policies import AsyncNetworkPolicies
 from .. import telemetry
 
 class AsyncGravixLayer:
@@ -95,6 +96,7 @@ class AsyncGravixLayer:
                 "v1/files",
                 "v1/deployments",
                 "v1/identity",
+                "v1/network-policies",
             )
         }
 
@@ -116,6 +118,7 @@ class AsyncGravixLayer:
         self.templates = AsyncTemplates(self)
         self.agents = AsyncAgents(self)
         self.identity = AsyncIdentity(self)
+        self.network_policies = AsyncNetworkPolicies(self)
 
     async def warmup(self) -> None:
         """Same as :meth:`gravixlayer.GravixLayer.warmup` but async.
