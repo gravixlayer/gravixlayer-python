@@ -52,9 +52,9 @@ class AsyncProviders:
             body["secrets"] = [
                 {"key": s["key"], "value": s["value"]} for s in secrets
             ]
-        endpoint = "secret-providers"
+        endpoint = "providers"
         if project_id:
-            endpoint = f"secret-providers?project_id={project_id}"
+            endpoint = f"providers?project_id={project_id}"
         response = await self._make_identity_request("POST", endpoint, body)
         return _parse_provider(response.json()["provider"])
 
@@ -66,7 +66,7 @@ class AsyncProviders:
         search: Optional[str] = None,
     ) -> SecretProviderList:
         endpoint = build_list_endpoint(
-            "secret-providers",
+            "providers",
             limit=limit,
             offset=offset,
             extra_params={"project_id": project_id, "search": search},
@@ -78,7 +78,7 @@ class AsyncProviders:
 
     async def get(self, provider_id: str) -> SecretProvider:
         response = await self._make_identity_request(
-            "GET", f"secret-providers/{provider_id}"
+            "GET", f"providers/{provider_id}"
         )
         return _parse_provider(response.json()["provider"])
 
@@ -97,7 +97,7 @@ class AsyncProviders:
             body["provider_type"] = provider_type
         if is_active is not None:
             body["is_active"] = is_active
-        endpoint = f"secret-providers/{provider_id}"
+        endpoint = f"providers/{provider_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = await self._make_identity_request("PATCH", endpoint, body)
@@ -106,7 +106,7 @@ class AsyncProviders:
     async def delete(
         self, provider_id: str, project_id: Optional[str] = None
     ) -> SuccessResponse:
-        endpoint = f"secret-providers/{provider_id}"
+        endpoint = f"providers/{provider_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = await self._make_identity_request("DELETE", endpoint)
@@ -120,7 +120,7 @@ class AsyncProviders:
         value: str,
         project_id: Optional[str] = None,
     ) -> SecretInfo:
-        endpoint = f"secret-providers/{provider_id}/secrets"
+        endpoint = f"providers/{provider_id}/secrets"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = await self._make_identity_request(
@@ -130,7 +130,7 @@ class AsyncProviders:
 
     async def list_secrets(self, provider_id: str) -> SecretList:
         response = await self._make_identity_request(
-            "GET", f"secret-providers/{provider_id}/secrets"
+            "GET", f"providers/{provider_id}/secrets"
         )
         data = response.json()
         return SecretList(
@@ -150,7 +150,7 @@ class AsyncProviders:
             body["key"] = key
         if value is not None:
             body["value"] = value
-        endpoint = f"secret-providers/{provider_id}/secrets/{secret_id}"
+        endpoint = f"providers/{provider_id}/secrets/{secret_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = await self._make_identity_request("PATCH", endpoint, body)
@@ -162,7 +162,7 @@ class AsyncProviders:
         secret_id: str,
         project_id: Optional[str] = None,
     ) -> SuccessResponse:
-        endpoint = f"secret-providers/{provider_id}/secrets/{secret_id}"
+        endpoint = f"providers/{provider_id}/secrets/{secret_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = await self._make_identity_request("DELETE", endpoint)
@@ -175,7 +175,7 @@ class AsyncProviders:
         runtime_id: str,
         project_id: Optional[str] = None,
     ) -> SuccessResponse:
-        endpoint = f"secret-providers/{provider_id}/attach"
+        endpoint = f"providers/{provider_id}/attach"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = await self._make_identity_request(
@@ -190,7 +190,7 @@ class AsyncProviders:
         runtime_id: str,
         project_id: Optional[str] = None,
     ) -> SuccessResponse:
-        endpoint = f"secret-providers/{provider_id}/attach/{runtime_id}"
+        endpoint = f"providers/{provider_id}/attach/{runtime_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = await self._make_identity_request("DELETE", endpoint)
@@ -199,7 +199,7 @@ class AsyncProviders:
 
     async def list_for_runtime(self, runtime_id: str) -> SecretProviderList:
         response = await self._make_identity_request(
-            "GET", f"runtimes/{runtime_id}/secret-providers"
+            "GET", f"runtimes/{runtime_id}/providers"
         )
         data = response.json()
         providers = [_parse_provider(p) for p in (data.get("providers") or [])]

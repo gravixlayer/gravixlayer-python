@@ -2,18 +2,18 @@
 Secret Providers resource for the synchronous GravixLayer client.
 
 Maps to Identity API:
-    POST   /v1/identity/secret-providers
-    GET    /v1/identity/secret-providers
-    GET    /v1/identity/secret-providers/:id
-    PATCH  /v1/identity/secret-providers/:id
-    DELETE /v1/identity/secret-providers/:id
-    POST   /v1/identity/secret-providers/:id/secrets
-    GET    /v1/identity/secret-providers/:id/secrets
-    PATCH  /v1/identity/secret-providers/:id/secrets/:secret_id
-    DELETE /v1/identity/secret-providers/:id/secrets/:secret_id
-    POST   /v1/identity/secret-providers/:id/attach
-    DELETE /v1/identity/secret-providers/:id/attach/:runtime_id
-    GET    /v1/identity/runtimes/:runtime_id/secret-providers
+    POST   /v1/identity/providers
+    GET    /v1/identity/providers
+    GET    /v1/identity/providers/:id
+    PATCH  /v1/identity/providers/:id
+    DELETE /v1/identity/providers/:id
+    POST   /v1/identity/providers/:id/secrets
+    GET    /v1/identity/providers/:id/secrets
+    PATCH  /v1/identity/providers/:id/secrets/:secret_id
+    DELETE /v1/identity/providers/:id/secrets/:secret_id
+    POST   /v1/identity/providers/:id/attach
+    DELETE /v1/identity/providers/:id/attach/:runtime_id
+    GET    /v1/identity/runtimes/:runtime_id/providers
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ class Providers:
         ... )
         >>> client.providers.attach(provider.id, runtime_id)
         >>> runtime = client.runtime.create(
-        ...     secret_provider_ids=[provider.id],
+        ...     providers=[provider.id],
         ... )
     """
 
@@ -91,9 +91,9 @@ class Providers:
             body["secrets"] = [
                 {"key": s["key"], "value": s["value"]} for s in secrets
             ]
-        endpoint = "secret-providers"
+        endpoint = "providers"
         if project_id:
-            endpoint = f"secret-providers?project_id={project_id}"
+            endpoint = f"providers?project_id={project_id}"
         response = self._make_identity_request("POST", endpoint, body)
         return _parse_provider(response.json()["provider"])
 
@@ -106,7 +106,7 @@ class Providers:
     ) -> SecretProviderList:
         """List secret providers (masked; no secret values)."""
         endpoint = build_list_endpoint(
-            "secret-providers",
+            "providers",
             limit=limit,
             offset=offset,
             extra_params={"project_id": project_id, "search": search},
@@ -119,7 +119,7 @@ class Providers:
     def get(self, provider_id: str) -> SecretProvider:
         """Get a provider including its masked secrets."""
         response = self._make_identity_request(
-            "GET", f"secret-providers/{provider_id}"
+            "GET", f"providers/{provider_id}"
         )
         return _parse_provider(response.json()["provider"])
 
@@ -139,7 +139,7 @@ class Providers:
             body["provider_type"] = provider_type
         if is_active is not None:
             body["is_active"] = is_active
-        endpoint = f"secret-providers/{provider_id}"
+        endpoint = f"providers/{provider_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = self._make_identity_request("PATCH", endpoint, body)
@@ -147,7 +147,7 @@ class Providers:
 
     def delete(self, provider_id: str, project_id: Optional[str] = None) -> SuccessResponse:
         """Soft-delete a provider and detach it from all runtimes."""
-        endpoint = f"secret-providers/{provider_id}"
+        endpoint = f"providers/{provider_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = self._make_identity_request("DELETE", endpoint)
@@ -164,7 +164,7 @@ class Providers:
         project_id: Optional[str] = None,
     ) -> SecretInfo:
         """Add or upsert a key/value secret on a provider."""
-        endpoint = f"secret-providers/{provider_id}/secrets"
+        endpoint = f"providers/{provider_id}/secrets"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = self._make_identity_request(
@@ -175,7 +175,7 @@ class Providers:
     def list_secrets(self, provider_id: str) -> SecretList:
         """List masked secrets for a provider."""
         response = self._make_identity_request(
-            "GET", f"secret-providers/{provider_id}/secrets"
+            "GET", f"providers/{provider_id}/secrets"
         )
         data = response.json()
         return SecretList(
@@ -196,7 +196,7 @@ class Providers:
             body["key"] = key
         if value is not None:
             body["value"] = value
-        endpoint = f"secret-providers/{provider_id}/secrets/{secret_id}"
+        endpoint = f"providers/{provider_id}/secrets/{secret_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = self._make_identity_request("PATCH", endpoint, body)
@@ -209,7 +209,7 @@ class Providers:
         project_id: Optional[str] = None,
     ) -> SuccessResponse:
         """Delete a secret pair from a provider."""
-        endpoint = f"secret-providers/{provider_id}/secrets/{secret_id}"
+        endpoint = f"providers/{provider_id}/secrets/{secret_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = self._make_identity_request("DELETE", endpoint)
@@ -227,9 +227,9 @@ class Providers:
         """Attach a provider to a running (or any) sandbox/runtime.
 
         Secrets take effect on the next code/command execution (and at create
-        if attached before create via ``runtime.create(secret_provider_ids=...)``).
+        if attached before create via ``runtime.create(providers=...)``).
         """
-        endpoint = f"secret-providers/{provider_id}/attach"
+        endpoint = f"providers/{provider_id}/attach"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = self._make_identity_request(
@@ -245,7 +245,7 @@ class Providers:
         project_id: Optional[str] = None,
     ) -> SuccessResponse:
         """Detach a provider from a sandbox/runtime."""
-        endpoint = f"secret-providers/{provider_id}/attach/{runtime_id}"
+        endpoint = f"providers/{provider_id}/attach/{runtime_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
         response = self._make_identity_request("DELETE", endpoint)
@@ -255,7 +255,7 @@ class Providers:
     def list_for_runtime(self, runtime_id: str) -> SecretProviderList:
         """List providers currently attached to a runtime."""
         response = self._make_identity_request(
-            "GET", f"runtimes/{runtime_id}/secret-providers"
+            "GET", f"runtimes/{runtime_id}/providers"
         )
         data = response.json()
         providers = [_parse_provider(p) for p in (data.get("providers") or [])]

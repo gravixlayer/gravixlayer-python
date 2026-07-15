@@ -1,4 +1,4 @@
-"""Types for Identity Secret Providers API (/v1/identity/secret-providers)."""
+"""Types for Identity Secret Providers API (/v1/identity/providers)."""
 
 from __future__ import annotations
 

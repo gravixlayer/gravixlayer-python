@@ -39,7 +39,7 @@ def main() -> int:
     print("Creating runtime with provider attached…")
     runtime = client.runtime.create(
         template=os.environ.get("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small"),
-        secret_provider_ids=[provider.id],
+        providers=[provider.id],
     )
     print(f"  runtime_id={runtime.runtime_id} status={runtime.status}")
 

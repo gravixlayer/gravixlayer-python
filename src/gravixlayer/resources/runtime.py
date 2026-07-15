@@ -85,7 +85,7 @@ class Runtimes:
         metadata: Optional[Dict[str, Any]] = None,
         internet_access: Optional[bool] = None,
         agent_id: Optional[str] = None,
-        secret_provider_ids: Optional[List[str]] = None,
+        providers: Optional[List[str]] = None,
     ) -> Runtime:
         """Create a new runtime instance.
 
@@ -99,7 +99,7 @@ class Runtimes:
             metadata: Metadata tags for the runtime
             internet_access: Whether to allow internet access (default: None = server default)
             agent_id: Agent ID to associate with the runtime
-            secret_provider_ids: Optional secret provider IDs to attach at creation;
+            providers: Optional secret provider IDs to attach at creation;
                 their secrets are injected into the sandbox environment (never
                 persisted decrypted in the control plane).
         """
@@ -129,8 +129,8 @@ class Runtimes:
             data["internet_access"] = internet_access
         if agent_id is not None:
             data["agent_id"] = agent_id
-        if secret_provider_ids is not None:
-            data["secret_provider_ids"] = secret_provider_ids
+        if providers is not None:
+            data["providers"] = providers
 
         from .. import telemetry
 
