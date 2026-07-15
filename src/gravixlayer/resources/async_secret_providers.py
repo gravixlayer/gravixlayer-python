@@ -21,7 +21,7 @@ from ..types.secret_providers import (
 
 
 class AsyncProviders:
-    """Async Secret Providers resource at ``client.providers``."""
+    """Async Identity providers resource at ``client.identity.providers``."""
 
     def __init__(self, client):
         self.client = client

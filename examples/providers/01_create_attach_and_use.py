@@ -29,7 +29,7 @@ def main() -> int:
     client = GravixLayer()
 
     print("Creating secret provider…")
-    provider = client.providers.create(
+    provider = client.identity.providers.create(
         name="demo-openai",
         provider_type="openai",
         secrets=[{"key": "OPENAI_API_KEY", "value": secret_value}],
@@ -49,16 +49,16 @@ def main() -> int:
     print(f"  env prefix: {stdout!r}")
 
     print("Listing providers attached to runtime…")
-    attached = client.providers.list_for_runtime(runtime.runtime_id)
+    attached = client.identity.providers.list_for_runtime(runtime.runtime_id)
     for p in attached.providers:
         print(f"  - {p.name} ({p.id}) active={p.is_active}")
 
     print("Detaching provider…")
-    client.providers.detach(provider.id, runtime.runtime_id)
+    client.identity.providers.detach(provider.id, runtime.runtime_id)
 
     print("Cleaning up…")
     runtime.kill()
-    client.providers.delete(provider.id)
+    client.identity.providers.delete(provider.id)
     print("Done.")
     return 0
 

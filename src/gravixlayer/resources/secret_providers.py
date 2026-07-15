@@ -33,20 +33,21 @@ from ..types.secret_providers import (
 
 
 class Providers:
-    """Secret Providers resource at ``client.providers``.
+    """Identity providers resource at ``client.identity.providers``.
 
     Create a provider with key/value secrets, attach it to a sandbox (runtime),
-    and those secrets become environment variables at create/execution time.
+    and those secrets become environment variables at execution time.
+    Maps to ``/v1/identity/providers``.
 
     Example:
         >>> from gravixlayer import GravixLayer
         >>> client = GravixLayer()
-        >>> provider = client.providers.create(
+        >>> provider = client.identity.providers.create(
         ...     name="OpenAI",
         ...     provider_type="openai",
         ...     secrets=[{"key": "OPENAI_API_KEY", "value": "sk-..."}],
         ... )
-        >>> client.providers.attach(provider.id, runtime_id)
+        >>> client.identity.providers.attach(provider.id, runtime_id)
         >>> runtime = client.runtime.create(
         ...     providers=[provider.id],
         ... )

@@ -82,6 +82,7 @@ from .resources.agents import (
     AgentBuildTimeoutError,
 )
 from .resources.secret_providers import Providers
+from .resources.identity import Identity
 from .resources.async_templates import (
     AsyncTemplates,
     AsyncTemplateBuildError,
@@ -93,6 +94,7 @@ from .resources.async_agents import (
     AsyncAgentBuildTimeoutError,
 )
 from .resources.async_secret_providers import AsyncProviders
+from .resources.async_identity import AsyncIdentity
 from .types.secret_providers import (
     SecretInfo,
     SecretProvider,
@@ -204,7 +206,9 @@ __all__ = [
     "AsyncAgents",
     "AsyncAgentBuildError",
     "AsyncAgentBuildTimeoutError",
-    # Secret providers
+    # Identity providers
+    "Identity",
+    "AsyncIdentity",
     "Providers",
     "AsyncProviders",
     "SecretInfo",

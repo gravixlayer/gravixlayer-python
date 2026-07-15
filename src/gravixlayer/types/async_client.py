@@ -26,7 +26,7 @@ from ..types.exceptions import (
 from ..resources.async_runtime import AsyncRuntimeResource
 from ..resources.async_templates import AsyncTemplates
 from ..resources.async_agents import AsyncAgents
-from ..resources.async_secret_providers import AsyncProviders
+from ..resources.async_identity import AsyncIdentity
 from .. import telemetry
 
 class AsyncGravixLayer:
@@ -115,7 +115,7 @@ class AsyncGravixLayer:
         self.runtime = AsyncRuntimeResource(self)
         self.templates = AsyncTemplates(self)
         self.agents = AsyncAgents(self)
-        self.providers = AsyncProviders(self)
+        self.identity = AsyncIdentity(self)
 
     async def warmup(self) -> None:
         """Same as :meth:`gravixlayer.GravixLayer.warmup` but async.

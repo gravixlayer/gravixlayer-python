@@ -19,7 +19,7 @@ from ._request_utils import (
 from .resources.runtime import RuntimeResource
 from .resources.templates import Templates
 from .resources.agents import Agents
-from .resources.secret_providers import Providers
+from .resources.identity import Identity
 from . import telemetry
 from .types.exceptions import (
     GravixLayerError,
@@ -126,7 +126,7 @@ class GravixLayer:
         self.runtime = RuntimeResource(self)
         self.templates = Templates(self)
         self.agents = Agents(self)
-        self.providers = Providers(self)
+        self.identity = Identity(self)
 
         if warmup_on_init:
             self.warmup()
