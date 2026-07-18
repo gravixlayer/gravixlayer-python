@@ -7,6 +7,7 @@ SSH, pause/resume, code contexts.
 """
 
 import io
+import json
 import pytest
 import httpx
 import respx
@@ -70,7 +71,7 @@ class TestSyncRuntimeLifecycle:
         assert rt._client is client
 
     def test_create_normalizes_go_runtime_response_keys(self, client, mock_api):
-        """Control plane JSON uses id / compute_* / tags; SDK maps to runtime model fields."""
+        """API JSON may use id / compute_* / tags; SDK maps to runtime model fields."""
         mock_api.post(f"{SB}").mock(
             return_value=httpx.Response(
                 200,
@@ -103,6 +104,8 @@ class TestSyncRuntimeLifecycle:
             metadata={"team": "ml"},
             internet_access=True,
             agent_id="agent-001",
+            providers=["provider-uuid-1"],
+            network_policy_ids=["policy-uuid-1", "policy-uuid-2"],
         )
         assert isinstance(rt, Runtime)
 
@@ -116,6 +119,8 @@ class TestSyncRuntimeLifecycle:
         assert body["timeout"] == 600
         assert body["env_vars"] == {"NODE_ENV": "production"}
         assert body["internet_access"] is True
+        assert body["providers"] == ["provider-uuid-1"]
+        assert body["network_policy_ids"] == ["policy-uuid-1", "policy-uuid-2"]
 
     def test_list(self, client, mock_api):
         mock_api.get(url__regex=rf"{SB}\?").mock(
@@ -462,6 +467,69 @@ class TestSyncRuntimeExecution:
         body = json.loads(request.content)
         assert body["timeout"] == 10000  # 10s -> 10000ms
 
+    def test_run_cmd_streaming_callbacks(self, client, mock_api):
+        sse = (
+            'data: {"type": "stdout", "data": "hello"}\n\n'
+            'data: {"type": "stderr", "data": "warn"}\n\n'
+            "data: not-json\n\n"
+            "event: ping\n\n"
+            'data: {"type": "end", "exit_code": 0}\n\n'
+        )
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(
+                200,
+                text=sse,
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        stdout_chunks: list[str] = []
+        stderr_chunks: list[str] = []
+        exits: list[int] = []
+        result = client.runtime.run_cmd(
+            VALID_UUID,
+            "echo hi",
+            args=["-n"],
+            working_dir="/tmp",
+            environment={"A": "1"},
+            on_stdout=stdout_chunks.append,
+            on_stderr=stderr_chunks.append,
+            on_exit=exits.append,
+        )
+        assert result.success is True
+        assert result.stdout == "hello"
+        assert result.stderr == "warn"
+        assert stdout_chunks == ["hello"]
+        assert stderr_chunks == ["warn"]
+        assert exits == [0]
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["args"] == ["-n"]
+        assert body["working_dir"] == "/tmp"
+        assert body["environment"] == {"A": "1"}
+        assert "stream=true" in str(mock_api.calls[-1].request.url)
+
+    def test_run_cmd_streaming_error_event(self, client, mock_api):
+        sse = 'data: {"type": "error", "message": "boom"}\n\n'
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(
+                200,
+                text=sse,
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        stderr_chunks: list[str] = []
+        exits: list[int] = []
+        result = client.runtime.run_cmd(
+            VALID_UUID,
+            "fail",
+            on_stderr=stderr_chunks.append,
+            on_exit=exits.append,
+        )
+        assert result.success is False
+        assert result.exit_code == 1
+        assert result.stderr == "boom"
+        assert stderr_chunks == ["boom"]
+        assert exits == [1]
+
     def test_run_code(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/code/run").mock(
             return_value=httpx.Response(200, json=make_code_run_response())
@@ -749,6 +817,27 @@ class TestAsyncRuntimeFiles:
             result = await client.runtime.run_cmd(VALID_UUID, "echo hi")
             assert result.success is True
 
+    @pytest.mark.asyncio
+    async def test_run_cmd_optional_fields(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(200, json=make_cmd_run_response())
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            result = await client.runtime.run_cmd(
+                VALID_UUID,
+                "ls",
+                args=["-la"],
+                working_dir="/workspace",
+                environment={"FOO": "bar"},
+                timeout=5,
+            )
+            assert result.success is True
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["args"] == ["-la"]
+        assert body["working_dir"] == "/workspace"
+        assert body["environment"] == {"FOO": "bar"}
+        assert body["timeout"] == 5000
+
 
 # ===================================================================
 # Async Runtime Resource — SSH
@@ -836,3 +925,257 @@ class TestAsyncRuntimeWrite:
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             resp = await client.runtime.file.write_many(VALID_UUID, [])
             assert resp.files == []
+
+
+# ===================================================================
+# Sync — previously missing file / git ops
+# ===================================================================
+
+
+class TestSyncRuntimeFileMeta:
+    def test_get_info_exists(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/files/info").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "exists": True,
+                    "info": {
+                        "name": "f.txt",
+                        "path": "/tmp/f.txt",
+                        "size": 12,
+                        "is_dir": False,
+                        "mod_time": "2025-01-01T00:00:00Z",
+                    },
+                },
+            )
+        )
+        result = client.runtime.file.get_info(VALID_UUID, "/tmp/f.txt")
+        assert result.exists is True
+        assert result.info is not None
+        assert result.info.name == "f.txt"
+
+    def test_get_info_missing(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/files/info").mock(
+            return_value=httpx.Response(200, json={"exists": False})
+        )
+        result = client.runtime.file.get_info(VALID_UUID, "/tmp/missing")
+        assert result.exists is False
+        assert result.info is None
+
+    def test_set_permissions(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/files/set-mode").mock(
+            return_value=httpx.Response(
+                200, json={"success": True, "message": "mode set"}
+            )
+        )
+        result = client.runtime.file.set_permissions(VALID_UUID, "/tmp/f.txt", "644")
+        assert result.success is True
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body == {"path": "/tmp/f.txt", "mode": "644"}
+
+    def test_set_permissions_empty_mode_raises(self, client, mock_api):
+        with pytest.raises(ValueError, match="mode"):
+            client.runtime.file.set_permissions(VALID_UUID, "/tmp/f.txt", "  ")
+
+
+class TestSyncRuntimeGitWriteOps:
+    def test_git_checkout(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/checkout").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        result = client.runtime.git.checkout(VALID_UUID, "/repo", "main")
+        assert result.success is True
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["ref_name"] == "main"
+
+    def test_git_fetch(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/fetch").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        result = client.runtime.git.fetch(VALID_UUID, "/repo", remote="origin")
+        assert result.success is True
+
+    def test_git_push(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/push").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        result = client.runtime.git.push(
+            VALID_UUID, "/repo", remote="origin", refspec="main"
+        )
+        assert result.success is True
+
+    def test_git_add(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/add").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        result = client.runtime.git.add(VALID_UUID, "/repo", paths=["a.py"])
+        assert result.success is True
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["paths"] == ["a.py"]
+
+    def test_git_commit(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/commit").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        result = client.runtime.git.commit(
+            VALID_UUID,
+            "/repo",
+            message="init",
+            author_name="Dev",
+            author_email="dev@example.com",
+        )
+        assert result.success is True
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["message"] == "init"
+        assert body["author_name"] == "Dev"
+
+
+# ===================================================================
+# Async — previously missing lifecycle / file / git ops
+# ===================================================================
+
+
+class TestAsyncRuntimeConfig:
+    @pytest.mark.asyncio
+    async def test_set_timeout_metrics_host_url(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/timeout").mock(
+            return_value=httpx.Response(
+                200, json={"message": "Updated", "timeout": 600}
+            )
+        )
+        mock_api.get(f"{SB}/{VALID_UUID}/metrics").mock(
+            return_value=httpx.Response(200, json=make_metrics_response())
+        )
+        mock_api.get(f"{SB}/{VALID_UUID}/host/8080").mock(
+            return_value=httpx.Response(
+                200, json={"url": "https://host.example.com:8080"}
+            )
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            timeout = await client.runtime.set_timeout(VALID_UUID, 600)
+            assert timeout.timeout == 600
+            metrics = await client.runtime.get_metrics(VALID_UUID)
+            assert metrics.cpu_usage == 45.2
+            host = await client.runtime.get_host_url(VALID_UUID, 8080)
+            assert "8080" in host.url
+
+
+class TestAsyncRuntimeContextsAndSSH:
+    @pytest.mark.asyncio
+    async def test_contexts_and_disable_ssh(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/code/contexts").mock(
+            return_value=httpx.Response(
+                200, json={"id": "ctx-1", "language": "python", "cwd": "/"}
+            )
+        )
+        mock_api.get(f"{SB}/{VALID_UUID}/code/contexts/ctx-1").mock(
+            return_value=httpx.Response(
+                200, json={"id": "ctx-1", "language": "python", "cwd": "/"}
+            )
+        )
+        mock_api.delete(f"{SB}/{VALID_UUID}/code/contexts/ctx-1").mock(
+            return_value=httpx.Response(
+                200, json={"context_id": "ctx-1", "message": "Deleted"}
+            )
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/ssh/disable").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            ctx = await client.runtime.create_context(VALID_UUID)
+            assert ctx.context_id == "ctx-1"
+            got = await client.runtime.get_context(VALID_UUID, "ctx-1")
+            assert got.context_id == "ctx-1"
+            deleted = await client.runtime.delete_context(VALID_UUID, "ctx-1")
+            assert deleted.context_id == "ctx-1"
+            await client.runtime.disable_ssh(VALID_UUID)
+
+
+class TestAsyncRuntimeFileMetaAndGit:
+    @pytest.mark.asyncio
+    async def test_file_meta_and_git_ops(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/files/info").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "exists": True,
+                    "info": {
+                        "name": "f.txt",
+                        "path": "/tmp/f.txt",
+                        "size": 1,
+                        "is_dir": False,
+                    },
+                },
+            )
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/files/set-mode").mock(
+            return_value=httpx.Response(200, json={"success": True, "message": "ok"})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/files/delete").mock(
+            return_value=httpx.Response(
+                200, json={"message": "Deleted", "path": "/tmp/f.txt"}
+            )
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/files/list").mock(
+            return_value=httpx.Response(200, json={"files": []})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/files/create-directory").mock(
+            return_value=httpx.Response(
+                200, json={"path": "/tmp/d", "success": True, "message": "ok"}
+            )
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/git/checkout").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/git/push").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/git/add").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/git/commit").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/git/clone").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/git/status").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/git/pull").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/git/branch/delete").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            info = await client.runtime.file.get_info(VALID_UUID, "/tmp/f.txt")
+            assert info.exists is True
+            perms = await client.runtime.file.set_permissions(
+                VALID_UUID, "/tmp/f.txt", "755"
+            )
+            assert perms.success is True
+            await client.runtime.file.delete(VALID_UUID, "/tmp/f.txt")
+            listed = await client.runtime.file.list(VALID_UUID, "/tmp")
+            assert listed.files == []
+            await client.runtime.file.create_directory(VALID_UUID, "/tmp/d")
+
+            assert (
+                await client.runtime.git.clone(
+                    VALID_UUID, "https://example.com/r.git", "/repo"
+                )
+            ).success
+            assert (await client.runtime.git.status(VALID_UUID, "/repo")).success
+            assert (await client.runtime.git.pull(VALID_UUID, "/repo")).success
+            assert (
+                await client.runtime.git.checkout(VALID_UUID, "/repo", "main")
+            ).success
+            assert (await client.runtime.git.push(VALID_UUID, "/repo")).success
+            assert (
+                await client.runtime.git.add(VALID_UUID, "/repo", paths=["a.py"])
+            ).success
+            assert (await client.runtime.git.commit(VALID_UUID, "/repo", "msg")).success
+            assert (
+                await client.runtime.git.delete_branch(VALID_UUID, "/repo", "old")
+            ).success

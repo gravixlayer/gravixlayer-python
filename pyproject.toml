@@ -86,6 +86,7 @@ dev = [
 test = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
     "respx>=0.20.0",
 ]
 
@@ -153,4 +154,31 @@ pythonpath = ["."]
 asyncio_mode = "auto"
 markers = [
     "integration: live API tests (require credentials; skipped when unset)",
+]
+
+# Public SDK coverage gate (client + resources + types + shared request helpers).
+# Excludes optional runtime/a2a/frameworks adapters and CLI — not the published HTTP API surface.
+[tool.coverage.run]
+branch = true
+source = ["gravixlayer"]
+omit = [
+    "*/gravixlayer/cli/*",
+    "*/gravixlayer/runtime/*",
+    "*/gravixlayer/a2a/*",
+    "*/gravixlayer/frameworks/*",
+    "*/gravixlayer/_cli_progress.py",
+    # Observability internals have dedicated unit tests; exclude from the
+    # public HTTP client/resource coverage gate.
+    "*/gravixlayer/telemetry.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 85
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
 ]

@@ -2,7 +2,7 @@
 Type definitions for Template Build Pipeline API.
 
 Provides dataclasses and enums for template creation, build orchestration,
-and status tracking. Aligned with the backend template build API contract.
+and status tracking for the Gravix Layer template build API.
 """
 
 import base64
@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
-# Build step types (aligned with backend template_build.go)
+# Build step type values accepted by the Gravix Layer API.
 # ---------------------------------------------------------------------------
 
 class BuildStepType(str, Enum):
@@ -147,7 +147,7 @@ class TemplateSnapshot:
     vcpu_count: int
     memory_mb: int
     created_at: str
-    envd_version: Optional[str] = None
+    envd_version: Optional[str] = None  # Platform environment version, when reported
     snapshot_size_bytes: Optional[int] = None
 
 

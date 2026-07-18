@@ -2,7 +2,7 @@
 Template Build Pipeline resource for synchronous client.
 
 Provides methods for creating, building, polling, listing, and
-deleting VM templates via the backend API.
+deleting VM templates via the Gravix Layer API.
 """
 
 import sys
@@ -57,7 +57,7 @@ class TemplateBuildTimeoutError(TemplateBuildError):
 class Templates:
     """Template Build Pipeline resource.
 
-    Exposes methods aligned with the backend template API:
+    Exposes methods for the Gravix Layer template API:
         POST   /v1/agents/template/build
         GET    /v1/agents/template/builds/:build_id/status
         GET    /v1/agents/template
@@ -88,7 +88,7 @@ class Templates:
     def __init__(self, client):
         self.client = client
 
-    # -- Internal helpers ---------------------------------------------------
+    # -- Helpers -----------------------------------------------------------
 
     def _make_agents_request(
         self,

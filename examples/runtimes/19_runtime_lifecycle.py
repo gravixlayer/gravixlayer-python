@@ -66,7 +66,7 @@ check_status(rt, "running")
 # ---------------------------------------------------------------------------
 # 5. Verify kernel state is preserved across pause/resume
 #    Variables survive because run_code uses a persistent kernel context.
-#    Firecracker freezes the entire VM (including that Python worker process)
+#    The runtime freezes the entire VM (including that Python worker process)
 #    on pause and thaws it on resume — state is fully intact.
 # ---------------------------------------------------------------------------
 print("\n=== 5. Kernel state after resume ===")

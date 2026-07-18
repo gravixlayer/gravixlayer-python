@@ -21,7 +21,12 @@ def build_url(
     else:
         service_base = base_url
 
-    return f"{service_base}/{endpoint.lstrip('/')}" if endpoint else service_base
+    if not endpoint:
+        return service_base
+    # Query-only endpoints (e.g. "?project_id=…") must not insert a path slash.
+    if endpoint.startswith("?"):
+        return f"{service_base}{endpoint}"
+    return f"{service_base}/{endpoint.lstrip('/')}"
 
 
 def prepare_request_kwargs(

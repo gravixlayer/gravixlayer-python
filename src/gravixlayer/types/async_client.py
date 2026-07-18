@@ -161,13 +161,13 @@ class AsyncGravixLayer:
                 headers = dict(kwargs.get("headers") or {})
                 telemetry.inject(headers)
                 kwargs["headers"] = headers
-            resp = await self._send_with_retries(method, url, kwargs)
+            resp = await self._send_with_retries(method, url, stream, kwargs)
             if span is not None:
                 span.set_attribute("http.response.status_code", resp.status_code)
             return resp
 
     async def _send_with_retries(
-        self, method: str, url: str, kwargs: Dict[str, Any]
+        self, method: str, url: str, stream: bool, kwargs: Dict[str, Any]
     ) -> httpx.Response:
         last_exc: Optional[Exception] = None
         logger_warning = self._logger.warning
@@ -179,7 +179,11 @@ class AsyncGravixLayer:
 
         for attempt in self._retry_attempts:
             try:
-                resp = await self._http_client.request(method, url, **kwargs)
+                if stream:
+                    req = self._http_client.build_request(method, url, **kwargs)
+                    resp = await self._http_client.send(req, stream=True)
+                else:
+                    resp = await self._http_client.request(method, url, **kwargs)
                 status = resp.status_code
 
                 if status in SUCCESS_STATUS:

@@ -23,5 +23,7 @@ python examples/templates/01_python_docker_image.py
 | Observability (logs) | `runtimes/21_observability_logging.py` |
 | Git in VM | `runtimes/17_runtime_git_operations.py` |
 | Build templates | `templates/` |
+| Identity providers | `providers/01_create_attach_and_use.py` |
+| Network policies | `network_policies/01_create_attach_and_use.py` |
 
 Indexes: [runtimes/README.md](runtimes/README.md) · [templates/README.md](templates/README.md) · [tests/README.md](../tests/README.md)

@@ -14,7 +14,7 @@ Optional environment variables:
     GRAVIXLAYER_POLL_INTERVAL - Poll interval in seconds (default: 10)
 
 Usage:
-    export GRAVIXLAYER_API_KEY="tg_api_key_xxxxx"
+    export GRAVIXLAYER_API_KEY="your-api-key"
     cd gravixlayer-python
     python -m pytest tests/integration_tests/test_live_templates.py -v -s
 """

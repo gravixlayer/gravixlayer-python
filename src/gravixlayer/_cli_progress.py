@@ -18,7 +18,7 @@ import time
 from typing import Optional
 
 # ---------------------------------------------------------------------------
-# Phase labels — map backend user_phase strings to stable stage names
+# Phase labels — map API user_phase strings to stable stage names
 # ---------------------------------------------------------------------------
 
 AGENT_BUILD_PHASE_LABELS = {

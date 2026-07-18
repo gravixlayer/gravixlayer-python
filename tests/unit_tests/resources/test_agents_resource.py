@@ -2,7 +2,7 @@
 Tests for agent helpers and Agents / AsyncAgents resources (mocked HTTP).
 
 Covers: _load_dotenv, _create_source_archive, sync/async build, status, wait,
-deploy-from-template, get, destroy, invoke.
+deploy-from-template, get, destroy, invoke, stream.
 """
 
 import io
@@ -284,6 +284,40 @@ class TestSyncAgentsAPI:
         assert body["session_id"] == "thread-1"
         assert body["resume"] == "continue"
 
+    def test_stream_parses_sse_events(self, client, mock_api):
+        mock_api.get(f"{AGENTS_BASE}/ag-1/endpoint").mock(
+            return_value=httpx.Response(200, json=_sample_endpoint_json())
+        )
+        sse = (
+            'data: {"type": "token", "text": "hi"}\n\n'
+            "data: not-json\n\n"
+            "data: [DONE]\n\n"
+            'data: {"type": "ignored_after_done"}\n\n'
+        )
+        mock_api.post("https://agent.example.com/stream").mock(
+            return_value=httpx.Response(
+                200,
+                text=sse,
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        events = list(
+            client.agents.stream(
+                "ag-1",
+                input={"prompt": "hello"},
+                session_id="s1",
+                metadata={"k": "v"},
+            )
+        )
+        assert events == [
+            {"type": "token", "text": "hi"},
+            {"raw": "not-json"},
+        ]
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["input"] == {"prompt": "hello"}
+        assert body["session_id"] == "s1"
+        assert body["metadata"] == {"k": "v"}
+
 
 # ===================================================================
 # Async Agents — API
@@ -355,6 +389,112 @@ class TestAsyncAgentsAPI:
         assert b"http,a2a" in build_body
         deploy_body = json.loads(mock_api.calls[-1].request.content)
         assert deploy_body["protocols"] == ["http", "a2a"]
+
+    @pytest.mark.asyncio
+    async def test_wait_destroy_and_stream(self, mock_api):
+        mock_api.get(f"{AGENTS_BASE}/template/builds/b1/status").mock(
+            return_value=httpx.Response(
+                200,
+                json=_sample_status_json(status="completed", phase="completed"),
+            )
+        )
+        mock_api.delete(f"{AGENTS_BASE}/ag-1").mock(
+            return_value=httpx.Response(
+                200, json={"agent_id": "ag-1", "status": "deleted"}
+            )
+        )
+        mock_api.get(f"{AGENTS_BASE}/ag-1/endpoint").mock(
+            return_value=httpx.Response(200, json=_sample_endpoint_json())
+        )
+        sse = (
+            'data: {"chunk": 1}\n\n'
+            "data: not-json\n\n"
+            "data: [DONE]\n\n"
+        )
+        mock_api.post("https://agent.example.com/stream").mock(
+            return_value=httpx.Response(
+                200,
+                text=sse,
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            final = await client.agents.wait_for_build(
+                "b1", poll_interval_secs=0.01, timeout_secs=5
+            )
+            assert final.is_success is True
+            destroyed = await client.agents.destroy("ag-1")
+            assert destroyed.agent_id == "ag-1"
+            events = [
+                event
+                async for event in client.agents.stream(
+                    "ag-1",
+                    input={"prompt": "x"},
+                    session_id="s1",
+                    metadata={"m": 1},
+                    resume="r1",
+                )
+            ]
+            assert events == [{"chunk": 1}, {"raw": "not-json"}]
+            body = json.loads(mock_api.calls[-1].request.content)
+            assert body["resume"] == "r1"
+            assert body["session_id"] == "s1"
+            assert body["metadata"] == {"m": 1}
+
+    @pytest.mark.asyncio
+    async def test_wait_for_build_failure_and_timeout(self, mock_api):
+        from gravixlayer.resources.async_agents import (
+            AsyncAgentBuildError,
+            AsyncAgentBuildTimeoutError,
+        )
+
+        mock_api.get(f"{AGENTS_BASE}/template/builds/b-fail/status").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    **_sample_status_json(status="failed", phase="building"),
+                    "error": "compile error",
+                },
+            )
+        )
+        mock_api.get(f"{AGENTS_BASE}/template/builds/b-timeout/status").mock(
+            return_value=httpx.Response(200, json=_sample_status_json())
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            with pytest.raises(AsyncAgentBuildError, match="compile error"):
+                await client.agents.wait_for_build(
+                    "b-fail", poll_interval_secs=0.01, timeout_secs=5
+                )
+            with pytest.raises(AsyncAgentBuildTimeoutError):
+                await client.agents.wait_for_build(
+                    "b-timeout", poll_interval_secs=0.01, timeout_secs=0
+                )
+
+    @pytest.mark.asyncio
+    async def test_invoke_optional_fields(self, mock_api):
+        mock_api.get(f"{AGENTS_BASE}/ag-1/endpoint").mock(
+            return_value=httpx.Response(200, json=_sample_endpoint_json())
+        )
+        mock_api.post("https://agent.example.com/invoke").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            out = await client.agents.invoke(
+                "ag-1",
+                input={"prompt": "hi"},
+                session_id="thread-1",
+                metadata={"k": "v"},
+                resume="continue",
+            )
+            assert out["ok"] is True
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body == {
+            "input": {"prompt": "hi"},
+            "session_id": "thread-1",
+            "metadata": {"k": "v"},
+            "resume": "continue",
+        }
 
 
 # ===================================================================

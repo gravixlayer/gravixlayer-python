@@ -243,7 +243,7 @@ class GoogleADKAdapter(BaseFrameworkAdapter):
         ]
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Helpers
     # ------------------------------------------------------------------
 
     def _guard_app_path(self, request: Any) -> None:

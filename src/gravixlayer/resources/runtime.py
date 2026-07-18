@@ -102,7 +102,7 @@ class Runtimes:
             agent_id: Agent ID to associate with the runtime
             providers: Optional secret provider IDs to attach at creation;
                 their secrets are injected into the sandbox environment (never
-                persisted decrypted in the control plane).
+                persisted decrypted by the platform).
             network_policy_ids: Optional network policy IDs to attach at creation
                 (the system default is always attached).
         """
@@ -285,7 +285,7 @@ class Runtimes:
             args: Additional arguments.
             working_dir: Working directory.
             environment: Environment variables.
-            timeout: Maximum execution time in **seconds** (converted to ms for the backend).
+            timeout: Maximum execution time in **seconds** (converted to ms for the API).
             on_stdout: Optional callable invoked with each incremental stdout chunk
                 (``str``) as the command runs. Enables streaming mode.
             on_stderr: Optional callable invoked with each incremental stderr chunk (``str``).
@@ -363,7 +363,7 @@ class Runtimes:
             for line in response.iter_lines():
                 if not line:
                     continue
-                # SSE frames are "data: <json>" per the backend handler.
+                # SSE frames are "data: <json>".
                 if isinstance(line, bytes):
                     line = line.decode("utf-8", errors="replace")
                 if not line.startswith("data:"):
@@ -437,7 +437,7 @@ class Runtimes:
             language: Language (default: "python").
             context_id: Execution context ID for state persistence.
             environment: Environment variables.
-            timeout: Maximum execution time in **seconds** (backend expects seconds for code execution).
+            timeout: Maximum execution time in **seconds** (API expects seconds for code execution).
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"code": code}

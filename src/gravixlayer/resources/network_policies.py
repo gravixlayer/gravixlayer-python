@@ -14,19 +14,30 @@ Maps to Network Policies API:
     POST   /v1/network-policies/:id/attach
     DELETE /v1/network-policies/:id/attach/:runtime_id
     GET    /v1/network-policies/runtimes/:runtime_id
+
+Egress modes (most-restrictive-wins when multiple policies are attached):
+    deny_all > allowlist > denylist > allow_all
+
+The System Default policy (empty allowlist) is auto-attached at runtime create
+and hidden from list/list_for_runtime by default — it is a fail-closed fallback
+only, not a user-managed policy.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from .._resource_utils import build_list_endpoint
 from ..types.network_policies import (
+    EGRESS_MODES,
     NetworkPolicy,
     NetworkPolicyList,
     NetworkPolicyRule,
     NetworkPolicyRuleList,
+    PROTOCOLS,
     SuccessResponse,
+    _is_system_default_policy,
+    _normalize_rule_inputs,
     _parse_policy,
     _parse_rule,
 )
@@ -35,9 +46,9 @@ from ..types.network_policies import (
 class NetworkPolicies:
     """Network policies resource at ``client.network_policies``.
 
-    Create an egress policy with destination/port/protocol rules, attach it to
-    a sandbox (runtime), and those rules control outbound network access.
-    Maps to ``/v1/network-policies``.
+    Full lifecycle: create (optionally with rules) → list/get/update/delete →
+    add/update/delete rules → attach/detach → list_for_runtime.
+    Also attach at create via ``runtime.create(network_policy_ids=[...])``.
 
     Example:
         >>> from gravixlayer import GravixLayer
@@ -45,14 +56,11 @@ class NetworkPolicies:
         >>> policy = client.network_policies.create(
         ...     name="openai-only",
         ...     egress_mode="allowlist",
+        ...     rules=[{"destination": "api.openai.com", "port": 443, "protocol": "tcp"}],
         ... )
-        >>> client.network_policies.add_rule(
-        ...     policy.id, destination="api.openai.com", port=443, protocol="tcp",
-        ... )
-        >>> client.network_policies.attach(policy.id, runtime_id)
-        >>> runtime = client.runtime.create(
-        ...     network_policy_ids=[policy.id],
-        ... )
+        >>> runtime = client.runtime.create(network_policy_ids=[policy.id])
+        >>> client.network_policies.attach(policy.id, other_runtime_id)
+        >>> attached = client.network_policies.list_for_runtime(runtime.runtime_id)
     """
 
     def __init__(self, client):
@@ -77,17 +85,28 @@ class NetworkPolicies:
         egress_mode: str = "allowlist",
         description: Optional[str] = None,
         is_default: bool = False,
+        rules: Optional[Sequence[Dict[str, Any]]] = None,
         project_id: Optional[str] = None,
     ) -> NetworkPolicy:
-        """Create a network policy.
+        """Create a network policy, optionally with initial egress rules.
 
         Args:
             name: Display name for the policy.
             egress_mode: One of ``allowlist``, ``denylist``, ``allow_all``, ``deny_all``.
             description: Optional human-readable description.
             is_default: When True, mark this policy as the account/project default.
+            rules: Optional list of rule dicts
+                ``{"destination", "port"?, "protocol"?, "description"?}``.
+                Added after create; on any rule failure the policy is rolled back
+                (deleted) so callers never get a half-configured policy.
             project_id: Optional project scope (query param).
         """
+        if egress_mode not in EGRESS_MODES:
+            raise ValueError(
+                f"egress_mode must be one of {EGRESS_MODES}, got {egress_mode!r}"
+            )
+        normalized_rules = _normalize_rule_inputs(rules) if rules else []
+
         body: Dict[str, Any] = {
             "name": name,
             "egress_mode": egress_mode,
@@ -99,7 +118,40 @@ class NetworkPolicies:
         if project_id:
             endpoint = f"?project_id={project_id}"
         response = self._make_network_policy_request("POST", endpoint, body)
-        return _parse_policy(response.json()["policy"])
+        policy = _parse_policy(response.json()["policy"])
+
+        if not normalized_rules:
+            return policy
+
+        created_rules: List[NetworkPolicyRule] = []
+        try:
+            for rule in normalized_rules:
+                created_rules.append(
+                    self.add_rule(
+                        policy.id,
+                        destination=rule["destination"],
+                        port=rule["port"],
+                        protocol=rule["protocol"],
+                        description=rule.get("description"),
+                        project_id=project_id,
+                    )
+                )
+        except Exception as rule_err:
+            # Best-effort rollback so we never leave a half-configured policy.
+            try:
+                self.delete(policy.id, project_id=project_id)
+            except Exception:
+                raise RuntimeError(
+                    f"Failed to add rules ({rule_err}); policy {policy.id} was "
+                    "created but could not be rolled back — delete it and retry."
+                ) from rule_err
+            raise RuntimeError(
+                f"Failed to add rules; policy creation was rolled back. {rule_err}"
+            ) from rule_err
+
+        policy.rules = created_rules
+        policy.rule_count = len(created_rules)
+        return policy
 
     def list(
         self,
@@ -108,7 +160,11 @@ class NetworkPolicies:
         project_id: Optional[str] = None,
         search: Optional[str] = None,
     ) -> NetworkPolicyList:
-        """List network policies."""
+        """List network policies (System Default is excluded by the API)."""
+        if limit < 1 or limit > 100:
+            raise ValueError("limit must be between 1 and 100")
+        if offset < 0:
+            raise ValueError("offset must be >= 0")
         endpoint = build_list_endpoint(
             "",
             limit=limit,
@@ -120,10 +176,26 @@ class NetworkPolicies:
         policies = [_parse_policy(p) for p in (data.get("policies") or [])]
         return NetworkPolicyList(policies=policies, total=int(data.get("total", 0)))
 
-    def get(self, policy_id: str) -> NetworkPolicy:
-        """Get a network policy by ID."""
+    def get(
+        self,
+        policy_id: str,
+        *,
+        include_rules: bool = False,
+    ) -> NetworkPolicy:
+        """Get a network policy by ID.
+
+        Args:
+            policy_id: Policy UUID.
+            include_rules: When True, also fetch ``GET .../rules`` and set
+                ``policy.rules``.
+        """
         response = self._make_network_policy_request("GET", policy_id)
-        return _parse_policy(response.json()["policy"])
+        policy = _parse_policy(response.json()["policy"])
+        if include_rules:
+            rule_list = self.list_rules(policy_id)
+            policy.rules = rule_list.rules
+            policy.rule_count = len(rule_list.rules)
+        return policy
 
     def update(
         self,
@@ -136,6 +208,10 @@ class NetworkPolicies:
         project_id: Optional[str] = None,
     ) -> NetworkPolicy:
         """Update policy metadata (name, mode, description, enabled/disabled, default)."""
+        if egress_mode is not None and egress_mode not in EGRESS_MODES:
+            raise ValueError(
+                f"egress_mode must be one of {EGRESS_MODES}, got {egress_mode!r}"
+            )
         body: Dict[str, Any] = {}
         if name is not None:
             body["name"] = name
@@ -183,6 +259,11 @@ class NetworkPolicies:
             description: Optional rule description.
             project_id: Optional project scope (query param).
         """
+        protocol = protocol.lower()
+        if protocol not in PROTOCOLS:
+            raise ValueError(f"protocol must be one of {PROTOCOLS}, got {protocol!r}")
+        if not isinstance(port, int) or port < 0 or port > 65535:
+            raise ValueError(f"port must be an int in 0–65535 (got {port!r})")
         body: Dict[str, Any] = {
             "destination": destination,
             "port": port,
@@ -215,6 +296,14 @@ class NetworkPolicies:
         project_id: Optional[str] = None,
     ) -> NetworkPolicyRule:
         """Update a rule's destination, port, protocol, and/or description."""
+        if protocol is not None:
+            protocol = protocol.lower()
+            if protocol not in PROTOCOLS:
+                raise ValueError(
+                    f"protocol must be one of {PROTOCOLS}, got {protocol!r}"
+                )
+        if port is not None and (not isinstance(port, int) or port < 0 or port > 65535):
+            raise ValueError(f"port must be an int in 0–65535 (got {port!r})")
         body: Dict[str, Any] = {}
         if destination is not None:
             body["destination"] = destination
@@ -252,10 +341,12 @@ class NetworkPolicies:
         runtime_id: str,
         project_id: Optional[str] = None,
     ) -> SuccessResponse:
-        """Attach a network policy to a running (or any) sandbox/runtime.
+        """Attach a network policy to a sandbox/runtime.
 
-        Rules take effect on the next apply (and at create if attached before
-        create via ``runtime.create(network_policy_ids=...)``).
+        Multiple policies may be attached; the platform compiles them with
+        most-restrictive-wins precedence (``deny_all`` > ``allowlist`` >
+        ``denylist`` > ``allow_all``). Prefer create-time attach via
+        ``runtime.create(network_policy_ids=...)`` when creating the runtime.
         """
         endpoint = f"{policy_id}/attach"
         if project_id:
@@ -272,7 +363,10 @@ class NetworkPolicies:
         runtime_id: str,
         project_id: Optional[str] = None,
     ) -> SuccessResponse:
-        """Detach a network policy from a sandbox/runtime."""
+        """Detach a network policy from a sandbox/runtime.
+
+        The System Default policy cannot be detached (API returns 403).
+        """
         endpoint = f"{policy_id}/attach/{runtime_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
@@ -280,11 +374,25 @@ class NetworkPolicies:
         data = response.json()
         return SuccessResponse(success=bool(data.get("success", True)))
 
-    def list_for_runtime(self, runtime_id: str) -> NetworkPolicyList:
-        """List network policies currently attached to a runtime."""
+    def list_for_runtime(
+        self,
+        runtime_id: str,
+        *,
+        include_system: bool = False,
+    ) -> NetworkPolicyList:
+        """List network policies currently attached to a runtime.
+
+        Args:
+            runtime_id: Runtime UUID.
+            include_system: When False (default), hide the auto-managed System
+                Default policy. Pass True to see every attachment including the
+                fail-closed baseline.
+        """
         response = self._make_network_policy_request(
             "GET", f"runtimes/{runtime_id}"
         )
         data = response.json()
         policies = [_parse_policy(p) for p in (data.get("policies") or [])]
+        if not include_system:
+            policies = [p for p in policies if not _is_system_default_policy(p)]
         return NetworkPolicyList(policies=policies, total=len(policies))

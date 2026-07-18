@@ -1,9 +1,8 @@
 """
-Internal runtime module for GravixLayer A2A server.
+A2A runtime helpers for Gravix Layer.
 
-The public helpers in this module expose GravixLayer-managed agents through the
-A2A protocol without requiring users to write custom AgentExecutor wrappers.
-User-supplied executors are still supported as an escape hatch.
+Expose Gravix Layer–managed agents through the A2A protocol without requiring
+custom AgentExecutor wrappers. User-supplied executors are still supported.
 """
 
 from __future__ import annotations

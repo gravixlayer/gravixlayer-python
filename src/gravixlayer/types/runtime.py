@@ -45,7 +45,7 @@ def _validate_template_id(template_id: str) -> None:
 class Runtime:
     """Runtime object returned by the API.
 
-    Fields match the backend RuntimeAPIResponse struct.
+    Fields match the Gravix Layer runtime API response.
     """
 
     runtime_id: str
@@ -519,7 +519,7 @@ class RuntimeHostURL:
 
 
 # ---------------------------------------------------------------------------
-# SSH types (aligned with backend SSHEnableResponse / SSHStatusResponse)
+# SSH types (enable / status API responses)
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -570,7 +570,7 @@ class FileWriteResponse:
 class FileInfo:
     """File information.
 
-    Maps backend FileInfo which sends: name, size, mode, mod_time, is_dir.
+    Maps API FileInfo fields: name, size, mode, mod_time, is_dir.
 
     ``size`` is the file length in **bytes**. ``modified_at`` is last modification time
     as an ISO 8601 string (typically UTC, suffix ``Z``).
@@ -856,7 +856,7 @@ class WriteFilesResponse:
 class CommandRunResponse:
     """Command execution response.
 
-    Maps backend RuntimeAPICommandResponse exactly.
+    Maps the Gravix Layer command-run API response.
     """
 
     stdout: str
@@ -868,14 +868,14 @@ class CommandRunResponse:
 
 
 # ---------------------------------------------------------------------------
-# Code execution types (aligned with backend Execution / Result / Logs)
+# Code execution types (Execution / Result / Logs API shapes)
 # ---------------------------------------------------------------------------
 
 @dataclass
 class ExecutionResult:
     """A single result from code execution.
 
-    Maps to the backend Result struct: text, html, json, png, jpeg, svg,
+    Maps the API Result payload: text, html, json, png, jpeg, svg,
     markdown, chart.
     """
 
@@ -893,7 +893,7 @@ class ExecutionResult:
 class ExecutionError:
     """Error from code execution.
 
-    Maps to the backend ExecutionError struct: name, value, traceback.
+    Maps the API ExecutionError payload: name, value, traceback.
     """
 
     name: str = ""
@@ -905,7 +905,7 @@ class ExecutionError:
 class ExecutionLogs:
     """Stdout/stderr from code execution.
 
-    Maps to the backend Logs struct.
+    Maps the API Logs payload.
     """
 
     stdout: List[str] = field(default_factory=list)
@@ -916,7 +916,7 @@ class ExecutionLogs:
 class CodeRunResponse:
     """Code execution response.
 
-    Maps to the backend Execution struct. Provides convenience properties
+    Maps the API Execution payload. Provides convenience properties
     for common access patterns so users don't need to dig into nested dicts.
     """
 
@@ -948,7 +948,7 @@ class CodeRunResponse:
 
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> "CodeRunResponse":
-        """Parse a backend Execution JSON dict into a typed CodeRunResponse."""
+        """Parse an Execution JSON dict into a typed CodeRunResponse."""
         # Parse results list
         raw_results = data.get("results") or []
         results: List[ExecutionResult] = []
@@ -1013,7 +1013,7 @@ class CodeContextDeleteResponse:
 class Template:
     """Runtime template.
 
-    Maps to backend TemplateResponse. Identical fields to TemplateInfo
+    Maps the template API response. Identical fields to TemplateInfo
     in types/templates.py — kept as a convenience alias for runtime-centric code.
     """
 

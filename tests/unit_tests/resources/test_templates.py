@@ -3,7 +3,7 @@ Tests for template types and resources.
 
 Covers: TemplateBuilder fluent API, validation, serialization,
 BuildStep, enums, sync Templates resource, async AsyncTemplates resource,
-build_and_wait polling, error/timeout handling, edge cases, backend
+build_and_wait polling, error/timeout handling, edge cases, API
 field alignment, import verification.
 """
 
@@ -666,6 +666,29 @@ class TestAsyncTemplatesResource:
             assert status.is_success is True
 
     @pytest.mark.asyncio
+    async def test_build_and_wait_with_callback(self, mock_api):
+        mock_api.post(f"{TMPL_BASE}/build").mock(
+            return_value=httpx.Response(202, json=make_build_response())
+        )
+        mock_api.get(f"{TMPL_BASE}/builds/build-001/status").mock(
+            side_effect=[
+                httpx.Response(200, json=make_build_status("running", phase="building")),
+                httpx.Response(200, json=make_build_status("completed")),
+            ]
+        )
+        logs = []
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            status = await client.templates.build_and_wait(
+                TemplateBuilder("test").from_image("python:3.11"),
+                poll_interval_secs=0.01,
+                on_status=logs.append,
+            )
+            assert status.is_success is True
+        assert any("Build started" in e.message for e in logs)
+        assert any("Phase:" in e.message for e in logs)
+        assert any("completed successfully" in e.message for e in logs)
+
+    @pytest.mark.asyncio
     async def test_build_and_wait_failure(self, mock_api):
         mock_api.post(f"{TMPL_BASE}/build").mock(
             return_value=httpx.Response(202, json=make_build_response())
@@ -931,7 +954,7 @@ class TestEdgeCases:
 
 
 class TestBackendFieldAlignment:
-    """SDK field names must match Go backend struct JSON tags."""
+    """SDK field names must match Gravix Layer API JSON field names."""
 
     def test_build_request_fields(self):
         d = (
@@ -957,14 +980,14 @@ class TestBackendFieldAlignment:
         d = BuildStep(type="copy_file", args=["/f"], content=b"x", options={"mode": "0644"}).to_dict()
         assert set(d.keys()) == {"type", "args", "content", "options"}
 
-    def test_valid_step_types_match_backend(self):
-        backend = {"run", "pip_install", "npm_install", "apt_install",
+    def test_valid_step_types_match_api(self):
+        expected = {"run", "pip_install", "npm_install", "apt_install",
                     "bun_install", "copy_file", "git_clone", "mkdir"}
-        assert {e.value for e in BuildStepType} == backend
+        assert {e.value for e in BuildStepType} == expected
 
     def test_status_values_superset(self):
-        backend = {"pending", "running", "completed", "failed"}
-        assert backend.issubset({e.value for e in TemplateBuildStatusEnum})
+        expected = {"pending", "running", "completed", "failed"}
+        assert expected.issubset({e.value for e in TemplateBuildStatusEnum})
 
 
 # ===================================================================

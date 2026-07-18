@@ -43,11 +43,10 @@ ATTR_INPUTS = "gravixlayer.inputs"
 ATTR_OUTPUTS = "gravixlayer.outputs"
 
 # First-party log channel + iostream (OpenTelemetry-compatible product labels).
-# Queried by the Logs UI / SearchLogs as log.name and log.iostream.
 ATTR_LOG_NAME = "log.name"
 ATTR_LOG_IOSTREAM = "log.iostream"
 
-# Stable log.name channels (Google reasoning_engine_* parity).
+# Stable log.name channel values for Gravix Layer observability.
 LOG_CHANNEL_AGENT = "agent"
 LOG_CHANNEL_RUNTIME_STDOUT = "runtime.stdout"
 LOG_CHANNEL_RUNTIME_STDERR = "runtime.stderr"
@@ -193,8 +192,7 @@ def genai_span(
 
 
 def _truthy(value: Optional[str], default: bool = False) -> bool:
-    """Parse a boolean-ish env value. Matches the platform convention used by the
-    Go control plane / cellcore (``true``/``1``/``yes``/``on``)."""
+    """Parse a boolean-ish env value (``true`` / ``1`` / ``yes`` / ``on``)."""
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -207,7 +205,7 @@ def observability_enabled() -> bool:
 
     * ``GRAVIXLAYER_ENABLE_TELEMETRY=false`` → hard off for this process
     * ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` → hard on (client one-shot opt-in)
-    * else ``OBSERVABILITY_ENABLED`` (default on) — platform cell/agent toggle
+    * else ``OBSERVABILITY_ENABLED`` (default on) — platform / agent default
     """
     if "GRAVIXLAYER_ENABLE_TELEMETRY" in os.environ:
         return _truthy(os.environ.get("GRAVIXLAYER_ENABLE_TELEMETRY"), default=False)
@@ -289,8 +287,8 @@ def _quiet_exporter_logs() -> None:
     """Silence the OTLP exporter's transient connection warnings.
 
     Telemetry is best-effort and must never spam application logs when a collector
-    is briefly unreachable (OBSERVABILITY_ARCHITECTURE.md: telemetry never blocks the
-    request path). Opt back in with ``GRAVIX_OTEL_DEBUG=1`` or ``OTEL_PYTHON_LOG_LEVEL``."""
+    is briefly unreachable. Opt back in with ``GRAVIX_OTEL_DEBUG=1`` or
+    ``OTEL_PYTHON_LOG_LEVEL``."""
     if _truthy(os.environ.get("GRAVIX_OTEL_DEBUG")) or os.environ.get("OTEL_PYTHON_LOG_LEVEL"):
         return
     for name in (
@@ -303,7 +301,7 @@ def _quiet_exporter_logs() -> None:
 
 
 def resolve_account_id() -> Optional[str]:
-    """Resolve tenant account id from env / cellcore Init files."""
+    """Resolve tenant account id from env or the runtime identity file."""
     for key in ("GRAVIXLAYER_ACCOUNT_ID",):
         value = os.environ.get(key)
         if value and value.strip():
@@ -319,7 +317,7 @@ def resolve_account_id() -> Optional[str]:
 
 
 def resolve_project_id() -> Optional[str]:
-    """Resolve tenant project id from env / cellcore Init files."""
+    """Resolve tenant project id from env or the runtime identity file."""
     for key in ("GRAVIXLAYER_PROJECT_ID",):
         value = os.environ.get(key)
         if value and value.strip():
@@ -1164,8 +1162,7 @@ def resolve_runtime_id() -> Optional[str]:
     """Resolve the active runtime UUID for span identity.
 
     Order: ``GRAVIXLAYER_RUNTIME_ID`` → ``GRAVIXLAYER_AGENT_ID`` →
-    ``/run/gravixlayer/runtime_id`` (written by cellcore ``Health.Init`` after
-    snapshot resume, so agents that started before Init still learn their id).
+    ``/run/gravixlayer/runtime_id`` (present inside managed runtimes).
     """
     for key in ("GRAVIXLAYER_RUNTIME_ID", "GRAVIXLAYER_AGENT_ID"):
         value = os.environ.get(key)
@@ -1184,8 +1181,7 @@ def resolve_runtime_id() -> Optional[str]:
 def _load_run_otel_env() -> None:
     """Best-effort load of ``/run/gravixlayer/otel.env`` into ``os.environ``.
 
-    Written by cellcore Init after snapshot resume. Only fills missing keys so
-    explicit process env always wins.
+    Only fills missing keys so explicit process environment always wins.
     """
     try:
         with open("/run/gravixlayer/otel.env", encoding="utf-8") as fh:

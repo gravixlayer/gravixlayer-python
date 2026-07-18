@@ -338,7 +338,7 @@ class Agents:
     def __init__(self, client):
         self.client = client
 
-    # -- Internal helpers ---------------------------------------------------
+    # -- Helpers -----------------------------------------------------------
 
     def _make_agents_request(
         self,
@@ -387,9 +387,9 @@ class Agents:
             python_version: Python version (e.g. ``"3.14"``).
             framework: Agent framework (langgraph, crewai, google-adk, etc.).
             ports: Ports the agent listens on (default ``[8000]``).
-            vcpu_count: Number of vCPUs (default determined by backend).
-            memory_mb: Memory in MB (default determined by backend).
-            disk_mb: Disk size in MB (default determined by backend).
+            vcpu_count: Number of vCPUs (default determined by the API).
+            memory_mb: Memory in MB (default determined by the API).
+            disk_mb: Disk size in MB (default determined by the API).
             environment: Environment variables for the agent.
             start_cmd: Custom start command.
             ready_cmd: Readiness check command.
@@ -613,7 +613,7 @@ class Agents:
             ready_timeout_secs: Readiness timeout (build only).
             tags: Metadata tags (build only).
             entry_point: Application entrypoint for deploy.
-            http_port: HTTP port (default assigned by backend).
+            http_port: HTTP port (default assigned by the API).
             a2a_port: A2A protocol port.
             mcp_port: MCP protocol port.
             protocols: Protocols to enable (default ``["http"]``).

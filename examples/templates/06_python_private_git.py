@@ -12,7 +12,7 @@ Generate a fine-grained token with read-only contents access at:
 https://github.com/settings/tokens
 
 Requires:
-    export GRAVIXLAYER_API_KEY="tg_api_key_xxxxx"
+    export GRAVIXLAYER_API_KEY="your-api-key"
     export GIT_AUTH_TOKEN="ghp_xxxxx"
 """
 

@@ -5,9 +5,9 @@ T = TypeVar("T")
 
 
 def normalize_runtime_api_payload(data: Dict[str, Any]) -> None:
-    """Map control-plane ``RuntimeResponse`` JSON keys to SDK ``Runtime`` field names.
+    """Map Gravix Layer API JSON keys to SDK ``Runtime`` field names.
 
-    Handlers emit ``id``, ``compute_provider``, ``compute_region``, and ``tags``;
+    The API may return ``id``, ``compute_provider``, ``compute_region``, and ``tags``;
     the Python model expects ``runtime_id``, ``provider``, ``region``, and ``metadata``.
     Mutates *data* in place; safe to call on responses that already use SDK names.
     """

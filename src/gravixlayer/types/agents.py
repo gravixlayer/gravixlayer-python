@@ -2,7 +2,7 @@
 Type definitions for Agent Deployment API.
 
 Provides dataclasses for agent builds, deployments, endpoints, and invocations.
-Aligned with the backend agent endpoint API contract (Go handlers).
+Types for the Gravix Layer agent build, deploy, and invoke APIs.
 """
 
 from typing import Dict, Any, List, Optional
@@ -24,7 +24,7 @@ class AgentBuildStatus(str, Enum):
 
 
 class AgentBuildPhase(str, Enum):
-    """Build phases reported by the backend."""
+    """Build phases reported by the API."""
 
     INITIALIZING = "initializing"
     PREPARING = "preparing"
@@ -315,7 +315,7 @@ class AgentDeployResponse:
     a2a_endpoint: str
     mcp_endpoint: str
     agent_card_url: str
-    internal_endpoint: str
+    internal_endpoint: str  # Private-network URL when provided by the platform
     status: str
     dns_status: str
     name: str = ""
@@ -329,7 +329,7 @@ class AgentEndpoint:
 
     agent_id: str
     endpoint: str
-    internal_endpoint: str
+    internal_endpoint: str  # Private-network URL when provided by the platform
     protocols: Dict[str, str]
     agent_card_url: str
     health: str

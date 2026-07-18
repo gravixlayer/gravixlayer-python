@@ -113,6 +113,13 @@ class TestSyncClientInit:
         assert hasattr(client, "agents")
         client.close()
 
+    def test_has_identity_and_network_policies_resources(self):
+        client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+        assert hasattr(client, "identity")
+        assert hasattr(client.identity, "providers")
+        assert hasattr(client, "network_policies")
+        client.close()
+
     def test_user_agent_header_contains_version(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
         ua = client._http_client.headers.get("User-Agent", "")
@@ -127,10 +134,16 @@ class TestSyncClientInit:
 
     def test_http2_defaults_to_http11(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+        pool = client._http_client._transport._pool
+        assert pool._http2 is False
+        assert pool._http1 is True
         client.close()
 
     def test_http2_true_opt_in(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, http2=True)
+        pool = client._http_client._transport._pool
+        assert pool._http2 is True
+        assert pool._http1 is True
         client.close()
 
 
@@ -276,10 +289,32 @@ class TestAsyncClientInit:
         c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
         assert hasattr(c, "agents")
 
+    def test_has_identity_and_network_policies_resources(self):
+        c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+        assert hasattr(c, "identity")
+        assert hasattr(c.identity, "providers")
+        assert hasattr(c, "network_policies")
+
     def test_user_agent_contains_version(self):
         c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
         ua = c._http_client.headers.get("User-Agent", "")
         assert "gravixlayer-python/" in ua
+
+    @pytest.mark.asyncio
+    async def test_http2_defaults_to_http11(self):
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            pool = client._http_client._transport._pool
+            assert pool._http2 is False
+            assert pool._http1 is True
+
+    @pytest.mark.asyncio
+    async def test_http2_true_opt_in(self):
+        async with AsyncGravixLayer(
+            api_key=TEST_API_KEY, base_url=TEST_BASE_URL, http2=True
+        ) as client:
+            pool = client._http_client._transport._pool
+            assert pool._http2 is True
+            assert pool._http1 is True
 
 
 # ===================================================================

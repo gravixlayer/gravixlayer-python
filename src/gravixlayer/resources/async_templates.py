@@ -2,7 +2,7 @@
 Template Build Pipeline resource for asynchronous client.
 
 Provides async methods for creating, building, polling, listing, and
-deleting VM templates via the backend API. Mirrors the sync Templates class.
+deleting VM templates via the Gravix Layer API. Mirrors the sync Templates class.
 """
 
 import asyncio
@@ -58,7 +58,7 @@ class AsyncTemplateBuildTimeoutError(AsyncTemplateBuildError):
 class AsyncTemplates:
     """Async Template Build Pipeline resource.
 
-    Exposes methods aligned with the backend template API:
+    Exposes methods for the Gravix Layer template API:
         POST   /v1/agents/template/build
         GET    /v1/agents/template/builds/:build_id/status
         GET    /v1/agents/template
@@ -85,7 +85,7 @@ class AsyncTemplates:
     def __init__(self, client):
         self.client = client
 
-    # -- Internal helpers ---------------------------------------------------
+    # -- Helpers -----------------------------------------------------------
 
     async def _make_agents_request(
         self,

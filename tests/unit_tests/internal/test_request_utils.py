@@ -62,6 +62,18 @@ class TestBuildUrl:
         url = build_url("", "v1/agents", service_urls, "https://api.example.com")
         assert url == "https://api.example.com/v1/agents"
 
+    def test_query_only_endpoint_does_not_insert_path_slash(self):
+        service_urls = {
+            "v1/network-policies": "https://api.example.com/v1/network-policies"
+        }
+        url = build_url(
+            "?limit=50&offset=0",
+            "v1/network-policies",
+            service_urls,
+            "https://api.example.com",
+        )
+        assert url == "https://api.example.com/v1/network-policies?limit=50&offset=0"
+
 
 class TestPrepareRequestKwargs:
     def test_json_body_sets_headers(self):

@@ -148,3 +148,88 @@ def make_build_status(status="completed", **overrides):
     }
     data.update(overrides)
     return data
+
+
+def make_network_policy_response(**overrides):
+    """Return a minimal valid network policy API object."""
+    data = {
+        "id": VALID_UUID,
+        "account_id": "acct-001",
+        "project_id": "proj-001",
+        "name": "openai-only",
+        "egress_mode": "allowlist",
+        "description": "Allow OpenAI HTTPS",
+        "is_default": False,
+        "is_system": False,
+        "is_active": True,
+        "rule_count": 1,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z",
+    }
+    data.update(overrides)
+    return data
+
+
+def make_network_policy_rule_response(**overrides):
+    """Return a minimal valid network policy rule API object."""
+    data = {
+        "id": "87654321-4321-8765-4321-876543218765",
+        "policy_id": VALID_UUID,
+        "account_id": "acct-001",
+        "destination": "api.openai.com",
+        "port": 443,
+        "protocol": "tcp",
+        "description": None,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z",
+    }
+    data.update(overrides)
+    return data
+
+
+NP_BASE = f"{TEST_BASE_URL}/v1/network-policies"
+
+
+def make_secret_provider_response(**overrides):
+    """Return a minimal valid identity secret provider API object."""
+    data = {
+        "id": VALID_UUID,
+        "account_id": "acct-001",
+        "project_id": "proj-001",
+        "name": "OpenAI",
+        "provider_type": "api_key",
+        "is_active": True,
+        "is_system": False,
+        "secret_count": 1,
+        "secrets": [
+            {
+                "id": "87654321-4321-8765-4321-876543218765",
+                "key": "OPENAI_API_KEY",
+                "value_set": True,
+                "masked": "••••••••",
+                "created_at": "2025-01-01T00:00:00Z",
+                "updated_at": "2025-01-01T00:00:00Z",
+            }
+        ],
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z",
+    }
+    data.update(overrides)
+    return data
+
+
+def make_secret_info_response(**overrides):
+    """Return a minimal masked secret API object."""
+    data = {
+        "id": "87654321-4321-8765-4321-876543218765",
+        "key": "OPENAI_API_KEY",
+        "value_set": True,
+        "masked": "••••••••",
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z",
+    }
+    data.update(overrides)
+    return data
+
+
+IDENTITY_BASE = f"{TEST_BASE_URL}/v1/identity"

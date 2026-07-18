@@ -274,7 +274,7 @@ class AsyncRuntimes:
             args: Additional arguments.
             working_dir: Working directory.
             environment: Environment variables.
-            timeout: Maximum execution time in **seconds** (converted to ms for the backend).
+            timeout: Maximum execution time in **seconds** (converted to ms for the API).
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"command": command}
@@ -331,7 +331,7 @@ class AsyncRuntimes:
             language: Language (default: "python").
             context_id: Execution context ID for state persistence.
             environment: Environment variables.
-            timeout: Maximum execution time in **seconds** (backend expects seconds for code execution).
+            timeout: Maximum execution time in **seconds** (API expects seconds for code execution).
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"code": code}
