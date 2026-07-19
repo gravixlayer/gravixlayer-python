@@ -323,7 +323,7 @@ def main():
     print("Creating Agent Runtime...")
 
     with Runtime.create(
-        template=os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-medium"),
+        template=os.getenv("GRAVIXLAYER_TEMPLATE", "base-medium"),
         timeout=int(os.getenv("GRAVIXLAYER_TIMEOUT", "600")),
     ) as runtime:
         print(f"Runtime ready: {runtime.runtime_id}")

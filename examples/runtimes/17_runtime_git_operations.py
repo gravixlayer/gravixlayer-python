@@ -22,7 +22,7 @@ clone_path = os.environ.get("GIT_CLONE_PATH", "/home/user/git-demo")
 
 client = GravixLayer()
 
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 runtime = client.runtime.create(template=TEMPLATE)
 token = os.environ.get("GIT_AUTH_TOKEN")
 

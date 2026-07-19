@@ -22,7 +22,7 @@ Usage::
     #   # or call enable_telemetry() in code (below)
 
     # Optional:
-    #   GRAVIXLAYER_TEMPLATE=python-3.14-base-small
+    #   GRAVIXLAYER_TEMPLATE=base-small
     #   GRAVIXLAYER_SERVICE_NAME=my-app
     #   KEEP_RUNTIME=1
 
@@ -130,7 +130,7 @@ def main() -> None:
     _require_api_key()
     _setup_otel()
 
-    template = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+    template = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
     tag = time.strftime("%H%M%S")
     client = GravixLayer()
 

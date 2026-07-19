@@ -1,6 +1,6 @@
 # Runtime examples
 
-Set `GRAVIXLAYER_API_KEY`. Optional: `GRAVIXLAYER_TEMPLATE` (Python examples default to `python-3.14-base-small`; Node examples default to `node-20-base-small`).
+Set `GRAVIXLAYER_API_KEY`. Optional: `GRAVIXLAYER_TEMPLATE` (defaults to `base-small`; also `base-medium` / `base-large`).
 
 ## Running commands
 

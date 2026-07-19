@@ -20,7 +20,7 @@ import time
 
 from gravixlayer.types.runtime import Runtime
 
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 
 def check_status(rt: Runtime, expected: str) -> None:

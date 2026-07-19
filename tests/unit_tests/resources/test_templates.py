@@ -454,7 +454,7 @@ class TestSyncTemplatesResource:
         result = client.templates.list()
         assert isinstance(result, TemplateListResponse)
         assert len(result.templates) == 1
-        assert result.templates[0].name == "python-3.14-base-small"
+        assert result.templates[0].name == "base-small"
 
     def test_get(self, client, mock_api):
         mock_api.get(f"{TMPL_BASE}/tmpl-001").mock(
@@ -467,7 +467,7 @@ class TestSyncTemplatesResource:
     def test_get_snapshot(self, client, mock_api):
         mock_api.get(f"{TMPL_BASE}/tmpl-001/snapshot").mock(
             return_value=httpx.Response(200, json={
-                "template_id": "tmpl-001", "name": "python-3.14-base-small",
+                "template_id": "tmpl-001", "name": "base-small",
                 "description": "", "has_snapshot": True,
                 "vcpu_count": 2, "memory_mb": 512, "created_at": "2025-01-01",
                 "envd_version": "1.0.0", "snapshot_size_bytes": 1073741824,
@@ -628,7 +628,7 @@ class TestAsyncTemplatesResource:
         )
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             info = await client.templates.get("tmpl-001")
-            assert info.name == "python-3.14-base-small"
+            assert info.name == "base-small"
 
     @pytest.mark.asyncio
     async def test_get_snapshot(self, mock_api):

@@ -25,7 +25,7 @@ import sys
 
 from gravixlayer import GravixLayer
 
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 
 def main() -> int:

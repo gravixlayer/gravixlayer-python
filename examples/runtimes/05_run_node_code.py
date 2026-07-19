@@ -15,7 +15,7 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer()
 
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "node-20-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 runtime = client.runtime.create(template=TEMPLATE)
 print(f"Runtime    : {runtime.runtime_id}")

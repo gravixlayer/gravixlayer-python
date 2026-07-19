@@ -79,7 +79,7 @@ class Runtimes:
         self,
         provider: Optional[str] = None,
         region: Optional[str] = None,
-        template: Optional[str] = "python-3.14-base-small",
+        template: Optional[str] = "base-small",
         timeout: Optional[int] = None,
         env_vars: Optional[Dict[str, str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -622,7 +622,7 @@ class RuntimeResource:
 
     All runtime operations are available directly::
 
-        client.runtime.create(template="python-3.14-base-small")
+        client.runtime.create(template="base-small")
         client.runtime.run_code(runtime_id, "print('hi')")
         client.runtime.kill(runtime_id)
         client.runtime.file.write(runtime_id, path, content)

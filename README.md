@@ -53,7 +53,7 @@ client = GravixLayer(
 from gravixlayer import GravixLayer
 
 client = GravixLayer()
-runtime = client.runtime.create(template="python-3.14-base-small")
+runtime = client.runtime.create(template="base-small")
 
 # Run Python code
 result = runtime.run_code(code="print('Hello from Gravix Layer')")
@@ -69,7 +69,7 @@ runtime.kill()
 ### File operations
 
 ```python
-runtime = client.runtime.create(template="python-3.14-base-small")
+runtime = client.runtime.create(template="base-small")
 runtime.file.write("/workspace/note.txt", "hello\n")
 text = runtime.file.read("/workspace/out.txt").content
 runtime.kill()
@@ -120,7 +120,7 @@ from gravixlayer import AsyncGravixLayer
 
 async def main():
     async with AsyncGravixLayer() as client:
-        runtime = await client.runtime.create(template="python-3.14-base-small")
+        runtime = await client.runtime.create(template="base-small")
         await client.runtime.kill(runtime.runtime_id)
 
 asyncio.run(main())

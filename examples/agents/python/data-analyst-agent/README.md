@@ -17,7 +17,7 @@ python data_analyst_agent.py
 |----------|---------|
 | `OPENAI_API_BASE_URL` | `https://api.openai.com/v1` |
 | `OPENAI_MODEL` | `gpt-4o` |
-| `GRAVIXLAYER_TEMPLATE` | `python-3.14-base-medium` |
+| `GRAVIXLAYER_TEMPLATE` | `base-medium` |
 | `GRAVIXLAYER_TIMEOUT` | `600` |
 
 Charts are written under `./charts/` when the run completes.

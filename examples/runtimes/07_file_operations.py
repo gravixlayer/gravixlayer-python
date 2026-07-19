@@ -4,7 +4,7 @@
     export GRAVIXLAYER_API_KEY=...
     python examples/runtimes/07_file_operations.py
 
-Optional: ``GRAVIXLAYER_TEMPLATE`` (default ``python-3.14-base-small``).
+Optional: ``GRAVIXLAYER_TEMPLATE`` (default ``base-small``).
 """
 
 import os
@@ -14,7 +14,7 @@ from gravixlayer import GravixLayer
 from gravixlayer.types.runtime import WriteEntry
 
 client = GravixLayer()
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 runtime = client.runtime.create(template=TEMPLATE)
 print(f"Runtime    : {runtime.runtime_id}\n")

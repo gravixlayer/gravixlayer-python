@@ -3,14 +3,14 @@
 
 Environment:
     GRAVIXLAYER_API_KEY   required
-    GRAVIXLAYER_TEMPLATE  optional (default: python-3.14-base-small)
+    GRAVIXLAYER_TEMPLATE  optional (default: base-small)
 """
 
 import os
 
 from gravixlayer.types.runtime import Runtime
 
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 with Runtime.create(template=TEMPLATE, timeout=1800) as rt:
     rt.enable_ssh()

@@ -16,7 +16,7 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer()
 
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "node-20-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 # ---------------------------------------------------------------------------
 # Create a Node.js agent runtime

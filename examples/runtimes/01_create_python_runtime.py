@@ -19,7 +19,7 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer()
 
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 # ---------------------------------------------------------------------------
 # Create an agent runtime from a Python template.

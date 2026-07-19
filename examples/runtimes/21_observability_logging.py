@@ -16,7 +16,7 @@ Usage::
     export GRAVIXLAYER_API_KEY="gl_..."
 
     # Optional:
-    #   GRAVIXLAYER_TEMPLATE=python-3.14-base-small
+    #   GRAVIXLAYER_TEMPLATE=base-small
     #   GRAVIXLAYER_SERVICE_NAME=my-app
     #   GRAVIXLAYER_RUNTIME_ID=<existing-id>   # reuse a runtime instead of creating
     #   KEEP_RUNTIME=1
@@ -121,7 +121,7 @@ def main() -> None:
     _require_api_key()
     _setup_telemetry()
 
-    template = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+    template = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
     tag = time.strftime("%H%M%S")
     marker = f"LOGDEMO-{tag}"
     client = GravixLayer()

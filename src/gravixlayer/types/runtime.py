@@ -110,7 +110,7 @@ class Runtime:
     @classmethod
     def create(
         cls,
-        template: str = "python-3.14-base-small",
+        template: str = "base-small",
         cloud: str = "azure",
         region: str = "eastus2",
         timeout: Optional[int] = None,
@@ -124,7 +124,7 @@ class Runtime:
         Create a new runtime instance with simplified interface.
 
         Args:
-            template: Template to use (default: "python-3.14-base-small")
+            template: Template to use (default: "base-small")
             cloud: Cloud provider (default: "azure")
             region: Region to deploy in (default: "eastus2")
             timeout: Timeout in seconds (default: None = no timeout). Pass 0 to explicitly disable timeout.
@@ -205,7 +205,7 @@ class Runtime:
         Example::
 
             # In one process — save the ID
-            rt = Runtime.create(template="python-3.14-base-small")
+            rt = Runtime.create(template="base-small")
             saved_id = rt.runtime_id
 
             # Later, in the same or a different process — reconnect

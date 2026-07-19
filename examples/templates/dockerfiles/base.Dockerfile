@@ -4,17 +4,18 @@
 #
 # Python 3.14.6 (uv) · Node 24.18.0 · npm 12.0.1 · uv 0.11.29 · Ubuntu 24.04
 #
-#   gravixlayer template build --dockerfile ./base-template.Dockerfile --name my-base --wait
+#   gravixlayer template build \
+#     --dockerfile ./base.Dockerfile \
+#     --name my-base \
+#     --vcpu-count 2 \
+#     --memory-mb 2048 \
+#     --disk-mb 6144 \
+#     --wait
 #
 # Tips:
-#   - Install packages as root (default). Interactive SSH / terminal sessions use
-#     the `agent` user with home /workspace.
-#   - Optional: end with `USER agent` to document that login identity (Gravix
-#     ignores Docker USER for boot and applies the platform `agent` account).
-#   - ENTRYPOINT / CMD in the Dockerfile are ignored for Gravix runtimes — the
-#     platform supplies init and (for agents) the runtime start command.
-#   - Prefer uv for Python (`uv python install` / `uv pip`); do not apt-install
-#     python3 if you want this toolchain to remain the default.
+#   - Install packages as root (default). SSH / terminal sessions use `agent`
+#     with home /workspace.
+#   - Prefer uv for Python (`uv python install` / `uv pip`).
 
 FROM ubuntu:24.04 AS system
 

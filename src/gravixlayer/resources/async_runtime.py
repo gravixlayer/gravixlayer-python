@@ -78,7 +78,7 @@ class AsyncRuntimes:
         self,
         provider: Optional[str] = None,
         region: Optional[str] = None,
-        template: Optional[str] = "python-3.14-base-small",
+        template: Optional[str] = "base-small",
         timeout: Optional[int] = None,
         env_vars: Optional[Dict[str, str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -509,7 +509,7 @@ class AsyncRuntimeResource:
 
     All runtime operations are available directly::
 
-        await client.runtime.create(template="python-3.14-base-small")
+        await client.runtime.create(template="base-small")
         await client.runtime.run_code(runtime_id, "print('hi')")
         await client.runtime.kill(runtime_id)
         await client.runtime.file.write(runtime_id, path, content)

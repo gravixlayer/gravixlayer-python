@@ -15,7 +15,7 @@ import os
 from gravixlayer import GravixLayer
 from gravixlayer.types.runtime import Runtime
 
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 client = GravixLayer()
 

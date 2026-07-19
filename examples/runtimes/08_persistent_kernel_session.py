@@ -20,7 +20,7 @@ from gravixlayer import GravixLayer
 
 client = GravixLayer()
 
-TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 runtime = client.runtime.create(template=TEMPLATE)
 sid = runtime.runtime_id

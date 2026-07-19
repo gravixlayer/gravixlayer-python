@@ -9,7 +9,7 @@ import os
 
 from gravixlayer.types.runtime import Runtime
 
-PYTHON_TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "python-3.14-base-small")
+PYTHON_TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 # ---------------------------------------------------------------------------
 # 1. Basic usage — runtime is killed when the block exits
