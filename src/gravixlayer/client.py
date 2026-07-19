@@ -41,7 +41,7 @@ class GravixLayer:
     Args:
         api_key: API key for authentication (or GRAVIXLAYER_API_KEY env var)
         base_url: Base URL for the API (or GRAVIXLAYER_BASE_URL env var, default: "https://api.gravixlayer.ai")
-        cloud: Default cloud provider for runtime/template operations (default: "azure")
+        cloud: Default cloud for runtime/template operations (default: "azure")
         region: Default region for runtime/template operations (default: "eastus2")
         timeout: Request timeout in seconds (default: 60.0)
         max_retries: Maximum retry attempts for transient failures (default: 3)

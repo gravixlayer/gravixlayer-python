@@ -87,7 +87,7 @@ class TestSyncRuntimeLifecycle:
         )
         rt = client.runtime.create(template="base-small")
         assert rt.runtime_id == VALID_UUID
-        assert rt.provider == "azure"
+        assert rt.cloud == "azure"
         assert rt.region == "eastus2"
         assert rt.metadata == {"team": "preview"}
 
@@ -96,7 +96,7 @@ class TestSyncRuntimeLifecycle:
             return_value=httpx.Response(200, json=make_runtime_response())
         )
         rt = client.runtime.create(
-            provider="aws",
+            cloud="aws",
             region="us-west-2",
             template="node-v1",
             timeout=600,
@@ -113,7 +113,7 @@ class TestSyncRuntimeLifecycle:
         request = mock_api.calls[-1].request
         import json
         body = json.loads(request.content)
-        assert body["provider"] == "aws"
+        assert body["cloud"] == "aws"
         assert body["region"] == "us-west-2"
         assert body["template"] == "node-v1"
         assert body["timeout"] == 600

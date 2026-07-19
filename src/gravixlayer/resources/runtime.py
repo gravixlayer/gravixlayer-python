@@ -77,7 +77,7 @@ class Runtimes:
 
     def create(
         self,
-        provider: Optional[str] = None,
+        cloud: Optional[str] = None,
         region: Optional[str] = None,
         template: Optional[str] = "base-small",
         timeout: Optional[int] = None,
@@ -87,11 +87,12 @@ class Runtimes:
         agent_id: Optional[str] = None,
         providers: Optional[List[str]] = None,
         network_policy_ids: Optional[List[str]] = None,
+        provider: Optional[str] = None,
     ) -> Runtime:
         """Create a new runtime instance.
 
         Args:
-            provider: Cloud provider (falls back to client.cloud if not set)
+            cloud: Cloud (azure/aws/gcp; falls back to client.cloud if not set)
             region: Cloud region (falls back to client.region if not set)
             template: Template name or ID to use
             timeout: Runtime timeout in seconds (default: None = no timeout)
@@ -105,12 +106,15 @@ class Runtimes:
                 persisted decrypted by the platform).
             network_policy_ids: Optional network policy IDs to attach at creation
                 (the system default is always attached).
+            provider: Deprecated alias for ``cloud``.
         """
-        resolved_provider = provider or self.client.cloud
+        if provider is not None and cloud is None:
+            cloud = provider
+        resolved_cloud = cloud or self.client.cloud
         resolved_region = region or self.client.region
-        if not resolved_provider:
+        if not resolved_cloud:
             raise ValueError(
-                "provider is required. Pass it to create() or set cloud on GravixLayer client."
+                "cloud is required. Pass it to create() or set cloud on GravixLayer client."
             )
         if not resolved_region:
             raise ValueError(
@@ -118,7 +122,7 @@ class Runtimes:
             )
 
         data: Dict[str, Any] = {
-            "provider": resolved_provider,
+            "cloud": resolved_cloud,
             "region": resolved_region,
             "template": template,
         }
@@ -143,7 +147,7 @@ class Runtimes:
             "create",
             "",
             inputs={
-                "provider": resolved_provider,
+                "cloud": resolved_cloud,
                 "region": resolved_region,
                 "template": template,
                 "timeout": timeout,
@@ -152,7 +156,7 @@ class Runtimes:
             attributes={
                 "runtime.template": template or "",
                 "gravixlayer.template": template or "",
-                "runtime.provider": resolved_provider,
+                "runtime.cloud": resolved_cloud,
                 "runtime.region": resolved_region,
             },
         ) as span:
@@ -610,7 +614,7 @@ class RuntimeTemplates:
         templates, page_limit, page_offset = parse_paginated_items(
             result,
             "templates",
-            lambda template: Template(**template),
+            lambda template: Template.from_api(template),
             default_limit=default_limit,
             default_offset=default_offset,
         )

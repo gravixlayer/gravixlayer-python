@@ -46,7 +46,7 @@ def make_runtime_response(**overrides):
         "status": "running",
         "template": "base-small",
         "template_id": "tmpl-001",
-        "provider": "azure",
+        "cloud": "azure",
         "region": "eastus2",
         "started_at": "2025-01-01T00:00:00Z",
         "timeout_at": None,
@@ -117,7 +117,7 @@ def make_template_info(**overrides):
         "visibility": "public",
         "created_at": "2025-01-01T00:00:00Z",
         "updated_at": "2025-01-01T00:00:00Z",
-        "provider": "azure",
+        "cloud": "azure",
         "region": "eastus2",
     }
     data.update(overrides)

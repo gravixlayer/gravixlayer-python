@@ -28,14 +28,14 @@ class TestNormalizeRuntimeApiPayload:
             "tags": {"k": "v"},
         }
         normalize_runtime_api_payload(data)
-        assert data["provider"] == "aws"
+        assert data["cloud"] == "aws"
         assert data["region"] == "us-west-2"
         assert data["metadata"] == {"k": "v"}
 
     def test_no_op_when_already_sdk_shaped(self):
         data = {
             "runtime_id": "u1",
-            "provider": "azure",
+            "cloud": "azure",
             "region": "eastus2",
             "metadata": {},
         }

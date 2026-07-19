@@ -135,7 +135,7 @@ class TemplateInfo:
     visibility: str
     created_at: str
     updated_at: str
-    provider: Optional[str] = None
+    cloud: Optional[str] = None
     region: Optional[str] = None
     kind: Optional[str] = None  # sandbox | agent
 
@@ -222,7 +222,7 @@ def _parse_template_info(data: Dict[str, Any]) -> TemplateInfo:
         visibility=data.get("visibility", "private"),
         created_at=data.get("created_at", ""),
         updated_at=data.get("updated_at", ""),
-        provider=data.get("provider"),
+        cloud=data.get("cloud") or data.get("provider"),
         region=data.get("region"),
         kind=data.get("kind"),
     )

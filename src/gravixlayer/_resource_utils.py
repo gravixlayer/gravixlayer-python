@@ -8,13 +8,15 @@ def normalize_runtime_api_payload(data: Dict[str, Any]) -> None:
     """Map Gravix Layer API JSON keys to SDK ``Runtime`` field names.
 
     The API may return ``id``, ``compute_provider``, ``compute_region``, and ``tags``;
-    the Python model expects ``runtime_id``, ``provider``, ``region``, and ``metadata``.
+    the Python model expects ``runtime_id``, ``cloud``, ``region``, and ``metadata``.
     Mutates *data* in place; safe to call on responses that already use SDK names.
     """
     if data.get("runtime_id") is None and data.get("id") is not None:
         data["runtime_id"] = data["id"]
-    if data.get("provider") is None and data.get("compute_provider") is not None:
-        data["provider"] = data["compute_provider"]
+    if data.get("cloud") is None and data.get("compute_provider") is not None:
+        data["cloud"] = data["compute_provider"]
+    elif data.get("cloud") is None and data.get("provider") is not None:
+        data["cloud"] = data["provider"]
     if data.get("region") is None and data.get("compute_region") is not None:
         data["region"] = data["compute_region"]
     if data.get("metadata") is None and data.get("tags") is not None:

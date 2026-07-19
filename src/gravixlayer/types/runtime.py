@@ -52,7 +52,7 @@ class Runtime:
     status: str
     template: Optional[str] = None
     template_id: Optional[str] = None
-    provider: Optional[str] = None
+    cloud: Optional[str] = None
     region: Optional[str] = None
     started_at: Optional[str] = None
     timeout_at: Optional[str] = None
@@ -67,6 +67,8 @@ class Runtime:
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> "Runtime":
         """Create a Runtime from an API response dict, ignoring unknown fields."""
+        if data.get("cloud") is None and data.get("provider") is not None:
+            data = {**data, "cloud": data["provider"]}
         filtered = {k: v for k, v in data.items() if k in _RUNTIME_KNOWN_FIELDS}
         return cls(**filtered)
 
@@ -125,7 +127,7 @@ class Runtime:
 
         Args:
             template: Template to use (default: "base-small")
-            cloud: Cloud provider (default: "azure")
+            cloud: Cloud (azure/aws/gcp; default: "azure")
             region: Region to deploy in (default: "eastus2")
             timeout: Timeout in seconds (default: None = no timeout). Pass 0 to explicitly disable timeout.
             metadata: Optional metadata tags
@@ -156,7 +158,7 @@ class Runtime:
             status=runtime_response.status,
             template=runtime_response.template,
             template_id=runtime_response.template_id,
-            provider=runtime_response.provider,
+            cloud=runtime_response.cloud,
             region=runtime_response.region,
             started_at=runtime_response.started_at,
             timeout_at=runtime_response.timeout_at,
@@ -228,7 +230,7 @@ class Runtime:
             status=runtime_response.status,
             template=runtime_response.template,
             template_id=runtime_response.template_id,
-            provider=runtime_response.provider,
+            cloud=runtime_response.cloud,
             region=runtime_response.region,
             started_at=runtime_response.started_at,
             timeout_at=runtime_response.timeout_at,
@@ -1026,8 +1028,17 @@ class Template:
     visibility: str
     created_at: str
     updated_at: str
-    provider: Optional[str] = None
+    cloud: Optional[str] = None
     region: Optional[str] = None
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "Template":
+        """Create a Template from an API response dict, ignoring unknown fields."""
+        if data.get("cloud") is None and data.get("provider") is not None:
+            data = {**data, "cloud": data["provider"]}
+        known = {f.name for f in dataclasses.fields(cls)}
+        filtered = {k: v for k, v in data.items() if k in known}
+        return cls(**filtered)
 
 
 @dataclass
