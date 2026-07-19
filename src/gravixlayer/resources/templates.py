@@ -283,21 +283,16 @@ class Templates:
         offset: int = 0,
         project_id: Optional[str] = None,
     ) -> TemplateListResponse:
-        """List available templates.
+        """List available sandbox/runtime templates.
 
-        Args:
-            limit: Max number of templates to return (default 100).
-            offset: Pagination offset (default 0).
-            project_id: Optional project filter.
-
-        Returns:
-            TemplateListResponse containing template list and pagination info.
+        Agent templates are not included; use the agents API for those.
+        Kind is set by the build endpoint — callers do not pass it.
         """
         endpoint = build_list_endpoint(
             "template",
             limit=limit,
             offset=offset,
-            extra_params={"project_id": project_id},
+            extra_params={"project_id": project_id, "kind": "sandbox"},
         )
 
         response = self._make_agents_request("GET", endpoint)

@@ -24,13 +24,18 @@ class AgentBuildStatus(str, Enum):
 
 
 class AgentBuildPhase(str, Enum):
-    """Build phases reported by the API."""
+    """Build phases reported by the API.
 
+    Server emits ``building`` | ``uploading`` | ``completed``.
+    Legacy names retained for compatibility.
+    """
+
+    BUILDING = "building"
+    UPLOADING = "uploading"
+    COMPLETED = "completed"
     INITIALIZING = "initializing"
     PREPARING = "preparing"
-    BUILDING = "building"
     FINALIZING = "finalizing"
-    COMPLETED = "completed"
 
 
 class AgentDeployStatus(str, Enum):

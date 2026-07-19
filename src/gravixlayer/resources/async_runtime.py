@@ -481,8 +481,13 @@ class AsyncRuntimeTemplates:
         return await self.client._make_request(method, endpoint, data, _service="v1/agents", **kwargs)
 
     async def list(self, limit: Optional[int] = 100, offset: Optional[int] = 0) -> TemplateList:
-        """List available runtime templates."""
-        endpoint = build_list_endpoint("template", limit=limit, offset=offset)
+        """List available sandbox/runtime templates (excludes agent templates)."""
+        endpoint = build_list_endpoint(
+            "template",
+            limit=limit,
+            offset=offset,
+            extra_params={"kind": "sandbox"},
+        )
 
         response = await self._make_agents_request("GET", endpoint)
         result = response.json()

@@ -293,7 +293,7 @@ class AsyncTemplates:
             "template",
             limit=limit,
             offset=offset,
-            extra_params={"project_id": project_id},
+            extra_params={"project_id": project_id, "kind": "sandbox"},
         )
 
         response = await self._make_agents_request("GET", endpoint)

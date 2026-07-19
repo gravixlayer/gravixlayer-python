@@ -22,23 +22,26 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 
 AGENT_BUILD_PHASE_LABELS = {
-    "initializing": "PACKAGING",
-    "preparing": "PACKAGING",
     "building": "BUILDING",
-    "finalizing": "BUILDING",
-    "distributing": "DEPLOYING",
+    "uploading": "VERIFYING",
     "completed": "READY",
-}
-
-# Template builds: packaging → build (incl. finalize on server) → verify (distribution).
-# Backend "finalizing" is grouped under BUILDING; "distributing" is shown as VERIFYING.
-TEMPLATE_BUILD_PHASE_LABELS = {
-    "initializing": "PACKAGING",
-    "preparing": "PACKAGING",
-    "building": "BUILDING",
+    # Legacy mappings
+    "initializing": "BUILDING",
+    "preparing": "BUILDING",
     "finalizing": "BUILDING",
     "distributing": "VERIFYING",
+}
+
+# Template builds: building → uploading (verify/distribute) → ready.
+TEMPLATE_BUILD_PHASE_LABELS = {
+    "building": "BUILDING",
+    "uploading": "VERIFYING",
     "completed": "READY",
+    # Legacy mappings
+    "initializing": "BUILDING",
+    "preparing": "BUILDING",
+    "finalizing": "BUILDING",
+    "distributing": "VERIFYING",
 }
 
 _SPINNER_CHARS = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"

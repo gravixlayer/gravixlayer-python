@@ -481,6 +481,37 @@ class AsyncAgents:
             sys.stderr.flush()
         return result
 
+    async def list_templates(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        project_id: Optional[str] = None,
+    ):
+        """List agent templates (``kind=agent``). Kind is never set by callers."""
+        from .._resource_utils import build_list_endpoint, parse_paginated_items
+        from ..types.templates import TemplateListResponse, _parse_template_info
+
+        endpoint = build_list_endpoint(
+            "template",
+            limit=limit,
+            offset=offset,
+            extra_params={"project_id": project_id, "kind": "agent"},
+        )
+        response = await self._make_agents_request("GET", endpoint)
+        data = response.json()
+        templates, page_limit, page_offset = parse_paginated_items(
+            data,
+            "templates",
+            _parse_template_info,
+            default_limit=limit,
+            default_offset=offset,
+        )
+        return TemplateListResponse(
+            templates=templates,
+            limit=page_limit,
+            offset=page_offset,
+        )
+
     # -- Agent endpoint operations ------------------------------------------
 
     async def get(self, agent_id: str) -> AgentEndpoint:

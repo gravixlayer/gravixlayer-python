@@ -71,15 +71,17 @@ class TemplateBuildStatusEnum(str, Enum):
 class TemplateBuildPhase(str, Enum):
     """User-facing build phases.
 
-    The server may return phases not listed here;
-    callers should handle unknown phase strings gracefully.
+    Server emits ``building`` | ``uploading`` | ``completed``.
+    Legacy names are kept so older clients comparing strings still work.
     """
+    BUILDING = "building"
+    UPLOADING = "uploading"
+    COMPLETED = "completed"
+    # Legacy (mapped server-side to building/uploading)
     INITIALIZING = "initializing"
     PREPARING = "preparing"
-    BUILDING = "building"
     FINALIZING = "finalizing"
     DISTRIBUTING = "distributing"
-    COMPLETED = "completed"
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +137,7 @@ class TemplateInfo:
     updated_at: str
     provider: Optional[str] = None
     region: Optional[str] = None
+    kind: Optional[str] = None  # sandbox | agent
 
 
 @dataclass
@@ -221,6 +224,7 @@ def _parse_template_info(data: Dict[str, Any]) -> TemplateInfo:
         updated_at=data.get("updated_at", ""),
         provider=data.get("provider"),
         region=data.get("region"),
+        kind=data.get("kind"),
     )
 
 
@@ -255,7 +259,7 @@ class TemplateBuilder:
             TemplateBuilder("my-ml-template")
             .from_image("python:3.11-slim")
             .vcpu(2)
-            .memory(512)
+            .memory(1024)
             .apt_install("git", "curl")
             .pip_install("numpy", "pandas")
             .copy_file("./src/main.py", "/app/main.py")
@@ -273,7 +277,7 @@ class TemplateBuilder:
         self._docker_image: Optional[str] = None
         self._dockerfile: Optional[str] = None
         self._vcpu_count: int = 2
-        self._memory_mb: int = 512
+        self._memory_mb: int = 1024
         self._disk_mb: int = 4096
         self._start_cmd: Optional[str] = None
         self._ready_cmd: Optional[str] = None
@@ -334,7 +338,7 @@ class TemplateBuilder:
         return self
 
     def memory(self, mb: int) -> "TemplateBuilder":
-        """Set memory in MB (default: 512)."""
+        """Set memory in MB (default: 1024)."""
         if mb < 1:
             raise ValueError("memory_mb must be >= 1")
         self._memory_mb = mb

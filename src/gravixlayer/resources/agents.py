@@ -721,6 +721,41 @@ class Agents:
             sys.stderr.flush()
         return result
 
+    def list_templates(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        project_id: Optional[str] = None,
+    ):
+        """List agent templates for this project.
+
+        Uses the same templates API with ``kind=agent``. Callers never set kind
+        at build time — ``agents.build`` / ``agents.deploy`` always create agent templates.
+        """
+        from .._resource_utils import build_list_endpoint, parse_paginated_items
+        from ..types.templates import TemplateListResponse, _parse_template_info
+
+        endpoint = build_list_endpoint(
+            "template",
+            limit=limit,
+            offset=offset,
+            extra_params={"project_id": project_id, "kind": "agent"},
+        )
+        response = self._make_agents_request("GET", endpoint)
+        data = response.json()
+        templates, page_limit, page_offset = parse_paginated_items(
+            data,
+            "templates",
+            _parse_template_info,
+            default_limit=limit,
+            default_offset=offset,
+        )
+        return TemplateListResponse(
+            templates=templates,
+            limit=page_limit,
+            offset=page_offset,
+        )
+
     def get(self, agent_id: str) -> AgentEndpoint:
         """Get agent endpoint information.
 

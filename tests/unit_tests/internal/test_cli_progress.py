@@ -17,4 +17,6 @@ class TestPhaseLabelMaps:
         assert "completed" in AGENT_BUILD_PHASE_LABELS
 
     def test_template_labels_non_empty(self):
+        assert TEMPLATE_BUILD_PHASE_LABELS["building"] == "BUILDING"
+        assert TEMPLATE_BUILD_PHASE_LABELS["uploading"] == "VERIFYING"
         assert TEMPLATE_BUILD_PHASE_LABELS["distributing"] == "VERIFYING"

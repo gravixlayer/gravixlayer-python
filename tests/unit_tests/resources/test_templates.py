@@ -148,9 +148,11 @@ class TestBuildEnums:
         assert TemplateBuildStatusEnum.FAILED == "failed"
 
     def test_phase_values(self):
-        assert TemplateBuildPhase.INITIALIZING == "initializing"
         assert TemplateBuildPhase.BUILDING == "building"
+        assert TemplateBuildPhase.UPLOADING == "uploading"
         assert TemplateBuildPhase.COMPLETED == "completed"
+        # Legacy aliases still present for compatibility
+        assert TemplateBuildPhase.INITIALIZING == "initializing"
 
 
 # ===================================================================
@@ -164,7 +166,7 @@ class TestTemplateBuilder:
         d = builder.to_dict()
         assert d["name"] == "test-template"
         assert d["vcpu_count"] == 2
-        assert d["memory_mb"] == 512
+        assert d["memory_mb"] == 1024
         assert d["disk_mb"] == 4096
 
     def test_empty_name_raises(self):
@@ -783,12 +785,14 @@ class TestEnumCompleteness:
 
     def test_build_phase_enum_values(self):
         expected = {
+            "building",
+            "uploading",
+            "completed",
+            # Legacy aliases
             "initializing",
             "preparing",
-            "building",
             "finalizing",
             "distributing",
-            "completed",
         }
         actual = {e.value for e in TemplateBuildPhase}
         assert actual == expected
