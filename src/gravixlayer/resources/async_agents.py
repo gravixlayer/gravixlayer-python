@@ -41,6 +41,8 @@ from .agents import (
     _load_dotenv,
     _native_autoserve_entrypoint,
     _normalize_framework,
+    _normalize_ports,
+    _resolve_primary_http_port,
 )
 
 logger = logging.getLogger(__name__)
@@ -164,7 +166,7 @@ class AsyncAgents:
         framework = framework or inferred.get("framework", "")
         framework = _normalize_framework(framework) if framework else ""
         python_version = python_version or inferred.get("python_version", "")
-        ports = ports or inferred.get("ports", [])
+        ports = _normalize_ports(ports or inferred.get("ports") or [])
         target = target or inferred.get("target", "")
         entrypoint = entrypoint or _native_autoserve_entrypoint(framework, ports, target)
 
@@ -176,7 +178,7 @@ class AsyncAgents:
             entrypoint=entrypoint,
             python_version=python_version,
             framework=framework,
-            ports=ports or [],
+            ports=ports,
             vcpu_count=vcpu_count,
             memory_mb=memory_mb,
             disk_mb=disk_mb,
@@ -410,7 +412,7 @@ class AsyncAgents:
             framework = framework or inferred.get("framework", "")
             framework = _normalize_framework(framework) if framework else ""
             python_version = python_version or inferred.get("python_version", "")
-            ports = ports or inferred.get("ports", [])
+            ports = _normalize_ports(ports or inferred.get("ports") or [])
             target = target or inferred.get("target", "")
             protocols = protocols or []
             entrypoint = entrypoint or _native_autoserve_entrypoint(
@@ -419,6 +421,7 @@ class AsyncAgents:
                 target,
                 protocols,
             )
+            http_port = _resolve_primary_http_port(http_port, ports)
             dotenv_vars = _load_dotenv(source_path)
             if dotenv_vars:
                 merged = {**dotenv_vars, **(environment or {})}

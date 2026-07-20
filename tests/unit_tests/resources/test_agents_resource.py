@@ -21,6 +21,9 @@ from gravixlayer.resources.agents import (
     AgentBuildTimeoutError,
     _create_source_archive,
     _load_dotenv,
+    _normalize_ports,
+    _resolve_primary_http_port,
+    DEFAULT_AGENT_HTTP_PORT,
 )
 from gravixlayer.types.agents import AgentBuildStatusResponse
 
@@ -73,6 +76,18 @@ def _sample_endpoint_json():
 # ===================================================================
 # Helpers — dotenv and archive
 # ===================================================================
+
+
+class TestHTTPPortContract:
+    def test_normalize_ports_defaults(self):
+        assert _normalize_ports(None) == [DEFAULT_AGENT_HTTP_PORT]
+        assert _normalize_ports([]) == [DEFAULT_AGENT_HTTP_PORT]
+        assert _normalize_ports([9000]) == [9000]
+
+    def test_resolve_primary_http_port(self):
+        assert _resolve_primary_http_port(9000, [8000]) == 9000
+        assert _resolve_primary_http_port(0, [9000]) == 9000
+        assert _resolve_primary_http_port(0, None) == DEFAULT_AGENT_HTTP_PORT
 
 
 class TestLoadDotenv:
@@ -213,6 +228,8 @@ class TestSyncAgentsAPI:
         assert "agent.example.com" in dep.endpoint
         body = json.loads(mock_api.calls[-1].request.content)
         assert body["template_id"] == "tmpl-xyz"
+        # Template-only deploy omits http_port so the API applies its default.
+        assert "http_port" not in body
 
     def test_deploy_source_langgraph_entrypoint_includes_protocols(
         self,
@@ -249,6 +266,37 @@ class TestSyncAgentsAPI:
         assert b"http,a2a" in build_body
         deploy_body = json.loads(mock_api.calls[-1].request.content)
         assert deploy_body["protocols"] == ["http", "a2a"]
+        assert deploy_body["http_port"] == 8000
+
+    def test_deploy_from_source_aligns_http_port_with_custom_ports(
+        self,
+        client,
+        mock_api,
+        tmp_path,
+    ):
+        (tmp_path / "main.py").write_text("print('ok')\n")
+        mock_api.post(f"{AGENTS_BASE}/template/build-agent").mock(
+            return_value=httpx.Response(202, json=_sample_build_json())
+        )
+        mock_api.get(f"{AGENTS_BASE}/template/builds/build-agent-1/status").mock(
+            return_value=httpx.Response(
+                200,
+                json=_sample_status_json(status="completed", phase="completed"),
+            )
+        )
+        mock_api.post(f"{AGENTS_BASE}/deploy").mock(
+            return_value=httpx.Response(201, json=_sample_deploy_json())
+        )
+
+        client.agents.deploy(
+            tmp_path,
+            name="custom-port-agent",
+            ports=[9000],
+            on_build_status=lambda status: None,
+        )
+
+        deploy_body = json.loads(mock_api.calls[-1].request.content)
+        assert deploy_body["http_port"] == 9000
 
     def test_deploy_validation_errors(self, client):
         with pytest.raises(ValueError, match="Either"):

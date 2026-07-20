@@ -169,6 +169,26 @@ def _infer_framework_from_dependencies(deps: list[str]) -> str:
 # script dependency, no PATH ambiguity).
 _AGENT_RUNTIME_PREFIX = ("python", "-m", "gravixlayer.runtime.autoserve")
 
+# Default HTTP listen port when the caller does not specify ports / http_port.
+DEFAULT_AGENT_HTTP_PORT = 8000
+
+
+def _normalize_ports(ports: Optional[list]) -> list:
+    """Return a non-empty ports list; empty becomes [DEFAULT_AGENT_HTTP_PORT]."""
+    if ports:
+        return list(ports)
+    return [DEFAULT_AGENT_HTTP_PORT]
+
+
+def _resolve_primary_http_port(http_port: int = 0, ports: Optional[list] = None) -> int:
+    """Resolve the primary HTTP port: explicit value, else first port, else default."""
+    if http_port and int(http_port) > 0:
+        return int(http_port)
+    for p in ports or []:
+        if p is not None and int(p) > 0:
+            return int(p)
+    return DEFAULT_AGENT_HTTP_PORT
+
 
 def _native_autoserve_entrypoint(
     framework: str,
@@ -179,7 +199,7 @@ def _native_autoserve_entrypoint(
     canonical = _normalize_framework(framework)
     if canonical not in {"langgraph", "langchain", "google-adk"}:
         return ""
-    port = ports[0] if ports else 8000
+    port = _resolve_primary_http_port(0, ports)
     command = [
         *_AGENT_RUNTIME_PREFIX,
         "--framework",
@@ -404,7 +424,7 @@ class Agents:
         framework = framework or inferred.get("framework", "")
         framework = _normalize_framework(framework) if framework else ""
         python_version = python_version or inferred.get("python_version", "")
-        ports = ports or inferred.get("ports", [])
+        ports = _normalize_ports(ports or inferred.get("ports") or [])
         target = target or inferred.get("target", "")
         entrypoint = entrypoint or _native_autoserve_entrypoint(framework, ports, target)
 
@@ -416,7 +436,7 @@ class Agents:
             entrypoint=entrypoint,
             python_version=python_version,
             framework=framework,
-            ports=ports or [],
+            ports=ports,
             vcpu_count=vcpu_count,
             memory_mb=memory_mb,
             disk_mb=disk_mb,
@@ -650,7 +670,7 @@ class Agents:
             framework = framework or inferred.get("framework", "")
             framework = _normalize_framework(framework) if framework else ""
             python_version = python_version or inferred.get("python_version", "")
-            ports = ports or inferred.get("ports", [])
+            ports = _normalize_ports(ports or inferred.get("ports") or [])
             target = target or inferred.get("target", "")
             protocols = protocols or []
             entrypoint = entrypoint or _native_autoserve_entrypoint(
@@ -659,6 +679,7 @@ class Agents:
                 target,
                 protocols,
             )
+            http_port = _resolve_primary_http_port(http_port, ports)
             dotenv_vars = _load_dotenv(source_path)
             if dotenv_vars:
                 merged = {**dotenv_vars, **(environment or {})}

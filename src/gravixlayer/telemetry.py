@@ -377,8 +377,7 @@ def _ensure_log_pipeline(
 ) -> bool:
     """Install a global OTLP LoggerProvider + stdlib logging bridge (once).
 
-    Mirrors Google Agent Runtime's Python Logging → Cloud Logging path, but
-    exports OpenTelemetry logs to the GravixLayer collector / in-VM loopback.
+    Exports OpenTelemetry logs to the GravixLayer collector endpoint.
     """
     global _LOGS_CONFIGURED, _LOGGING_HANDLER
     if _LOGS_CONFIGURED:
@@ -772,7 +771,7 @@ def enable_telemetry(
     Equivalent to setting ``GRAVIXLAYER_ENABLE_TELEMETRY=true`` and configuring
     the managed OTLP exporters. Also installs httpx/requests auto-instrumentation
     when available so outbound HTTP (LLM APIs, tools) becomes nested spans, and
-    bridges stdlib ``logging`` to OTLP logs (Google Agent Runtime logging parity).
+    bridges stdlib ``logging`` to OTLP logs.
 
     Example::
 

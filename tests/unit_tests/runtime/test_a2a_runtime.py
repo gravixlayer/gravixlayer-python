@@ -71,7 +71,7 @@ def test_platform_a2a_card_uses_public_rpc_path(monkeypatch: pytest.MonkeyPatch)
     card = response.json()
     assert "url" not in card
     assert "protocolVersion" not in card
-    assert card["supportedInterfaces"][0]["url"] == "https://demo-agent.agents.gravixlayer.ai/a2a"
+    assert card["supportedInterfaces"][0]["url"] == "https://demo-agent.agent.gravixlayer.ai/a2a"
     assert card["supportedInterfaces"][0]["protocolBinding"] == "JSONRPC"
     assert card["supportedInterfaces"][0]["protocolVersion"] == "1.0"
 

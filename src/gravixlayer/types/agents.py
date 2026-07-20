@@ -208,8 +208,7 @@ class AgentBuildRequest:
             result["python_version"] = self.python_version
         if self.framework:
             result["framework"] = self.framework
-        if self.ports:
-            result["ports"] = self.ports
+        result["ports"] = self.ports if self.ports else [8000]
         if self.vcpu_count:
             result["vcpu_count"] = self.vcpu_count
         if self.memory_mb:
@@ -291,7 +290,7 @@ class AgentDeployRequest:
             result["framework"] = self.framework
         if self.entry_point:
             result["entry_point"] = self.entry_point
-        if self.http_port:
+        if self.http_port > 0:
             result["http_port"] = self.http_port
         if self.a2a_port:
             result["a2a_port"] = self.a2a_port

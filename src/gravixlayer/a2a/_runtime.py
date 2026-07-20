@@ -30,7 +30,7 @@ _DEFAULT_A2A_PORT = 8000
 _DEFAULT_HOST = "0.0.0.0"
 _DEFAULT_A2A_PATH = "/a2a"
 _AGENT_CARD_WELL_KNOWN_PATH = "/.well-known/agent-card.json"
-_AGENT_DOMAIN = "agents.gravixlayer.ai"
+_AGENT_DOMAIN = "agent.gravixlayer.ai"
 
 
 class GravixLayerA2AError(Exception):
