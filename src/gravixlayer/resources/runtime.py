@@ -17,7 +17,6 @@ from ..types.runtime import (
     RuntimeList,
     RuntimeMetrics,
     RuntimeTimeoutResponse,
-    RuntimeHostURL,
     SSHInfo,
     SSHStatus,
     CommandRunResponse,
@@ -34,6 +33,7 @@ from ..types.runtime import (
 
 from .runtime_git import RuntimeGitResource
 from .runtime_files import RuntimeFileResource
+from .runtime_service import RuntimeServiceResource
 
 
 class Runtimes:
@@ -43,6 +43,7 @@ class Runtimes:
         self.client = client
         self._git_resource: Optional["RuntimeGitResource"] = None
         self._file_resource: Optional[RuntimeFileResource] = None
+        self._service_resource: Optional[RuntimeServiceResource] = None
 
     @property
     def file(self) -> RuntimeFileResource:
@@ -57,6 +58,13 @@ class Runtimes:
         if self._git_resource is None:
             self._git_resource = RuntimeGitResource(self)
         return self._git_resource
+
+    @property
+    def service(self) -> RuntimeServiceResource:
+        """Web services on ``*.service.gravixlayer.ai``: ``web_url``, ``get``/``post``, …"""
+        if self._service_resource is None:
+            self._service_resource = RuntimeServiceResource(self)
+        return self._service_resource
 
     def _make_agents_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs):
         """Make a request to the agents API (/v1/agents/...)"""
@@ -256,13 +264,6 @@ class Runtimes:
         result = response.json()
         filtered = {k: v for k, v in result.items() if k in _METRICS_FIELDS}
         return RuntimeMetrics(**filtered)
-
-    def get_host_url(self, runtime_id: str, port: int) -> RuntimeHostURL:
-        """Get the public URL for accessing a specific port on the runtime."""
-        _validate_runtime_id(runtime_id)
-        response = self._make_agents_request("GET", f"runtime/{runtime_id}/host/{port}")
-        result = response.json()
-        return RuntimeHostURL(**result)
 
     # Command Execution Methods
 
@@ -648,6 +649,11 @@ class RuntimeResource:
     def git(self) -> "RuntimeGitResource":
         """Git operations inside the runtime: ``client.runtime.git.clone``, …"""
         return self._runtimes.git
+
+    @property
+    def service(self) -> RuntimeServiceResource:
+        """Web services on ``*.service.gravixlayer.ai``: ``web_url``, ``get``/``post``, …"""
+        return self._runtimes.service
 
     def __getattr__(self, name: str):
         """Delegate any attribute not on this class to the underlying Runtimes instance."""

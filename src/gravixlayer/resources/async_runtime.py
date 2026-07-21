@@ -15,7 +15,6 @@ from ..types.runtime import (
     RuntimeList,
     RuntimeMetrics,
     RuntimeTimeoutResponse,
-    RuntimeHostURL,
     SSHInfo,
     SSHStatus,
     CommandRunResponse,
@@ -33,6 +32,7 @@ from ..types.runtime import (
 
 from .runtime_git import AsyncRuntimeGitResource
 from .runtime_files import AsyncRuntimeFileResource
+from .async_runtime_service import AsyncRuntimeServiceResource
 
 
 class AsyncRuntimes:
@@ -42,6 +42,7 @@ class AsyncRuntimes:
         self.client = client
         self._git_resource: Optional["AsyncRuntimeGitResource"] = None
         self._file_resource: Optional[AsyncRuntimeFileResource] = None
+        self._service_resource: Optional[AsyncRuntimeServiceResource] = None
 
     @property
     def file(self) -> AsyncRuntimeFileResource:
@@ -56,6 +57,13 @@ class AsyncRuntimes:
         if self._git_resource is None:
             self._git_resource = AsyncRuntimeGitResource(self)
         return self._git_resource
+
+    @property
+    def service(self) -> AsyncRuntimeServiceResource:
+        """Web services on ``*.service.gravixlayer.ai``."""
+        if self._service_resource is None:
+            self._service_resource = AsyncRuntimeServiceResource(self)
+        return self._service_resource
 
     async def _make_agents_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs):
         """Make a request to the agents API (/v1/agents/...)."""
@@ -251,13 +259,6 @@ class AsyncRuntimes:
         result = response.json()
         filtered = {k: v for k, v in result.items() if k in _METRICS_FIELDS}
         return RuntimeMetrics(**filtered)
-
-    async def get_host_url(self, runtime_id: str, port: int) -> RuntimeHostURL:
-        """Get the public URL for accessing a specific port on the runtime."""
-        _validate_runtime_id(runtime_id)
-        response = await self._make_agents_request("GET", f"runtime/{runtime_id}/host/{port}")
-        result = response.json()
-        return RuntimeHostURL(**result)
 
     # Command Execution Methods
 

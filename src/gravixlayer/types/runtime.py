@@ -514,10 +514,36 @@ class RuntimeTimeoutResponse:
 
 
 @dataclass
-class RuntimeHostURL:
-    """Runtime host URL response."""
+class RuntimeWebService:
+    """Public HTTPS web service for a guest HTTP port (*.service.gravixlayer.ai)."""
 
+    runtime_id: str
+    port: int
     url: str
+    web_url: str
+    browser_url: str
+    service_url: str
+    expires_at: str
+    is_public: bool = False
+    token: Optional[str] = None
+    subdomain: Optional[str] = None
+
+    @classmethod
+    def from_api(cls, data: dict) -> "RuntimeWebService":
+        url = data.get("web_url") or data.get("url") or ""
+        service_url = data.get("service_url") or (url if url.endswith("/") else url + "/")
+        return cls(
+            runtime_id=str(data.get("runtime_id") or ""),
+            port=int(data.get("port") or 0),
+            url=url,
+            web_url=url,
+            browser_url=str(data.get("browser_url") or url),
+            service_url=service_url,
+            expires_at=str(data.get("expires_at") or ""),
+            is_public=bool(data.get("is_public")),
+            token=data.get("token"),
+            subdomain=data.get("subdomain"),
+        )
 
 
 # ---------------------------------------------------------------------------

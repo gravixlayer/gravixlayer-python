@@ -15,7 +15,7 @@ from gravixlayer.types.runtime import (
     RuntimeMetrics,
     RuntimeTimeout,
     RuntimeTimeoutResponse,
-    RuntimeHostURL,
+    RuntimeWebService,
     RuntimeKillResponse,
     SSHInfo,
     SSHStatus,
@@ -522,9 +522,19 @@ class TestSupportingTypes:
         r = RuntimeTimeoutResponse(message="Timeout updated", timeout=300, timeout_at="2025-01-01T01:00:00Z")
         assert r.message == "Timeout updated"
 
-    def test_runtime_host_url(self):
-        h = RuntimeHostURL(url="https://runtime.example.com:8080")
+    def test_runtime_web_service(self):
+        h = RuntimeWebService.from_api({
+            "runtime_id": "uuid-1",
+            "port": 8080,
+            "url": "https://8080-uuid.service.gravixlayer.ai",
+            "web_url": "https://8080-uuid.service.gravixlayer.ai",
+            "browser_url": "https://8080-uuid.service.gravixlayer.ai/",
+            "service_url": "https://8080-uuid.service.gravixlayer.ai/",
+            "expires_at": "2026-07-18T12:00:00Z",
+            "is_public": False,
+        })
         assert h.url.startswith("https://")
+        assert h.port == 8080
 
     def test_runtime_kill_response(self):
         k = RuntimeKillResponse(message="Terminated", runtime_id="uuid-1")

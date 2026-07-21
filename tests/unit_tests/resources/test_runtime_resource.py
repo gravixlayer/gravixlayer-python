@@ -2,7 +2,7 @@
 Tests for sync and async runtime resources.
 
 Covers: create, list, get, kill, connect, set_timeout, get_metrics,
-get_host_url, ``client.runtime.file.*``, git (``client.runtime.git.*``), command/code execution,
+``client.runtime.service.*``, ``client.runtime.file.*``, git (``client.runtime.git.*``), command/code execution,
 SSH, pause/resume, code contexts.
 """
 
@@ -30,7 +30,6 @@ from gravixlayer.types.runtime import (
     RuntimeList,
     RuntimeMetrics,
     RuntimeTimeoutResponse,
-    RuntimeHostURL,
     RuntimeKillResponse,
     SSHInfo,
     SSHStatus,
@@ -181,13 +180,28 @@ class TestSyncRuntimeConfig:
         assert metrics.cpu_usage == 45.2
         assert metrics.memory_total == 512.0
 
-    def test_get_host_url(self, client, mock_api):
-        mock_api.get(f"{SB}/{VALID_UUID}/host/8080").mock(
-            return_value=httpx.Response(200, json={"url": "https://runtime.example.com:8080"})
+    def test_service_web_url_and_handle(self, client, mock_api):
+        payload = {
+            "runtime_id": VALID_UUID,
+            "port": 3000,
+            "url": "https://3000-abc.service.gravixlayer.ai",
+            "web_url": "https://3000-abc.service.gravixlayer.ai",
+            "browser_url": "https://3000-abc.service.gravixlayer.ai/_ws/auth?token=t",
+            "service_url": "https://3000-abc.service.gravixlayer.ai/",
+            "token": "t",
+            "is_public": False,
+            "expires_at": "2026-07-18T12:00:00Z",
+            "subdomain": "3000-abc",
+        }
+        mock_api.post(f"{SB}/{VALID_UUID}/services").mock(
+            return_value=httpx.Response(200, json=payload)
         )
-        result = client.runtime.get_host_url(VALID_UUID, 8080)
-        assert isinstance(result, RuntimeHostURL)
-        assert "8080" in result.url
+        info = client.runtime.service.web_url(VALID_UUID, 3000)
+        assert info.port == 3000
+        assert info.token == "t"
+        handle = client.runtime.service(VALID_UUID, 3000)
+        assert handle.web_url.endswith("service.gravixlayer.ai")
+        handle.close()
 
 
 # ===================================================================
@@ -1037,7 +1051,7 @@ class TestSyncRuntimeGitWriteOps:
 
 class TestAsyncRuntimeConfig:
     @pytest.mark.asyncio
-    async def test_set_timeout_metrics_host_url(self, mock_api):
+    async def test_set_timeout_metrics_service_web_url(self, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/timeout").mock(
             return_value=httpx.Response(
                 200, json={"message": "Updated", "timeout": 600}
@@ -1046,9 +1060,21 @@ class TestAsyncRuntimeConfig:
         mock_api.get(f"{SB}/{VALID_UUID}/metrics").mock(
             return_value=httpx.Response(200, json=make_metrics_response())
         )
-        mock_api.get(f"{SB}/{VALID_UUID}/host/8080").mock(
+        mock_api.post(f"{SB}/{VALID_UUID}/services").mock(
             return_value=httpx.Response(
-                200, json={"url": "https://host.example.com:8080"}
+                200,
+                json={
+                    "runtime_id": VALID_UUID,
+                    "port": 8080,
+                    "url": "https://8080-host.service.gravixlayer.ai",
+                    "web_url": "https://8080-host.service.gravixlayer.ai",
+                    "browser_url": "https://8080-host.service.gravixlayer.ai/_ws/auth?token=x",
+                    "service_url": "https://8080-host.service.gravixlayer.ai/",
+                    "token": "x",
+                    "is_public": False,
+                    "expires_at": "2026-07-18T12:00:00Z",
+                    "subdomain": "8080-host",
+                },
             )
         )
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
@@ -1056,8 +1082,9 @@ class TestAsyncRuntimeConfig:
             assert timeout.timeout == 600
             metrics = await client.runtime.get_metrics(VALID_UUID)
             assert metrics.cpu_usage == 45.2
-            host = await client.runtime.get_host_url(VALID_UUID, 8080)
-            assert "8080" in host.url
+            svc = await client.runtime.service.web_url(VALID_UUID, 8080)
+            assert "8080" in svc.url
+            assert svc.token == "x"
 
 
 class TestAsyncRuntimeContextsAndSSH:
