@@ -14,7 +14,7 @@ from ..types.runtime import RuntimeWebService, _validate_runtime_id
 
 
 class RuntimeServiceHandle:
-    """Bound handle for one runtime + port web service (LangSmith-style)."""
+    """HTTP client bound to one runtime web service."""
 
     def __init__(self, info: RuntimeWebService):
         self._info = info
@@ -108,12 +108,14 @@ class RuntimeServiceResource:
         *,
         expires_in_seconds: int = 3600,
         is_public: bool = False,
+        rotate_token: bool = False,
     ) -> RuntimeServiceHandle:
         info = self.web_url(
             runtime_id,
             port,
             expires_in_seconds=expires_in_seconds,
             is_public=is_public,
+            rotate_token=rotate_token,
         )
         return RuntimeServiceHandle(info)
 
@@ -126,7 +128,7 @@ class RuntimeServiceResource:
         is_public: bool = False,
         rotate_token: bool = False,
     ) -> RuntimeWebService:
-        """Open (or refresh) a public HTTPS web service for a guest port."""
+        """Open (or refresh) an HTTPS web service for a guest port."""
         _validate_runtime_id(runtime_id)
         if port < 1 or port > 65535:
             raise ValueError("port must be in 1..=65535")

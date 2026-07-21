@@ -400,6 +400,24 @@ class Runtime:
         """Filesystem API for this runtime (same as ``client.runtime.file``, without ``runtime_id``)."""
         return RuntimeFileBound(self)
 
+    def service(
+        self,
+        port: int,
+        *,
+        expires_in_seconds: int = 3600,
+        is_public: bool = False,
+        rotate_token: bool = False,
+    ) -> Any:
+        """Open a web service for a guest HTTP port on ``*.service.gravixlayer.ai``."""
+        self._require_alive()
+        return self._client.runtime.service(
+            self.runtime_id,
+            port,
+            expires_in_seconds=expires_in_seconds,
+            is_public=is_public,
+            rotate_token=rotate_token,
+        )
+
 
 class RuntimeFileBound:
     """Bound view of :attr:`Runtime.file` — mirrors ``client.runtime.file.*`` signatures minus ``runtime_id``."""

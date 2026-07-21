@@ -99,12 +99,14 @@ class AsyncRuntimeServiceResource:
         *,
         expires_in_seconds: int = 3600,
         is_public: bool = False,
+        rotate_token: bool = False,
     ) -> AsyncRuntimeServiceHandle:
         info = await self.web_url(
             runtime_id,
             port,
             expires_in_seconds=expires_in_seconds,
             is_public=is_public,
+            rotate_token=rotate_token,
         )
         return AsyncRuntimeServiceHandle(info)
 

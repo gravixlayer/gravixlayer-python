@@ -39,6 +39,7 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 19 | [19_runtime_lifecycle.py](19_runtime_lifecycle.py) | Full lifecycle: create → pause → resume → kill |
 | 20 | [20_observability_verify.py](20_observability_verify.py) | Enable tracing for runtime operations |
 | 21 | [21_observability_logging.py](21_observability_logging.py) | Emit agent + runtime logs and verify in Logs |
+| 22 | [22_runtime_web_service.py](22_runtime_web_service.py) | FastAPI + `rt.service(port=…)` on `*.service.gravixlayer.ai` |
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py

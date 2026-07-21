@@ -61,7 +61,7 @@ class Runtimes:
 
     @property
     def service(self) -> RuntimeServiceResource:
-        """Web services on ``*.service.gravixlayer.ai``: ``web_url``, ``get``/``post``, …"""
+        """Web services on ``*.service.gravixlayer.ai``."""
         if self._service_resource is None:
             self._service_resource = RuntimeServiceResource(self)
         return self._service_resource
@@ -652,7 +652,7 @@ class RuntimeResource:
 
     @property
     def service(self) -> RuntimeServiceResource:
-        """Web services on ``*.service.gravixlayer.ai``: ``web_url``, ``get``/``post``, …"""
+        """Web services on ``*.service.gravixlayer.ai``."""
         return self._runtimes.service
 
     def __getattr__(self, name: str):
