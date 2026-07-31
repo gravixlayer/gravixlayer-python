@@ -5,7 +5,7 @@ Node.js template from a public Git repository.
 Uses: from_image, apt_install, git_clone, start_cmd
 
 Good for open-source projects on GitHub, GitLab, or any public host.
-The repo is cloned directly inside the VM during the build.
+The repo is cloned into the template during the build.
 
 git_clone supports:
   branch -- clone a specific branch (default: repo default)

@@ -19,9 +19,11 @@ import os
 import re
 import sys
 import time
+import uuid
 from dataclasses import dataclass, field
 
 from openai import OpenAI
+from gravixlayer import GravixLayer
 from gravixlayer.types.runtime import Runtime
 
 
@@ -321,54 +323,64 @@ def main():
     )
 
     print("Creating Agent Runtime...")
+    client = GravixLayer(api_key=gravix_key)
+    # System default is an empty allowlist (deny-all egress). Attach allow_all
+    # so the guest can reach PyPI and the dataset URL.
+    policy = client.network_policies.create(
+        name=f"data-analyst-allow-all-{uuid.uuid4().hex[:8]}",
+        egress_mode="allow_all",
+        description="Temporary egress for data-analyst example",
+    )
 
-    with Runtime.create(
-        template=os.getenv("GRAVIXLAYER_TEMPLATE", "base-medium"),
-        timeout=int(os.getenv("GRAVIXLAYER_TIMEOUT", "600")),
-    ) as runtime:
-        print(f"Runtime ready: {runtime.runtime_id}")
-        print(f"  CPU: {runtime.cpu_count}, Memory: {runtime.memory_mb}MB")
+    try:
+        with Runtime.create(
+            client=client,
+            template=os.getenv("GRAVIXLAYER_TEMPLATE", "base-medium"),
+            timeout=int(os.getenv("GRAVIXLAYER_TIMEOUT", "600")),
+            network_policy_ids=[policy.id],
+        ) as runtime:
+            print(f"Runtime ready: {runtime.runtime_id}")
+            print(f"  CPU: {runtime.cpu_count}, Memory: {runtime.memory_mb}MB")
 
-        # Install packages
-        print("\nInstalling analysis packages...")
-        install = runtime.run_cmd(
-            "pip",
-            args=["install", "pandas", "matplotlib", "seaborn", "numpy", "--quiet"],
-        )
-        if install.exit_code != 0:
-            print(f"Package install failed: {install.stderr}")
-            sys.exit(1)
-        print("Packages installed.")
+            print("\nInstalling analysis packages...")
+            install = runtime.run_cmd(
+                "pip",
+                args=["install", "pandas", "matplotlib", "seaborn", "numpy", "--quiet"],
+                timeout=300,
+            )
+            if install.exit_code != 0:
+                print(f"Package install failed: {install.stderr}")
+                sys.exit(1)
+            print("Packages installed.")
 
-        # Download dataset
-        print("\nDownloading dataset...")
-        dl = runtime.run_code(
-            f"import urllib.request, os\n"
-            f"os.makedirs('/workspace', exist_ok=True)\n"
-            f"urllib.request.urlretrieve('{DATASET_URL}', '{DATASET_PATH}')\n"
-            f"size = os.path.getsize('{DATASET_PATH}')\n"
-            f"print(f'Downloaded {{size:,}} bytes')"
-        )
-        if dl.stderr and "Error" in dl.stderr:
-            print(f"Download failed: {dl.stderr}")
-            sys.exit(1)
-        print(dl.stdout.strip() if dl.stdout else "Dataset ready.")
+            print("\nDownloading dataset...")
+            dl = runtime.run_code(
+                f"import urllib.request, os\n"
+                f"os.makedirs('/workspace', exist_ok=True)\n"
+                f"urllib.request.urlretrieve('{DATASET_URL}', '{DATASET_PATH}')\n"
+                f"size = os.path.getsize('{DATASET_PATH}')\n"
+                f"print(f'Downloaded {{size:,}} bytes')"
+            )
+            if dl.stderr and "Error" in dl.stderr:
+                print(f"Download failed: {dl.stderr}")
+                sys.exit(1)
+            print(dl.stdout.strip() if dl.stdout else "Dataset ready.")
 
-        # Prepare runtime — ensure charts output directory exists
-        runtime.file.create_directory(CHARTS_DIR, recursive=True)
-        runtime.run_code("import matplotlib; matplotlib.use('Agg')")
+            runtime.file.create_directory(CHARTS_DIR, recursive=True)
+            runtime.run_code("import matplotlib; matplotlib.use('Agg')")
 
-        # Run analysis
-        run_analysis(openai_client, runtime)
-        tracker.analysis_end = time.perf_counter()
+            run_analysis(openai_client, runtime)
+            tracker.analysis_end = time.perf_counter()
 
-        # Download charts
-        download_charts(runtime)
+            download_charts(runtime)
+            tracker.print_summary()
 
-        # Print timing summary
-        tracker.print_summary()
-
-        print("\nDone. Runtime will be terminated automatically.")
+            print("\nDone. Runtime will be terminated automatically.")
+    finally:
+        try:
+            client.network_policies.delete(policy.id)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

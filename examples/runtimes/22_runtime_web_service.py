@@ -8,8 +8,9 @@ Usage:
 
 import os
 import time
+import uuid
 
-from gravixlayer.types.runtime import Runtime
+from gravixlayer import GravixLayer
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 APP_DIR = "/home/user/app"
@@ -33,20 +34,40 @@ def create_item(item: dict):
 
 
 def main() -> None:
-    with Runtime.create(template=TEMPLATE, timeout=600) as rt:
+    client = GravixLayer()
+    policy = None
+    rt = None
+    try:
+        # System default is an empty allowlist (deny-all egress). Attach allow_all
+        # so the guest can reach PyPI / the public internet.
+        policy = client.network_policies.create(
+            name=f"web-service-allow-all-{uuid.uuid4().hex[:8]}",
+            egress_mode="allow_all",
+            description="Temporary egress for web-service example",
+        )
+
+        rt = client.runtime.create(
+            template=TEMPLATE,
+            timeout=600,
+            network_policy_ids=[policy.id],
+        )
         print(f"runtime: {rt.runtime_id}")
+        print(f"policy:  {policy.id} ({policy.egress_mode})")
 
         rt.run_cmd(command=f"mkdir -p {APP_DIR}")
         rt.file.write(f"{APP_DIR}/main.py", APP_CODE)
 
-        install = rt.run_cmd(command="pip install fastapi uvicorn --quiet", timeout=180)
+        install = rt.run_cmd(
+            command="pip install fastapi uvicorn",
+            timeout=180,
+        )
         if install.exit_code != 0:
-            raise RuntimeError(f"pip install failed: {install.stderr}")
+            raise RuntimeError(f"pip install failed: {install.stderr or install.stdout}")
 
         rt.run_cmd(
             command=(
                 f"nohup env PYTHONPATH={APP_DIR} "
-                f"uvicorn main:app --host 0.0.0.0 --port {PORT} "
+                f"python -m uvicorn main:app --host 0.0.0.0 --port {PORT} "
                 f"> /tmp/uvicorn.log 2>&1 &"
             ),
             working_dir=APP_DIR,
@@ -76,6 +97,17 @@ def main() -> None:
             print(svc.get("/items").json())
 
         rt.run_cmd(command=f"pkill -f 'uvicorn main:app --port {PORT}' || true")
+    finally:
+        if rt is not None:
+            try:
+                rt.kill()
+            except Exception:
+                pass
+        if policy is not None:
+            try:
+                client.network_policies.delete(policy.id)
+            except Exception:
+                pass
 
     print("done")
 

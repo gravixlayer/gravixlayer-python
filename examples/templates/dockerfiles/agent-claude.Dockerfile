@@ -1,23 +1,11 @@
 # syntax=docker/dockerfile:1
 #
-# GravixLayer base template
+# GravixLayer agent-claude template
 #
-# Python 3.14.6 (uv) · Node 24.18.0 · npm 12.0.1 · uv 0.11.29 · Ubuntu 24.04
+# Same foundation as base.Dockerfile, plus Claude Code (native installer).
+# Install: https://code.claude.com/docs/en/setup
 #
-#   gravixlayer template build \
-#     --dockerfile ./base.Dockerfile \
-#     --name my-base \
-#     --vcpu-count 2 \
-#     --memory-mb 2048 \
-#     --disk-mb 6144 \
-#     --wait
-#
-# Tips:
-#   - Install packages as root (default). SSH / terminal sessions use `agent`
-#     with home /workspace.
-#   - Prefer uv for Python (`uv python install` / `uv pip`).
-#   - `python`, `pip`, `node`, and `npm` are on PATH out of the box
-#     (`/workspace/.venv/bin` + `/usr/local/bin`).
+#   curl -fsSL https://claude.ai/install.sh | bash
 
 FROM ubuntu:24.04 AS system
 
@@ -27,7 +15,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /workspace
 
-# Networking / diagnostics utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -43,7 +30,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         traceroute \
     && rm -rf /var/lib/apt/lists/*
 
-# Login user for SSH and the web terminal (home: /workspace)
 RUN groupadd -r agent \
     && useradd -r -g agent -d /workspace -s /bin/bash agent \
     && usermod -p '*' agent \
@@ -52,7 +38,6 @@ RUN groupadd -r agent \
 
 FROM system AS devtools
 
-# Node.js + build tools + editors
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         git \
@@ -66,7 +51,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && npm -v | grep -F '12.0.1' \
     && rm -rf /var/lib/apt/lists/*
 
-# Python via uv (not apt)
 COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /usr/local/bin/uv
 ENV UV_PYTHON_INSTALL_DIR="/workspace/.uv/python"
 RUN uv python install 3.14.6 \
@@ -74,17 +58,22 @@ RUN uv python install 3.14.6 \
     && ln -sf "$(uv python find 3.14.6)" /usr/local/bin/python \
     && uv cache clean
 
+# Claude Code — recommended native install (https://code.claude.com/docs)
+RUN curl -fsSL https://claude.ai/install.sh | bash \
+    && install -m 755 /root/.local/bin/claude /usr/local/bin/claude \
+    && command -v claude \
+    && claude --version
+
 FROM devtools AS final
 
+# IS_SANDBOX=1: Claude Code allows --dangerously-skip-permissions in isolated
+# sandboxes. See https://code.claude.com/docs/en/permission-modes
 ENV PATH="/workspace/.venv/bin:/usr/local/bin:/usr/bin:/bin" \
     VIRTUAL_ENV="/workspace/.venv" \
     UV_PYTHON_INSTALL_DIR="/workspace/.uv/python" \
-    HOME="/workspace"
+    HOME="/workspace" \
+    IS_SANDBOX=1
 
-# Default venv + shell profile under /workspace.
-# Leave /usr/local/bin/python pointing at the uv-managed base interpreter.
-# The runtime's PATH (/etc/environment + gravixlayer.sh + run_cmd) puts
-# /workspace/.venv/bin first so bare `python` / `pip` hit the seeded venv.
 RUN uv venv --python 3.14.6 --seed /workspace/.venv \
     && uv pip install --python /workspace/.venv/bin/python cloudpickle \
     && uv cache clean \
@@ -93,6 +82,7 @@ RUN uv venv --python 3.14.6 --seed /workspace/.venv \
         'export VIRTUAL_ENV="/workspace/.venv"' \
         'export UV_PYTHON_INSTALL_DIR="/workspace/.uv/python"' \
         'export HOME="/workspace"' \
+        'export IS_SANDBOX=1' \
         'export PS1="\u@\h:\w\$ "' \
         > /workspace/.bashrc \
     && printf '%s\n' '[ -f ~/.bashrc ] && . ~/.bashrc' > /workspace/.profile \

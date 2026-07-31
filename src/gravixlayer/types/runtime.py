@@ -118,6 +118,9 @@ class Runtime:
         timeout: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
         internet_access: Optional[bool] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        providers: Optional[List[str]] = None,
+        network_policy_ids: Optional[List[str]] = None,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         client: Optional[Any] = None,
@@ -132,6 +135,11 @@ class Runtime:
             timeout: Timeout in seconds (default: None = no timeout). Pass 0 to explicitly disable timeout.
             metadata: Optional metadata tags
             internet_access: Whether to allow internet access (default: None = server default)
+            env_vars: Environment variables for the runtime
+            providers: Optional secret provider IDs to attach at creation
+            network_policy_ids: Optional network policy IDs to attach at creation
+                (the system default empty allowlist is always attached; attach an
+                ``allow_all`` or allowlist policy for guest egress such as PyPI)
             api_key: API key (uses GRAVIXLAYER_API_KEY env var if not provided)
             base_url: Base URL (uses GRAVIXLAYER_BASE_URL env var if not provided)
             client: Existing GravixLayer client to reuse (avoids creating a new session)
@@ -151,6 +159,9 @@ class Runtime:
             timeout=timeout,
             metadata=metadata or {},
             internet_access=internet_access,
+            env_vars=env_vars,
+            providers=providers,
+            network_policy_ids=network_policy_ids,
         )
 
         instance = cls(
@@ -673,7 +684,7 @@ class SetPermissionsResponse:
 
 @dataclass
 class GitOperationResult:
-    """Result of a git operation (stdout/stderr from the git binary in the VM)."""
+    """Result of a git operation (stdout/stderr from ``git`` inside the runtime)."""
 
     success: bool
     exit_code: int
@@ -724,6 +735,9 @@ class RuntimeGit:
 
         ``url`` must be ``http://``, ``https://``, ``ssh://``, ``git://``, or SCP-style
         (e.g. ``git@github.com:org/repo.git``). ``file://`` is not allowed.
+
+        ``auth_token`` authenticates this clone only and is not stored in the
+        checkout, so ``pull``, ``fetch``, and ``push`` each take their own token.
         """
         return self._sync_git_result(
             self._client.runtime.git.clone(
@@ -762,13 +776,16 @@ class RuntimeGit:
         repository_path: str,
         remote: Optional[str] = None,
         branch: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Pull from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         return self._sync_git_result(
             self._client.runtime.git.pull(
                 self._runtime_id,
                 repository_path=repository_path,
                 remote=remote,
                 branch=branch,
+                auth_token=auth_token,
             )
         )
 
@@ -779,7 +796,13 @@ class RuntimeGit:
         refspec: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Push to a remote.
+
+        ``auth_token`` is the usual credential for a forge and takes precedence
+        when ``username``/``password`` are also given.
+        """
         return self._sync_git_result(
             self._client.runtime.git.push(
                 self._runtime_id,
@@ -788,13 +811,20 @@ class RuntimeGit:
                 refspec=refspec,
                 username=username,
                 password=password,
+                auth_token=auth_token,
             )
         )
 
-    def fetch(self, repository_path: str, remote: Optional[str] = None) -> GitOperationResult:
+    def fetch(
+        self,
+        repository_path: str,
+        remote: Optional[str] = None,
+        auth_token: Optional[str] = None,
+    ) -> GitOperationResult:
+        """Fetch from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         return self._sync_git_result(
             self._client.runtime.git.fetch(
-                self._runtime_id, repository_path=repository_path, remote=remote
+                self._runtime_id, repository_path=repository_path, remote=remote, auth_token=auth_token
             )
         )
 

@@ -2,7 +2,7 @@
 Template Build Pipeline resource for synchronous client.
 
 Provides methods for creating, building, polling, listing, and
-deleting VM templates via the Gravix Layer API.
+deleting templates via the Gravix Layer API.
 """
 
 import sys

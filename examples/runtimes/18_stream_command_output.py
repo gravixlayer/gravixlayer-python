@@ -9,7 +9,7 @@ downstream code that expects the unary shape keeps working unchanged.
 
 Usage:
     export GRAVIXLAYER_API_KEY="your-api-key"
-    python examples/runtimes/17_stream_command_output.py
+    python examples/runtimes/18_stream_command_output.py
 """
 
 import os

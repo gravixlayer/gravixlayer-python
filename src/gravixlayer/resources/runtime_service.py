@@ -1,6 +1,6 @@
 """
-Runtime web service resource — public HTTPS access to guest HTTP ports
-via *.service.gravixlayer.ai (CellProxy → CellRouter).
+Runtime web service resource — public HTTPS access to HTTP ports inside a
+runtime via ``*.service.gravixlayer.ai``.
 """
 
 from __future__ import annotations

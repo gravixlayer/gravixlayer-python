@@ -2,6 +2,13 @@
 
 Set `GRAVIXLAYER_API_KEY`. Optional: `GRAVIXLAYER_TEMPLATE` (defaults to `base-small`; also `base-medium` / `base-large`).
 
+Guest egress is deny-by-default. Examples that need PyPI/GitHub attach a temporary
+`allow_all` network policy (`06`, `17`, `22`).
+
+On current base templates, `python`, `pip`, `node`, and `npm` are on `PATH`
+(workspace venv first). Rebuild `base-small|medium|large` after the platform
+PATH change to pick this up.
+
 ## Running commands
 
 `runtime.run_cmd(command=...)` accepts either a single shell string or a `command` + explicit `args` list:
@@ -43,6 +50,7 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py
+python examples/runtimes/22_runtime_web_service.py
 ```
 
 [Examples overview](../README.md)

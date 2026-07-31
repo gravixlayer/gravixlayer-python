@@ -1,23 +1,11 @@
 # syntax=docker/dockerfile:1
 #
-# GravixLayer base template
+# GravixLayer agent-codex template
 #
-# Python 3.14.6 (uv) · Node 24.18.0 · npm 12.0.1 · uv 0.11.29 · Ubuntu 24.04
+# Same foundation as base.Dockerfile, plus OpenAI Codex CLI (standalone installer).
+# Install: https://learn.chatgpt.com/docs/codex/cli
 #
-#   gravixlayer template build \
-#     --dockerfile ./base.Dockerfile \
-#     --name my-base \
-#     --vcpu-count 2 \
-#     --memory-mb 2048 \
-#     --disk-mb 6144 \
-#     --wait
-#
-# Tips:
-#   - Install packages as root (default). SSH / terminal sessions use `agent`
-#     with home /workspace.
-#   - Prefer uv for Python (`uv python install` / `uv pip`).
-#   - `python`, `pip`, `node`, and `npm` are on PATH out of the box
-#     (`/workspace/.venv/bin` + `/usr/local/bin`).
+#   curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 FROM ubuntu:24.04 AS system
 
@@ -27,7 +15,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /workspace
 
-# Networking / diagnostics utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -43,7 +30,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         traceroute \
     && rm -rf /var/lib/apt/lists/*
 
-# Login user for SSH and the web terminal (home: /workspace)
 RUN groupadd -r agent \
     && useradd -r -g agent -d /workspace -s /bin/bash agent \
     && usermod -p '*' agent \
@@ -52,9 +38,10 @@ RUN groupadd -r agent \
 
 FROM system AS devtools
 
-# Node.js + build tools + editors
+# gawk: Codex install.sh SHA-256 parsing fails on Ubuntu's default mawk.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
+        gawk \
         git \
         vim-tiny \
         nano \
@@ -66,13 +53,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && npm -v | grep -F '12.0.1' \
     && rm -rf /var/lib/apt/lists/*
 
-# Python via uv (not apt)
 COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /usr/local/bin/uv
 ENV UV_PYTHON_INSTALL_DIR="/workspace/.uv/python"
 RUN uv python install 3.14.6 \
     && ln -sf "$(uv python find 3.14.6)" /usr/local/bin/python3 \
     && ln -sf "$(uv python find 3.14.6)" /usr/local/bin/python \
     && uv cache clean
+
+# Codex CLI — recommended standalone install (https://learn.chatgpt.com/docs/codex/cli)
+RUN curl -fsSL https://chatgpt.com/codex/install.sh \
+        | CODEX_INSTALL_DIR=/usr/local/bin CODEX_NON_INTERACTIVE=1 sh \
+    && command -v codex \
+    && codex --version
 
 FROM devtools AS final
 
@@ -81,10 +73,6 @@ ENV PATH="/workspace/.venv/bin:/usr/local/bin:/usr/bin:/bin" \
     UV_PYTHON_INSTALL_DIR="/workspace/.uv/python" \
     HOME="/workspace"
 
-# Default venv + shell profile under /workspace.
-# Leave /usr/local/bin/python pointing at the uv-managed base interpreter.
-# The runtime's PATH (/etc/environment + gravixlayer.sh + run_cmd) puts
-# /workspace/.venv/bin first so bare `python` / `pip` hit the seeded venv.
 RUN uv venv --python 3.14.6 --seed /workspace/.venv \
     && uv pip install --python /workspace/.venv/bin/python cloudpickle \
     && uv cache clean \

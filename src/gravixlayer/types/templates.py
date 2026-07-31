@@ -150,7 +150,7 @@ class TemplateSnapshot:
     vcpu_count: int
     memory_mb: int
     created_at: str
-    envd_version: Optional[str] = None  # Platform environment version, when reported
+    cellcore_version: Optional[str] = None  # Baked cellcore guest daemon version, when reported
     snapshot_size_bytes: Optional[int] = None
 
 
@@ -237,7 +237,7 @@ def _parse_snapshot(data: Dict[str, Any]) -> TemplateSnapshot:
         vcpu_count=data.get("vcpu_count", 0),
         memory_mb=data.get("memory_mb", 0),
         created_at=data.get("created_at", ""),
-        envd_version=data.get("envd_version"),
+        cellcore_version=data.get("cellcore_version"),
         snapshot_size_bytes=data.get("snapshot_size_bytes"),
     )
 
@@ -359,7 +359,7 @@ class TemplateBuilder:
     # -- Startup and readiness ----------------------------------------------
 
     def start_cmd(self, cmd: str) -> "TemplateBuilder":
-        """Set the command to run after VM starts (captured in snapshot)."""
+        """Set the command to run after the sandbox starts (captured in snapshot)."""
         self._start_cmd = cmd
         return self
 
@@ -431,7 +431,7 @@ class TemplateBuilder:
         mode: Optional[str] = None,
         user: Optional[str] = None,
     ) -> "TemplateBuilder":
-        """Copy a file into the template VM.
+        """Copy a file into the template.
 
         The SDK automatically detects whether *src* is a local file path
         or inline content:
@@ -444,7 +444,7 @@ class TemplateBuilder:
 
         Args:
             src:  Local file path, inline string content, or raw bytes.
-            dest: Destination path inside the VM (e.g. ``"/app/main.py"``).
+            dest: Destination path inside the template (e.g. ``"/app/main.py"``).
             mode: Optional file permissions (e.g. ``"0755"``).
             user: Optional file owner.
 
@@ -492,14 +492,14 @@ class TemplateBuilder:
         mode: Optional[str] = None,
         user: Optional[str] = None,
     ) -> "TemplateBuilder":
-        """Copy an entire local directory into the template VM.
+        """Copy an entire local directory into the template.
 
         Recursively walks *src* and copies every file, preserving the
         relative directory structure under *dest*.
 
         Args:
             src:  Path to the local directory.
-            dest: Destination root inside the VM (e.g. ``"/app/src"``).
+            dest: Destination root inside the template (e.g. ``"/app/src"``).
             mode: Optional file permissions applied to every file.
             user: Optional file owner applied to every file.
 
@@ -534,14 +534,15 @@ class TemplateBuilder:
         depth: Optional[int] = None,
         auth_token: Optional[str] = None,
     ) -> "TemplateBuilder":
-        """Clone a git repository inside the VM.
+        """Clone a git repository into the template during the build.
 
         Args:
             url: Repository URL.
             dest: Destination directory (optional).
             branch: Branch to clone (optional).
             depth: Clone depth for shallow clone (optional).
-            auth_token: HTTPS auth token for private repos (optional).
+            auth_token: Token for a private HTTPS repository (optional; used for
+                this build step only).
         """
         args = [url]
         if dest:

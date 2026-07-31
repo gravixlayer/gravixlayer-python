@@ -78,8 +78,11 @@ class RuntimeGitResource:
 
         ``url`` must use an allowed form (enforced by the API): ``http://``, ``https://``,
         ``ssh://``, ``git://``, or SCP-style SSH such as ``git@github.com:org/repo.git``.
-        ``file://`` and other schemes are rejected. For private HTTPS repos, pass
-        ``auth_token`` (sent as embedded credentials for that clone only).
+        ``file://`` and other schemes are rejected.
+
+        For a private HTTPS repository, pass ``auth_token``. It authenticates this
+        clone and is not written into the repository, so a later ``pull``, ``fetch``,
+        or ``push`` against the same checkout takes its own ``auth_token``.
         """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
@@ -155,7 +158,9 @@ class RuntimeGitResource:
         repository_path: str,
         remote: Optional[str] = None,
         branch: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Pull from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         _validate_runtime_id(runtime_id)
         _validate_path(repository_path)
         data: Dict[str, Any] = {"repository_path": repository_path}
@@ -163,12 +168,20 @@ class RuntimeGitResource:
             data["remote"] = remote
         if branch is not None:
             data["branch"] = branch
+        if auth_token is not None:
+            data["auth_token"] = auth_token
+        # Never put auth_token in span inputs (even with redaction).
         return self._call(
             "pull",
             runtime_id,
             f"runtime/{runtime_id}/git/pull",
             data,
-            {"repository_path": repository_path, "remote": remote, "branch": branch},
+            {
+                "repository_path": repository_path,
+                "remote": remote,
+                "branch": branch,
+                "auth": bool(auth_token),
+            },
             attributes={"file.path": repository_path},
         )
 
@@ -180,7 +193,13 @@ class RuntimeGitResource:
         refspec: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Push to a remote.
+
+        ``auth_token`` is the usual credential for a forge and takes precedence
+        when ``username``/``password`` are also given.
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(repository_path)
         data: Dict[str, Any] = {"repository_path": repository_path}
@@ -192,6 +211,9 @@ class RuntimeGitResource:
             data["username"] = username
         if password is not None:
             data["password"] = password
+        if auth_token is not None:
+            data["auth_token"] = auth_token
+        # Never put credentials in span inputs (even with redaction).
         return self._call(
             "push",
             runtime_id,
@@ -201,25 +223,37 @@ class RuntimeGitResource:
                 "repository_path": repository_path,
                 "remote": remote,
                 "refspec": refspec,
-                "auth": bool(username or password),
+                "auth": bool(username or password or auth_token),
             },
             attributes={"file.path": repository_path},
         )
 
     def fetch(
-        self, runtime_id: str, repository_path: str, remote: Optional[str] = None
+        self,
+        runtime_id: str,
+        repository_path: str,
+        remote: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Fetch from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         _validate_runtime_id(runtime_id)
         _validate_path(repository_path)
         data: Dict[str, Any] = {"repository_path": repository_path}
         if remote is not None:
             data["remote"] = remote
+        if auth_token is not None:
+            data["auth_token"] = auth_token
+        # Never put auth_token in span inputs (even with redaction).
         return self._call(
             "fetch",
             runtime_id,
             f"runtime/{runtime_id}/git/fetch",
             data,
-            {"repository_path": repository_path, "remote": remote},
+            {
+                "repository_path": repository_path,
+                "remote": remote,
+                "auth": bool(auth_token),
+            },
             attributes={"file.path": repository_path},
         )
 
@@ -375,6 +409,10 @@ class AsyncRuntimeGitResource:
 
         Same URL rules as :meth:`RuntimeGitResource.clone` (``http``/``https``/``ssh``/``git``
         URL schemes or SCP-style ``git@host:path``; ``file://`` not allowed).
+
+        For a private HTTPS repository, pass ``auth_token``. It authenticates this
+        clone and is not written into the repository, so a later ``pull``, ``fetch``,
+        or ``push`` against the same checkout takes its own ``auth_token``.
         """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
@@ -385,6 +423,7 @@ class AsyncRuntimeGitResource:
             data["depth"] = int(depth)
         if auth_token is not None:
             data["auth_token"] = auth_token
+        # Never put auth_token in span inputs (even with redaction).
         return await self._call(
             "clone",
             runtime_id,
@@ -448,7 +487,9 @@ class AsyncRuntimeGitResource:
         repository_path: str,
         remote: Optional[str] = None,
         branch: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Pull from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         _validate_runtime_id(runtime_id)
         _validate_path(repository_path)
         data: Dict[str, Any] = {"repository_path": repository_path}
@@ -456,12 +497,20 @@ class AsyncRuntimeGitResource:
             data["remote"] = remote
         if branch is not None:
             data["branch"] = branch
+        if auth_token is not None:
+            data["auth_token"] = auth_token
+        # Never put auth_token in span inputs (even with redaction).
         return await self._call(
             "pull",
             runtime_id,
             f"runtime/{runtime_id}/git/pull",
             data,
-            {"repository_path": repository_path, "remote": remote, "branch": branch},
+            {
+                "repository_path": repository_path,
+                "remote": remote,
+                "branch": branch,
+                "auth": bool(auth_token),
+            },
             attributes={"file.path": repository_path},
         )
 
@@ -473,7 +522,13 @@ class AsyncRuntimeGitResource:
         refspec: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Push to a remote.
+
+        ``auth_token`` is the usual credential for a forge and takes precedence
+        when ``username``/``password`` are also given.
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(repository_path)
         data: Dict[str, Any] = {"repository_path": repository_path}
@@ -485,6 +540,9 @@ class AsyncRuntimeGitResource:
             data["username"] = username
         if password is not None:
             data["password"] = password
+        if auth_token is not None:
+            data["auth_token"] = auth_token
+        # Never put credentials in span inputs (even with redaction).
         return await self._call(
             "push",
             runtime_id,
@@ -494,25 +552,37 @@ class AsyncRuntimeGitResource:
                 "repository_path": repository_path,
                 "remote": remote,
                 "refspec": refspec,
-                "auth": bool(username or password),
+                "auth": bool(username or password or auth_token),
             },
             attributes={"file.path": repository_path},
         )
 
     async def fetch(
-        self, runtime_id: str, repository_path: str, remote: Optional[str] = None
+        self,
+        runtime_id: str,
+        repository_path: str,
+        remote: Optional[str] = None,
+        auth_token: Optional[str] = None,
     ) -> GitOperationResult:
+        """Fetch from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         _validate_runtime_id(runtime_id)
         _validate_path(repository_path)
         data: Dict[str, Any] = {"repository_path": repository_path}
         if remote is not None:
             data["remote"] = remote
+        if auth_token is not None:
+            data["auth_token"] = auth_token
+        # Never put auth_token in span inputs (even with redaction).
         return await self._call(
             "fetch",
             runtime_id,
             f"runtime/{runtime_id}/git/fetch",
             data,
-            {"repository_path": repository_path, "remote": remote},
+            {
+                "repository_path": repository_path,
+                "remote": remote,
+                "auth": bool(auth_token),
+            },
             attributes={"file.path": repository_path},
         )
 

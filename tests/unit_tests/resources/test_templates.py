@@ -470,7 +470,7 @@ class TestSyncTemplatesResource:
                 "template_id": "tmpl-001", "name": "base-small",
                 "description": "", "has_snapshot": True,
                 "vcpu_count": 2, "memory_mb": 512, "created_at": "2025-01-01",
-                "envd_version": "1.0.0", "snapshot_size_bytes": 1073741824,
+                "cellcore_version": "1.0.0", "snapshot_size_bytes": 1073741824,
             })
         )
         snap = client.templates.get_snapshot("tmpl-001")
@@ -744,9 +744,9 @@ class TestTemplateTypes:
         s = TemplateSnapshot(
             template_id="t1", name="test", description="",
             has_snapshot=True, vcpu_count=2, memory_mb=512,
-            created_at="2025-01-01", envd_version="1.0", snapshot_size_bytes=1024,
+            created_at="2025-01-01", cellcore_version="1.0", snapshot_size_bytes=1024,
         )
-        assert s.envd_version == "1.0"
+        assert s.cellcore_version == "1.0"
 
     def test_template_list_response(self):
         r = TemplateListResponse(templates=[], limit=100, offset=0)

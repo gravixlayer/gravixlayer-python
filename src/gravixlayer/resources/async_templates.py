@@ -2,7 +2,7 @@
 Template Build Pipeline resource for asynchronous client.
 
 Provides async methods for creating, building, polling, listing, and
-deleting VM templates via the Gravix Layer API. Mirrors the sync Templates class.
+deleting templates via the Gravix Layer API. Mirrors the sync Templates class.
 """
 
 import asyncio
