@@ -3,7 +3,7 @@
 Set `GRAVIXLAYER_API_KEY`. Optional: `GRAVIXLAYER_TEMPLATE` (defaults to `base-small`; also `base-medium` / `base-large`).
 
 Guest egress is deny-by-default. Examples that need PyPI/GitHub attach a temporary
-`allow_all` network policy (`06`, `17`, `22`).
+`allow_all` network policy (`06`, `17`, `22`, `23`).
 
 On current base templates, `python`, `pip`, `node`, and `npm` are on `PATH`
 (workspace venv first). Rebuild `base-small|medium|large` after the platform
@@ -47,6 +47,7 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 20 | [20_observability_verify.py](20_observability_verify.py) | Enable tracing for runtime operations |
 | 21 | [21_observability_logging.py](21_observability_logging.py) | Emit agent + runtime logs and verify in Logs |
 | 22 | [22_runtime_web_service.py](22_runtime_web_service.py) | FastAPI + `rt.service(port=…)` on `*.service.gravixlayer.ai` |
+| 23 | [23_runtime_git_sdk_and_cli.py](23_runtime_git_sdk_and_cli.py) | Git via SDK (`runtime.git`) and CLI (`gravixlayer runtime git`) |
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py

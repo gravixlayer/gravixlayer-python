@@ -24,7 +24,7 @@ python examples/templates/01_python_docker_image.py
 | `with Runtime.create` | `runtimes/12_runtime_context_manager.py` |
 | SSH | `runtimes/13`–`15` |
 | Reconnect to existing runtime | `runtimes/16_connect_existing_runtime.py` |
-| Git operations | `runtimes/17_runtime_git_operations.py` |
+| Git operations | `runtimes/17_…` (SDK), `runtimes/23_…` (SDK + CLI) |
 | Stream `run_cmd` | `runtimes/18_stream_command_output.py` |
 | Lifecycle (pause / resume / kill) | `runtimes/19_runtime_lifecycle.py` |
 | Observability (traces / logs) | `runtimes/20_…`, `runtimes/21_…` |
