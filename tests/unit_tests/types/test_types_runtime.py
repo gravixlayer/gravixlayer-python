@@ -221,7 +221,13 @@ class TestRuntimeInstanceMethods:
         )
         result = rt.run_code("print(42)")
         mock_client.runtime.run_code.assert_called_once_with(
-            rt.runtime_id, code="print(42)", language="python"
+            rt.runtime_id,
+            code="print(42)",
+            language="python",
+            on_stdout=None,
+            on_stderr=None,
+            on_result=None,
+            on_error=None,
         )
         assert isinstance(result, Execution)
         assert result.text == "42"

@@ -258,10 +258,36 @@ class Runtime:
         instance._owns_client = owns_client
         return instance
 
-    def run_code(self, code: str, language: str = "python") -> "Execution":
-        """Execute code in the runtime."""
+    def run_code(
+        self,
+        code: str,
+        language: str = "python",
+        on_stdout: Optional[Callable[[str], None]] = None,
+        on_stderr: Optional[Callable[[str], None]] = None,
+        on_result: Optional[Callable[[Any], None]] = None,
+        on_error: Optional[Callable[[Any], None]] = None,
+    ) -> "Execution":
+        """Execute code in the runtime.
+
+        Args:
+            code: Source to execute.
+            language: Language of the source (default: "python").
+            on_stdout: Optional callback invoked with each incremental stdout chunk.
+                Providing any callback streams the execution over SSE.
+            on_stderr: Optional callback invoked with each incremental stderr chunk.
+            on_result: Optional callback invoked with each ``ExecutionResult``.
+            on_error: Optional callback invoked with the ``ExecutionError`` on failure.
+        """
         self._require_alive()
-        response = self._client.runtime.run_code(self.runtime_id, code=code, language=language)
+        response = self._client.runtime.run_code(
+            self.runtime_id,
+            code=code,
+            language=language,
+            on_stdout=on_stdout,
+            on_stderr=on_stderr,
+            on_result=on_result,
+            on_error=on_error,
+        )
         return Execution(response)
 
     def run_cmd(
@@ -411,6 +437,11 @@ class Runtime:
         """Filesystem API for this runtime (same as ``client.runtime.file``, without ``runtime_id``)."""
         return RuntimeFileBound(self)
 
+    @property
+    def pty(self) -> "RuntimePtyBound":
+        """PTY session API for this runtime (same as ``client.runtime.pty``, without ``runtime_id``)."""
+        return RuntimePtyBound(self)
+
     def service(
         self,
         port: int,
@@ -495,6 +526,94 @@ class RuntimeFileBound:
         rid, client = self._rc()
         return client.runtime.file.set_permissions(rid, path, mode)
 
+    def move(self, source: str, destination: str, overwrite: bool = False) -> "FileMoveResponse":
+        rid, client = self._rc()
+        return client.runtime.file.move(rid, source, destination, overwrite=overwrite)
+
+    def copy(
+        self,
+        source: str,
+        destination: str,
+        recursive: bool = False,
+        overwrite: bool = False,
+    ) -> "FileCopyResponse":
+        rid, client = self._rc()
+        return client.runtime.file.copy(
+            rid, source, destination, recursive=recursive, overwrite=overwrite
+        )
+
+    def chown(
+        self,
+        path: str,
+        user: Optional[str] = None,
+        group: Optional[str] = None,
+        recursive: bool = False,
+    ) -> "ChangeOwnerResponse":
+        rid, client = self._rc()
+        return client.runtime.file.chown(rid, path, user=user, group=group, recursive=recursive)
+
+    def watch(
+        self,
+        path: str,
+        recursive: bool = False,
+        on_event: Optional[Callable[["WatchEvent"], None]] = None,
+    ) -> Any:
+        """Watch a directory for filesystem changes. Returns an iterator of ``WatchEvent``."""
+        rid, client = self._rc()
+        return client.runtime.file.watch(rid, path, recursive=recursive, on_event=on_event)
+
+    def find(
+        self,
+        path: str,
+        pattern: Optional[str] = None,
+        glob: Optional[str] = None,
+        *,
+        regex: bool = False,
+        case_sensitive: bool = False,
+        include_hidden: bool = False,
+        max_results: Optional[int] = None,
+        max_depth: Optional[int] = None,
+    ) -> "FileFindResponse":
+        rid, client = self._rc()
+        return client.runtime.file.find(
+            rid,
+            path,
+            pattern=pattern,
+            glob=glob,
+            regex=regex,
+            case_sensitive=case_sensitive,
+            include_hidden=include_hidden,
+            max_results=max_results,
+            max_depth=max_depth,
+        )
+
+    def replace(
+        self,
+        path: str,
+        pattern: str,
+        replacement: str,
+        glob: Optional[str] = None,
+        *,
+        regex: bool = False,
+        case_sensitive: bool = False,
+        include_hidden: bool = False,
+        max_depth: Optional[int] = None,
+        dry_run: bool = False,
+    ) -> "FileReplaceResponse":
+        rid, client = self._rc()
+        return client.runtime.file.replace(
+            rid,
+            path,
+            pattern,
+            replacement,
+            glob=glob,
+            regex=regex,
+            case_sensitive=case_sensitive,
+            include_hidden=include_hidden,
+            max_depth=max_depth,
+            dry_run=dry_run,
+        )
+
     def upload_file(self, file: BinaryIO, path: Optional[str] = None) -> "FileUploadResponse":
         rid, client = self._rc()
         return client.runtime.file.upload_file(rid, file, path=path)
@@ -502,6 +621,83 @@ class RuntimeFileBound:
     def download_file(self, path: str) -> bytes:
         rid, client = self._rc()
         return client.runtime.file.download_file(rid, path)
+
+
+class RuntimePtyBound:
+    """Bound view of :attr:`Runtime.pty` - mirrors ``client.runtime.pty.*`` minus ``runtime_id``."""
+
+    __slots__ = ("_runtime",)
+
+    def __init__(self, runtime: "Runtime") -> None:
+        object.__setattr__(self, "_runtime", runtime)
+
+    def _rc(self) -> tuple[str, Any]:
+        r = object.__getattribute__(self, "_runtime")
+        r._require_alive()
+        return r.runtime_id, r._client
+
+    def create(
+        self,
+        shell: Optional[str] = None,
+        args: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        cols: Optional[int] = None,
+        rows: Optional[int] = None,
+    ) -> "PtySession":
+        rid, client = self._rc()
+        return client.runtime.pty.create(
+            rid,
+            shell=shell,
+            args=args,
+            working_dir=working_dir,
+            environment=environment,
+            cols=cols,
+            rows=rows,
+        )
+
+    def list(self) -> List["PtySession"]:
+        rid, client = self._rc()
+        return client.runtime.pty.list(rid)
+
+    def get(self, session_id: str) -> "PtySession":
+        rid, client = self._rc()
+        return client.runtime.pty.get(rid, session_id)
+
+    def send_input(self, session_id: str, data: Any) -> "PtyInputResponse":
+        rid, client = self._rc()
+        return client.runtime.pty.send_input(rid, session_id, data)
+
+    def resize(self, session_id: str, cols: int, rows: int) -> bool:
+        rid, client = self._rc()
+        return client.runtime.pty.resize(rid, session_id, cols, rows)
+
+    def send_signal(self, session_id: str, signal: str) -> bool:
+        rid, client = self._rc()
+        return client.runtime.pty.send_signal(rid, session_id, signal)
+
+    def stream(
+        self,
+        session_id: str,
+        on_data: Optional[Callable[[bytes], None]] = None,
+        on_exit: Optional[Callable[[int, str], None]] = None,
+    ) -> Any:
+        """Stream the session's output. Returns an iterator of event dicts."""
+        rid, client = self._rc()
+        return client.runtime.pty.stream(rid, session_id, on_data=on_data, on_exit=on_exit)
+
+    def kill(self, session_id: str) -> bool:
+        rid, client = self._rc()
+        return client.runtime.pty.kill(rid, session_id)
+
+    def handle(self, session_id: str) -> Any:
+        """Return a connection-managing PTY handle for ``session_id``.
+
+        The handle adds ``connect``, ``wait_for_connection``, ``wait_for_completion``,
+        ``is_connected`` and ``disconnect`` on top of the stateless calls above.
+        """
+        rid, client = self._rc()
+        return client.runtime.pty.handle(rid, session_id)
 
 
 @dataclass
@@ -680,6 +876,165 @@ class SetPermissionsResponse:
 
     message: str
     success: bool = True
+
+
+@dataclass
+class FileMoveResponse:
+    """Response from ``runtime.file.move`` (native ``rename``/``renameat2``)."""
+
+    success: bool
+    source: str
+    destination: str
+    entry: Optional["FileInfo"] = None
+
+
+@dataclass
+class FileCopyResponse:
+    """Response from ``runtime.file.copy``."""
+
+    success: bool
+    source: str
+    destination: str
+    entry: Optional["FileInfo"] = None
+
+
+@dataclass
+class ChangeOwnerResponse:
+    """Response from ``runtime.file.chown``."""
+
+    success: bool
+    path: str
+    message: str = ""
+
+
+@dataclass
+class WatchEvent:
+    """A single filesystem notification from ``runtime.file.watch``.
+
+    ``type`` is one of ``start``, ``create``, ``write``, ``remove``, ``rename`` or
+    ``chmod``. ``new_path`` is only populated for ``rename``. The first event of a
+    stream is always ``start``, which confirms the watch is armed.
+    """
+
+    type: str
+    name: str = ""
+    path: str = ""
+    new_path: Optional[str] = None
+    watcher_id: Optional[str] = None
+    timestamp: Optional[int] = None
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "WatchEvent":
+        return cls(
+            type=str(data.get("type") or ""),
+            name=str(data.get("name") or ""),
+            path=str(data.get("path") or ""),
+            new_path=data.get("new_path") or None,
+            watcher_id=data.get("watcher_id") or None,
+            timestamp=data.get("timestamp"),
+        )
+
+
+@dataclass
+class FileSearchMatch:
+    """A single hit from ``runtime.file.find``.
+
+    For a pure name search (no ``pattern`` supplied) ``line`` is ``0`` and
+    ``content`` is empty: the match is the file itself. For a content search
+    ``line`` and ``column`` are 1-based and ``content`` is the matching line,
+    truncated to a bounded length.
+    """
+
+    path: str
+    line: int = 0
+    column: int = 0
+    content: str = ""
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "FileSearchMatch":
+        return cls(
+            path=str(data.get("path") or ""),
+            line=int(data.get("line") or 0),
+            column=int(data.get("column") or 0),
+            content=str(data.get("content") or ""),
+        )
+
+
+@dataclass
+class FileFindResponse:
+    """Response from ``runtime.file.find``.
+
+    ``truncated`` is ``True`` when the result limit was reached before the walk
+    finished, meaning more matches exist than were returned.
+    """
+
+    success: bool
+    matches: List[FileSearchMatch] = field(default_factory=list)
+    truncated: bool = False
+    files_scanned: int = 0
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "FileFindResponse":
+        raw = data.get("matches") or []
+        return cls(
+            success=bool(data.get("success", True)),
+            matches=[FileSearchMatch.from_api(m) for m in raw if isinstance(m, dict)],
+            truncated=bool(data.get("truncated", False)),
+            files_scanned=int(data.get("files_scanned") or 0),
+        )
+
+    def __len__(self) -> int:
+        return len(self.matches)
+
+    def __iter__(self):
+        return iter(self.matches)
+
+
+@dataclass
+class FileReplaceEntry:
+    """Per-file replacement count from ``runtime.file.replace``."""
+
+    path: str
+    replacements: int = 0
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "FileReplaceEntry":
+        return cls(
+            path=str(data.get("path") or ""),
+            replacements=int(data.get("replacements") or 0),
+        )
+
+
+@dataclass
+class FileReplaceResponse:
+    """Response from ``runtime.file.replace``.
+
+    When ``dry_run`` is set the counts describe what *would* have changed and no
+    file on the guest was modified.
+    """
+
+    success: bool
+    files: List[FileReplaceEntry] = field(default_factory=list)
+    total_replacements: int = 0
+    files_scanned: int = 0
+    dry_run: bool = False
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "FileReplaceResponse":
+        raw = data.get("files") or []
+        return cls(
+            success=bool(data.get("success", True)),
+            files=[FileReplaceEntry.from_api(f) for f in raw if isinstance(f, dict)],
+            total_replacements=int(data.get("total_replacements") or 0),
+            files_scanned=int(data.get("files_scanned") or 0),
+            dry_run=bool(data.get("dry_run", False)),
+        )
+
+    def __len__(self) -> int:
+        return len(self.files)
+
+    def __iter__(self):
+        return iter(self.files)
 
 
 @dataclass
@@ -1130,6 +1485,53 @@ class RuntimeKillResponse:
 
     message: str
     runtime_id: Optional[str] = None
+
+
+@dataclass
+class PtySession:
+    """A programmatic PTY session running inside a runtime.
+
+    The session is owned by the execution plane, not by the connection that created
+    it, so it survives client disconnects and can be re-attached to at any time.
+    ``status`` is ``running`` or ``exited``; ``exit_code`` is only meaningful once the
+    session has exited.
+    """
+
+    session_id: str
+    runtime_id: str
+    pid: int = 0
+    shell: str = ""
+    args: List[str] = field(default_factory=list)
+    working_dir: str = ""
+    cols: int = 0
+    rows: int = 0
+    status: str = ""
+    exit_code: int = 0
+    created_at: Optional[str] = None
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "PtySession":
+        return cls(
+            session_id=str(data.get("session_id") or ""),
+            runtime_id=str(data.get("runtime_id") or ""),
+            pid=int(data.get("pid") or 0),
+            shell=str(data.get("shell") or ""),
+            args=list(data.get("args") or []),
+            working_dir=str(data.get("working_dir") or ""),
+            cols=int(data.get("cols") or 0),
+            rows=int(data.get("rows") or 0),
+            status=str(data.get("status") or ""),
+            exit_code=int(data.get("exit_code") or 0),
+            created_at=data.get("created_at"),
+        )
+
+
+@dataclass
+class PtyInputResponse:
+    """Response from ``runtime.pty.send_input``."""
+
+    success: bool
+    bytes_written: int = 0
 
 
 class Execution:

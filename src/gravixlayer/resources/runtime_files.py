@@ -8,19 +8,25 @@ uses ``write_many``.
 from __future__ import annotations
 
 import os
-from typing import Any, BinaryIO, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, BinaryIO, Callable, Dict, Iterator, List, Optional, Union
 from urllib.parse import urlencode
 
 from ..types.runtime import (
+    ChangeOwnerResponse,
     DirectoryCreateResponse,
+    FileCopyResponse,
     FileDeleteResponse,
+    FileFindResponse,
     FileGetInfoResponse,
     FileInfo,
     FileListResponse,
+    FileMoveResponse,
     FileReadResponse,
+    FileReplaceResponse,
     FileUploadResponse,
     FileWriteResponse,
     SetPermissionsResponse,
+    WatchEvent,
     WriteEntry,
     WriteFilesResponse,
     WriteResult,
@@ -39,6 +45,94 @@ def _file_info_from_dict(file_info: Dict[str, Any]) -> FileInfo:
         path=file_info.get("path"),
         permissions=file_info.get("permissions"),
     )
+
+
+def _optional_file_info(payload: Optional[Dict[str, Any]]) -> Optional[FileInfo]:
+    if not isinstance(payload, dict) or not payload:
+        return None
+    return _file_info_from_dict(payload)
+
+
+def _find_payload(
+    path: str,
+    pattern: Optional[str],
+    glob: Optional[str],
+    regex: bool,
+    case_sensitive: bool,
+    include_hidden: bool,
+    max_results: Optional[int],
+    max_depth: Optional[int],
+) -> Dict[str, Any]:
+    """Validate and build the ``files/find`` request body."""
+    _validate_path(path)
+    if not pattern and not glob:
+        raise ValueError("at least one of pattern or glob must be provided")
+    payload: Dict[str, Any] = {
+        "path": path,
+        "regex": bool(regex),
+        "case_sensitive": bool(case_sensitive),
+        "include_hidden": bool(include_hidden),
+    }
+    if pattern:
+        payload["pattern"] = pattern
+    if glob:
+        payload["glob"] = glob
+    if max_results is not None:
+        if max_results <= 0:
+            raise ValueError("max_results must be positive")
+        payload["max_results"] = int(max_results)
+    if max_depth is not None:
+        if max_depth <= 0:
+            raise ValueError("max_depth must be positive")
+        payload["max_depth"] = int(max_depth)
+    return payload
+
+
+def _replace_payload(
+    path: str,
+    pattern: str,
+    replacement: str,
+    glob: Optional[str],
+    regex: bool,
+    case_sensitive: bool,
+    include_hidden: bool,
+    max_depth: Optional[int],
+    dry_run: bool,
+) -> Dict[str, Any]:
+    """Validate and build the ``files/replace`` request body."""
+    _validate_path(path)
+    if not pattern:
+        raise ValueError("pattern must not be empty")
+    payload: Dict[str, Any] = {
+        "path": path,
+        "pattern": pattern,
+        "replacement": replacement,
+        "regex": bool(regex),
+        "case_sensitive": bool(case_sensitive),
+        "include_hidden": bool(include_hidden),
+        "dry_run": bool(dry_run),
+    }
+    if glob:
+        payload["glob"] = glob
+    if max_depth is not None:
+        if max_depth <= 0:
+            raise ValueError("max_depth must be positive")
+        payload["max_depth"] = int(max_depth)
+    return payload
+
+
+def _iter_sse_payloads(lines: Any) -> Iterator[str]:
+    """Yield the JSON body of each ``data:`` frame in an SSE line iterator."""
+    for line in lines:
+        if not line:
+            continue
+        if isinstance(line, bytes):
+            line = line.decode("utf-8", errors="replace")
+        if not line.startswith("data:"):
+            continue
+        payload = line[len("data:"):].strip()
+        if payload:
+            yield payload
 
 
 class RuntimeFileResource:
@@ -330,6 +424,321 @@ class RuntimeFileResource:
             if span is not None:
                 telemetry.record_outputs(span, {"path": path, "mode": mode, "success": perms.success})
             return perms
+
+    def move(
+        self, runtime_id: str, source: str, destination: str, overwrite: bool = False
+    ) -> FileMoveResponse:
+        """Move or rename a path inside the runtime.
+
+        Uses the guest's native ``rename`` syscall when source and destination share a
+        filesystem, falling back to a copy plus unlink across filesystems.
+
+        Args:
+            runtime_id: Target runtime ID.
+            source: Existing absolute path.
+            destination: New absolute path.
+            overwrite: Replace ``destination`` if it already exists.
+        """
+        _validate_runtime_id(runtime_id)
+        _validate_path(source)
+        _validate_path(destination)
+        payload = {"source": source, "destination": destination, "overwrite": overwrite}
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.move",
+            runtime_id,
+            inputs={"source": source, "destination": destination, "overwrite": overwrite},
+            attributes={"file.path": source},
+        ) as span:
+            response = self._req("POST", f"runtime/{runtime_id}/files/move", payload)
+            result = response.json()
+            moved = FileMoveResponse(
+                success=bool(result.get("success", True)),
+                source=source,
+                destination=destination,
+                entry=_optional_file_info(result.get("entry")),
+            )
+            if span is not None:
+                telemetry.record_outputs(span, {"destination": destination, "success": moved.success})
+            return moved
+
+    def copy(
+        self,
+        runtime_id: str,
+        source: str,
+        destination: str,
+        recursive: bool = False,
+        overwrite: bool = False,
+    ) -> FileCopyResponse:
+        """Copy a file or directory inside the runtime.
+
+        Args:
+            runtime_id: Target runtime ID.
+            source: Existing absolute path.
+            destination: Destination absolute path.
+            recursive: Required to copy a directory tree.
+            overwrite: Replace ``destination`` if it already exists.
+        """
+        _validate_runtime_id(runtime_id)
+        _validate_path(source)
+        _validate_path(destination)
+        payload = {
+            "source": source,
+            "destination": destination,
+            "recursive": recursive,
+            "overwrite": overwrite,
+        }
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.copy",
+            runtime_id,
+            inputs={"source": source, "destination": destination, "recursive": recursive},
+            attributes={"file.path": source},
+        ) as span:
+            response = self._req("POST", f"runtime/{runtime_id}/files/copy", payload)
+            result = response.json()
+            copied = FileCopyResponse(
+                success=bool(result.get("success", True)),
+                source=source,
+                destination=destination,
+                entry=_optional_file_info(result.get("entry")),
+            )
+            if span is not None:
+                telemetry.record_outputs(span, {"destination": destination, "success": copied.success})
+            return copied
+
+    def chown(
+        self,
+        runtime_id: str,
+        path: str,
+        user: Optional[str] = None,
+        group: Optional[str] = None,
+        recursive: bool = False,
+    ) -> ChangeOwnerResponse:
+        """Change the owning user and/or group of a path.
+
+        At least one of ``user`` or ``group`` must be supplied. Names are resolved
+        inside the guest, so both names and numeric IDs are accepted.
+        """
+        _validate_runtime_id(runtime_id)
+        _validate_path(path)
+        if not (user or group):
+            raise ValueError("at least one of user or group must be provided")
+        payload: Dict[str, Any] = {"path": path, "recursive": recursive}
+        if user:
+            payload["user"] = user
+        if group:
+            payload["group"] = group
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.chown",
+            runtime_id,
+            inputs={"path": path, "user": user, "group": group, "recursive": recursive},
+            attributes={"file.path": path},
+        ) as span:
+            response = self._req("POST", f"runtime/{runtime_id}/files/chown", payload)
+            result = response.json()
+            owner = ChangeOwnerResponse(
+                success=bool(result.get("success", True)),
+                path=path,
+                message=str(result.get("message", "")),
+            )
+            if span is not None:
+                telemetry.record_outputs(span, {"path": path, "success": owner.success})
+            return owner
+
+    def watch(
+        self,
+        runtime_id: str,
+        path: str,
+        recursive: bool = False,
+        on_event: Optional[Callable[[WatchEvent], None]] = None,
+    ) -> Iterator[WatchEvent]:
+        """Watch a directory for filesystem changes, backed by guest ``inotify``.
+
+        Yields :class:`~gravixlayer.types.runtime.WatchEvent` objects as they occur.
+        The first event is always ``start``, which confirms the watch is armed; only
+        after receiving it are subsequent changes guaranteed to be observed.
+
+        The stream is open ended: iterate it for as long as you want notifications and
+        break out (or close the generator) to stop watching. The underlying HTTP
+        response is always released.
+
+        Args:
+            runtime_id: Target runtime ID.
+            path: Absolute directory path to watch.
+            recursive: Also watch subdirectories, including ones created later.
+            on_event: Optional callable invoked with each event before it is yielded.
+
+        Example:
+            >>> for event in client.runtime.file.watch(rid, "/workspace", recursive=True):
+            ...     if event.type == "write":
+            ...         print("changed:", event.path)
+        """
+        _validate_runtime_id(runtime_id)
+        _validate_path(path)
+        payload = {"path": path, "recursive": recursive}
+        return self._watch_stream(runtime_id, payload, on_event)
+
+    def _watch_stream(
+        self,
+        runtime_id: str,
+        payload: Dict[str, Any],
+        on_event: Optional[Callable[[WatchEvent], None]],
+    ) -> Iterator[WatchEvent]:
+        import json
+
+        response = self._req("POST", f"runtime/{runtime_id}/files/watch", payload, stream=True)
+        try:
+            for raw in _iter_sse_payloads(response.iter_lines()):
+                try:
+                    evt = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                if evt.get("type") == "error":
+                    raise RuntimeError(str(evt.get("message") or "filesystem watch failed"))
+                event = WatchEvent.from_api(evt)
+                if on_event is not None:
+                    on_event(event)
+                yield event
+        finally:
+            response.close()
+
+    def find(
+        self,
+        runtime_id: str,
+        path: str,
+        pattern: Optional[str] = None,
+        glob: Optional[str] = None,
+        *,
+        regex: bool = False,
+        case_sensitive: bool = False,
+        include_hidden: bool = False,
+        max_results: Optional[int] = None,
+        max_depth: Optional[int] = None,
+    ) -> FileFindResponse:
+        """Find files by name glob and/or content pattern.
+
+        The search runs natively inside the guest: no shell, no ``find`` and no
+        ``grep`` process is spawned. Binary files and files above the guest's size
+        ceiling are skipped, and directory symlinks are never followed.
+
+        Supply ``glob`` to select which files are considered (``"*.py"``), and/or
+        ``pattern`` to match their contents. With ``glob`` alone you get one match
+        per file with ``line == 0``. With ``pattern`` you get one match per matching
+        line.
+
+        Args:
+            runtime_id: Target runtime ID.
+            path: Absolute directory to search under.
+            pattern: Content pattern. Literal by default; set ``regex`` for a regex.
+            glob: Shell-style name pattern applied to the path relative to ``path``.
+            regex: Treat ``pattern`` as a regular expression.
+            case_sensitive: Match case exactly. Defaults to case-insensitive.
+            include_hidden: Descend into and match dot-files.
+            max_results: Stop after this many matches. Server-capped.
+            max_depth: Directory recursion limit. Server-capped.
+
+        Returns:
+            :class:`~gravixlayer.types.runtime.FileFindResponse`.
+
+        Example:
+            >>> hits = client.runtime.file.find(rid, "/workspace", "TODO", glob="*.py")
+            >>> for m in hits:
+            ...     print(f"{m.path}:{m.line}: {m.content}")
+        """
+        _validate_runtime_id(runtime_id)
+        payload = _find_payload(
+            path, pattern, glob, regex, case_sensitive, include_hidden, max_results, max_depth
+        )
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.find",
+            runtime_id,
+            inputs={"path": path, "pattern": pattern, "glob": glob, "regex": regex},
+            attributes={"file.path": path},
+        ) as span:
+            response = self._req("POST", f"runtime/{runtime_id}/files/find", payload)
+            found = FileFindResponse.from_api(response.json())
+            if span is not None:
+                telemetry.record_outputs(
+                    span,
+                    {
+                        "matches": len(found.matches),
+                        "truncated": found.truncated,
+                        "files_scanned": found.files_scanned,
+                    },
+                )
+            return found
+
+    def replace(
+        self,
+        runtime_id: str,
+        path: str,
+        pattern: str,
+        replacement: str,
+        glob: Optional[str] = None,
+        *,
+        regex: bool = False,
+        case_sensitive: bool = False,
+        include_hidden: bool = False,
+        max_depth: Optional[int] = None,
+        dry_run: bool = False,
+    ) -> FileReplaceResponse:
+        """Replace a pattern across every matching file, in place.
+
+        Each file is rewritten through a temporary sibling and renamed into place,
+        so a reader never observes a partially written file. Mode and ownership are
+        preserved. Set ``dry_run`` to count replacements without writing anything.
+
+        Args:
+            runtime_id: Target runtime ID.
+            path: Absolute directory to search under.
+            pattern: Pattern to replace. Literal by default; set ``regex`` for a regex.
+            replacement: Replacement text. With ``regex`` it may reference capture
+                groups as ``$1``; without it the text is inserted verbatim.
+            glob: Shell-style name pattern limiting which files are rewritten.
+            regex: Treat ``pattern`` as a regular expression.
+            case_sensitive: Match case exactly. Defaults to case-insensitive.
+            include_hidden: Descend into and match dot-files.
+            max_depth: Directory recursion limit. Server-capped.
+            dry_run: Report counts without modifying any file.
+
+        Returns:
+            :class:`~gravixlayer.types.runtime.FileReplaceResponse`.
+
+        Example:
+            >>> res = client.runtime.file.replace(rid, "/workspace", "v1", "v2", glob="*.py")
+            >>> print(res.total_replacements, "replacements in", len(res.files), "files")
+        """
+        _validate_runtime_id(runtime_id)
+        payload = _replace_payload(
+            path, pattern, replacement, glob, regex, case_sensitive, include_hidden, max_depth, dry_run
+        )
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.replace",
+            runtime_id,
+            inputs={"path": path, "pattern": pattern, "glob": glob, "dry_run": dry_run},
+            attributes={"file.path": path},
+        ) as span:
+            response = self._req("POST", f"runtime/{runtime_id}/files/replace", payload)
+            replaced = FileReplaceResponse.from_api(response.json())
+            if span is not None:
+                telemetry.record_outputs(
+                    span,
+                    {
+                        "files": len(replaced.files),
+                        "total_replacements": replaced.total_replacements,
+                        "files_scanned": replaced.files_scanned,
+                    },
+                )
+            return replaced
 
     def upload_file(self, runtime_id: str, file: BinaryIO, path: Optional[str] = None) -> FileUploadResponse:
         _validate_runtime_id(runtime_id)
@@ -661,6 +1070,236 @@ class AsyncRuntimeFileResource:
             if span is not None:
                 telemetry.record_outputs(span, {"path": path, "mode": mode, "success": perms.success})
             return perms
+
+    async def move(
+        self, runtime_id: str, source: str, destination: str, overwrite: bool = False
+    ) -> FileMoveResponse:
+        """Move or rename a path inside the runtime."""
+        _validate_runtime_id(runtime_id)
+        _validate_path(source)
+        _validate_path(destination)
+        payload = {"source": source, "destination": destination, "overwrite": overwrite}
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.move",
+            runtime_id,
+            inputs={"source": source, "destination": destination, "overwrite": overwrite},
+            attributes={"file.path": source},
+        ) as span:
+            response = await self._req("POST", f"runtime/{runtime_id}/files/move", payload)
+            result = response.json()
+            moved = FileMoveResponse(
+                success=bool(result.get("success", True)),
+                source=source,
+                destination=destination,
+                entry=_optional_file_info(result.get("entry")),
+            )
+            if span is not None:
+                telemetry.record_outputs(span, {"destination": destination, "success": moved.success})
+            return moved
+
+    async def copy(
+        self,
+        runtime_id: str,
+        source: str,
+        destination: str,
+        recursive: bool = False,
+        overwrite: bool = False,
+    ) -> FileCopyResponse:
+        """Copy a file or directory inside the runtime."""
+        _validate_runtime_id(runtime_id)
+        _validate_path(source)
+        _validate_path(destination)
+        payload = {
+            "source": source,
+            "destination": destination,
+            "recursive": recursive,
+            "overwrite": overwrite,
+        }
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.copy",
+            runtime_id,
+            inputs={"source": source, "destination": destination, "recursive": recursive},
+            attributes={"file.path": source},
+        ) as span:
+            response = await self._req("POST", f"runtime/{runtime_id}/files/copy", payload)
+            result = response.json()
+            copied = FileCopyResponse(
+                success=bool(result.get("success", True)),
+                source=source,
+                destination=destination,
+                entry=_optional_file_info(result.get("entry")),
+            )
+            if span is not None:
+                telemetry.record_outputs(span, {"destination": destination, "success": copied.success})
+            return copied
+
+    async def chown(
+        self,
+        runtime_id: str,
+        path: str,
+        user: Optional[str] = None,
+        group: Optional[str] = None,
+        recursive: bool = False,
+    ) -> ChangeOwnerResponse:
+        """Change the owning user and/or group of a path."""
+        _validate_runtime_id(runtime_id)
+        _validate_path(path)
+        if not (user or group):
+            raise ValueError("at least one of user or group must be provided")
+        payload: Dict[str, Any] = {"path": path, "recursive": recursive}
+        if user:
+            payload["user"] = user
+        if group:
+            payload["group"] = group
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.chown",
+            runtime_id,
+            inputs={"path": path, "user": user, "group": group, "recursive": recursive},
+            attributes={"file.path": path},
+        ) as span:
+            response = await self._req("POST", f"runtime/{runtime_id}/files/chown", payload)
+            result = response.json()
+            owner = ChangeOwnerResponse(
+                success=bool(result.get("success", True)),
+                path=path,
+                message=str(result.get("message", "")),
+            )
+            if span is not None:
+                telemetry.record_outputs(span, {"path": path, "success": owner.success})
+            return owner
+
+    async def watch(
+        self,
+        runtime_id: str,
+        path: str,
+        recursive: bool = False,
+        on_event: Optional[Callable[[WatchEvent], Any]] = None,
+    ) -> AsyncIterator[WatchEvent]:
+        """Watch a directory for filesystem changes, backed by guest ``inotify``.
+
+        Async generator yielding :class:`~gravixlayer.types.runtime.WatchEvent`. The
+        first event is always ``start``. ``on_event`` may be a coroutine function.
+
+        Example:
+            >>> async for event in client.runtime.file.watch(rid, "/workspace"):
+            ...     print(event.type, event.path)
+        """
+        import inspect
+        import json
+
+        _validate_runtime_id(runtime_id)
+        _validate_path(path)
+        payload = {"path": path, "recursive": recursive}
+
+        response = await self._req(
+            "POST", f"runtime/{runtime_id}/files/watch", payload, stream=True
+        )
+        try:
+            async for line in response.aiter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                raw = line[len("data:"):].strip()
+                if not raw:
+                    continue
+                try:
+                    evt = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                if evt.get("type") == "error":
+                    raise RuntimeError(str(evt.get("message") or "filesystem watch failed"))
+                event = WatchEvent.from_api(evt)
+                if on_event is not None:
+                    maybe = on_event(event)
+                    if inspect.isawaitable(maybe):
+                        await maybe
+                yield event
+        finally:
+            await response.aclose()
+
+    async def find(
+        self,
+        runtime_id: str,
+        path: str,
+        pattern: Optional[str] = None,
+        glob: Optional[str] = None,
+        *,
+        regex: bool = False,
+        case_sensitive: bool = False,
+        include_hidden: bool = False,
+        max_results: Optional[int] = None,
+        max_depth: Optional[int] = None,
+    ) -> FileFindResponse:
+        """Find files by name glob and/or content pattern (native guest search)."""
+        _validate_runtime_id(runtime_id)
+        payload = _find_payload(
+            path, pattern, glob, regex, case_sensitive, include_hidden, max_results, max_depth
+        )
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.find",
+            runtime_id,
+            inputs={"path": path, "pattern": pattern, "glob": glob, "regex": regex},
+            attributes={"file.path": path},
+        ) as span:
+            response = await self._req("POST", f"runtime/{runtime_id}/files/find", payload)
+            found = FileFindResponse.from_api(response.json())
+            if span is not None:
+                telemetry.record_outputs(
+                    span,
+                    {
+                        "matches": len(found.matches),
+                        "truncated": found.truncated,
+                        "files_scanned": found.files_scanned,
+                    },
+                )
+            return found
+
+    async def replace(
+        self,
+        runtime_id: str,
+        path: str,
+        pattern: str,
+        replacement: str,
+        glob: Optional[str] = None,
+        *,
+        regex: bool = False,
+        case_sensitive: bool = False,
+        include_hidden: bool = False,
+        max_depth: Optional[int] = None,
+        dry_run: bool = False,
+    ) -> FileReplaceResponse:
+        """Replace a pattern across every matching file, atomically per file."""
+        _validate_runtime_id(runtime_id)
+        payload = _replace_payload(
+            path, pattern, replacement, glob, regex, case_sensitive, include_hidden, max_depth, dry_run
+        )
+        from .. import telemetry
+
+        with telemetry.runtime_span(
+            "file.replace",
+            runtime_id,
+            inputs={"path": path, "pattern": pattern, "glob": glob, "dry_run": dry_run},
+            attributes={"file.path": path},
+        ) as span:
+            response = await self._req("POST", f"runtime/{runtime_id}/files/replace", payload)
+            replaced = FileReplaceResponse.from_api(response.json())
+            if span is not None:
+                telemetry.record_outputs(
+                    span,
+                    {
+                        "files": len(replaced.files),
+                        "total_replacements": replaced.total_replacements,
+                        "files_scanned": replaced.files_scanned,
+                    },
+                )
+            return replaced
 
     async def upload_file(self, runtime_id: str, file: BinaryIO, path: Optional[str] = None) -> FileUploadResponse:
         _validate_runtime_id(runtime_id)

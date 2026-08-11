@@ -23,6 +23,9 @@ from ..types.runtime import (
     CodeRunResponse,
     CodeContext,
     CodeContextDeleteResponse,
+    ExecutionError,
+    ExecutionLogs,
+    ExecutionResult,
     Template,
     TemplateList,
     RuntimeKillResponse,
@@ -33,6 +36,7 @@ from ..types.runtime import (
 
 from .runtime_git import RuntimeGitResource
 from .runtime_files import RuntimeFileResource
+from .runtime_pty import RuntimePtyResource
 from .runtime_service import RuntimeServiceResource
 
 
@@ -43,6 +47,7 @@ class Runtimes:
         self.client = client
         self._git_resource: Optional["RuntimeGitResource"] = None
         self._file_resource: Optional[RuntimeFileResource] = None
+        self._pty_resource: Optional[RuntimePtyResource] = None
         self._service_resource: Optional[RuntimeServiceResource] = None
 
     @property
@@ -51,6 +56,13 @@ class Runtimes:
         if self._file_resource is None:
             self._file_resource = RuntimeFileResource(self)
         return self._file_resource
+
+    @property
+    def pty(self) -> RuntimePtyResource:
+        """Programmatic PTY sessions: ``create``, ``send_input``, ``stream``, ``kill``, …"""
+        if self._pty_resource is None:
+            self._pty_resource = RuntimePtyResource(self)
+        return self._pty_resource
 
     @property
     def git(self) -> "RuntimeGitResource":
@@ -428,6 +440,10 @@ class Runtimes:
         context_id: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
+        on_stdout: Optional[Any] = None,
+        on_stderr: Optional[Any] = None,
+        on_result: Optional[Any] = None,
+        on_error: Optional[Any] = None,
     ) -> CodeRunResponse:
         """Execute code in the runtime using Jupyter kernel.
 
@@ -436,6 +452,10 @@ class Runtimes:
         ``Execution(client.runtime.run_code(...))`` if you want the unified
         wrapper used by :meth:`Runtime.run_code`.
 
+        Passing any of the ``on_*`` callbacks switches to streaming mode, where output
+        is delivered incrementally as the code runs instead of only at completion. The
+        return value has the same shape in both modes.
+
         Args:
             runtime_id: Target runtime ID.
             code: Code to execute.
@@ -443,6 +463,12 @@ class Runtimes:
             context_id: Execution context ID for state persistence.
             environment: Environment variables.
             timeout: Maximum execution time in **seconds** (API expects seconds for code execution).
+            on_stdout: Optional callable invoked with each incremental stdout chunk (``str``).
+            on_stderr: Optional callable invoked with each incremental stderr chunk (``str``).
+            on_result: Optional callable invoked with each
+                :class:`~gravixlayer.types.runtime.ExecutionResult` as it is produced.
+            on_error: Optional callable invoked with the
+                :class:`~gravixlayer.types.runtime.ExecutionError` if execution raises.
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"code": code}
@@ -455,6 +481,7 @@ class Runtimes:
         if timeout is not None:
             data["timeout"] = timeout
 
+        streaming = any(cb is not None for cb in (on_stdout, on_stderr, on_result, on_error))
         from .. import telemetry
 
         with telemetry.runtime_span(
@@ -470,8 +497,13 @@ class Runtimes:
                 "code.context_id": context_id or "",
             },
         ) as span:
-            response = self._make_agents_request("POST", f"runtime/{runtime_id}/code/run", data)
-            result = CodeRunResponse.from_api(response.json())
+            if streaming:
+                result = self._run_code_streaming(
+                    runtime_id, data, on_stdout, on_stderr, on_result, on_error,
+                )
+            else:
+                response = self._make_agents_request("POST", f"runtime/{runtime_id}/code/run", data)
+                result = CodeRunResponse.from_api(response.json())
             if span is not None:
                 text = getattr(result, "text", None) or getattr(result, "stdout", "") or ""
                 telemetry.record_outputs(
@@ -484,6 +516,91 @@ class Runtimes:
                 if getattr(result, "error", None):
                     telemetry.mark_span_error(span, str(result.error))
             return result
+
+    def _run_code_streaming(
+        self,
+        runtime_id: str,
+        data: Dict[str, Any],
+        on_stdout: Optional[Any],
+        on_stderr: Optional[Any],
+        on_result: Optional[Any],
+        on_error: Optional[Any],
+    ) -> CodeRunResponse:
+        """Stream a run_code response as Server-Sent Events.
+
+        Accumulates the same fields the unary endpoint returns while invoking the
+        caller's callbacks for each incremental event, so callers can switch between
+        streaming and buffered modes without changing downstream code.
+        """
+        import json
+
+        endpoint = f"runtime/{runtime_id}/code/run?stream=true"
+        response = self._make_agents_request("POST", endpoint, data, stream=True)
+
+        logs = ExecutionLogs()
+        results: List[ExecutionResult] = []
+        error: Optional[ExecutionError] = None
+
+        try:
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8", errors="replace")
+                if not line.startswith("data:"):
+                    continue
+                payload = line[len("data:"):].strip()
+                if not payload:
+                    continue
+                try:
+                    evt = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+
+                evt_type = evt.get("type")
+                if evt_type == "stdout":
+                    chunk = evt.get("text", "")
+                    logs.stdout.append(chunk)
+                    if on_stdout is not None:
+                        on_stdout(chunk)
+                elif evt_type == "stderr":
+                    chunk = evt.get("text", "")
+                    logs.stderr.append(chunk)
+                    if on_stderr is not None:
+                        on_stderr(chunk)
+                elif evt_type == "result":
+                    raw = evt.get("result") or {}
+                    item = ExecutionResult(
+                        text=raw.get("text", ""),
+                        html=raw.get("html", ""),
+                        json=raw.get("json"),
+                        png=raw.get("png", ""),
+                        jpeg=raw.get("jpeg", ""),
+                        svg=raw.get("svg", ""),
+                        markdown=raw.get("markdown", ""),
+                        chart=raw.get("chart"),
+                    )
+                    results.append(item)
+                    if on_result is not None:
+                        on_result(item)
+                elif evt_type == "error":
+                    raw = evt.get("error") or {}
+                    if isinstance(raw, dict):
+                        error = ExecutionError(
+                            name=raw.get("name", ""),
+                            value=raw.get("value", ""),
+                            traceback=raw.get("traceback", ""),
+                        )
+                    else:
+                        error = ExecutionError(value=str(evt.get("message") or raw))
+                    if on_error is not None:
+                        on_error(error)
+                elif evt_type == "end":
+                    break
+        finally:
+            response.close()
+
+        return CodeRunResponse(results=results, logs=logs, error=error)
 
     def create_context(
         self, runtime_id: str, language: Optional[str] = "python", cwd: Optional[str] = None
