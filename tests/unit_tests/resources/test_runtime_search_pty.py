@@ -5,6 +5,7 @@ and the connection-managing PTY handles (``client.runtime.pty.handle``).
 
 import base64
 import json
+import threading
 
 import httpx
 import pytest
@@ -12,6 +13,7 @@ import pytest
 from tests.utils import AGENTS_BASE, TEST_API_KEY, TEST_BASE_URL, VALID_UUID
 
 from gravixlayer import AsyncGravixLayer
+from gravixlayer.resources import runtime_pty
 from gravixlayer.types.runtime import (
     FileFindResponse,
     FileReplaceResponse,
@@ -259,21 +261,55 @@ class TestSyncPtyHandle:
                 text=_sse(
                     _pty_data(b"hello "),
                     _pty_data(b"world"),
-                    {"type": "exit", "exit_code": 7, "status": "exited"},
+                    # The execution plane reports the process outcome here, not the
+                    # session lifecycle state.
+                    {"type": "exit", "exit_code": 7, "status": "failed"},
                 ),
                 headers={"content-type": "text/event-stream"},
             )
         )
         chunks: list[bytes] = []
+        outcomes: list[tuple[int, str]] = []
         with client.runtime.pty.handle(VALID_UUID, SESSION_ID) as pty:
-            pty.connect(on_data=chunks.append)
+            pty.connect(on_data=chunks.append, on_exit=lambda c, s: outcomes.append((c, s)))
             assert pty.wait_for_connection(timeout=5) is True
             final = pty.wait_for_completion(timeout=5)
             assert isinstance(final, PtySession)
             assert final.exit_code == 7
+            # Same vocabulary as a session fetched with pty.get(), regardless of outcome.
+            assert final.status == "exited"
+            assert outcomes == [(7, "failed")]
             assert pty.exit_code == 7
             assert pty.output == b"hello world"
             assert b"".join(chunks) == b"hello world"
+
+    def test_disconnect_is_immediate_even_if_reader_is_blocked(
+        self, client, mock_api, monkeypatch
+    ):
+        """is_connected must not depend on the reader thread unwinding."""
+        release = threading.Event()
+
+        def stream_then_block():
+            yield _sse(_pty_data(b"hi")).encode()
+            release.wait(timeout=30)  # an idle terminal produces no further bytes
+
+        mock_api.get(f"{SB}/{VALID_UUID}/pty/{SESSION_ID}/stream").mock(
+            return_value=httpx.Response(
+                200,
+                content=stream_then_block(),
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        monkeypatch.setattr(runtime_pty, "PTY_HANDLE_JOIN_SECONDS", 0.1)
+
+        pty = client.runtime.pty.handle(VALID_UUID, SESSION_ID)
+        try:
+            pty.connect()
+            assert pty.wait_for_connection(timeout=5) is True
+            pty.disconnect()
+            assert pty.is_connected is False
+        finally:
+            release.set()
 
     def test_wait_for_completion_polls_when_detached(self, client, mock_api):
         responses = [

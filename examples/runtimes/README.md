@@ -31,7 +31,7 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 04 | [04_run_python_code.py](04_run_python_code.py) | Run Python |
 | 05 | [05_run_node_code.py](05_run_node_code.py) | Run Node |
 | 06 | [06_run_shell_commands.py](06_run_shell_commands.py) | Shell (both command forms) |
-| 07 | [07_file_operations.py](07_file_operations.py) | Files |
+| 07 | [07_file_operations.py](07_file_operations.py) | Files: read/write, upload/download, move, copy, chown, find, replace, watch |
 | 08 | [08_persistent_kernel_session.py](08_persistent_kernel_session.py) | Persistent kernel session (code contexts) |
 | 09 | [09_runtime_metrics.py](09_runtime_metrics.py) | Metrics |
 | 10 | [10_timeout_management.py](10_timeout_management.py) | Timeouts |
@@ -48,6 +48,7 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 21 | [21_observability_logging.py](21_observability_logging.py) | Emit agent + runtime logs and verify in Logs |
 | 22 | [22_runtime_web_service.py](22_runtime_web_service.py) | FastAPI + `rt.service(port=…)` on `*.service.gravixlayer.ai` |
 | 23 | [23_runtime_git_sdk_and_cli.py](23_runtime_git_sdk_and_cli.py) | Git via SDK (`runtime.git`) and CLI (`gravixlayer runtime git`) |
+| 24 | [24_pty_sessions.py](24_pty_sessions.py) | Interactive PTY: attach, type, resize, signal, detach and re-attach |
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Runtime filesystem: read/write, list, mkdir, upload, write_many, get_info, set_permissions, download, delete.
+"""Runtime filesystem: read/write, list, mkdir, upload, write_many, get_info,
+set_permissions, download, move, copy, chown, find, replace, watch, delete.
 
     export GRAVIXLAYER_API_KEY=...
     python examples/runtimes/07_file_operations.py
@@ -8,6 +9,8 @@ Optional: ``GRAVIXLAYER_TEMPLATE`` (default ``base-small``).
 """
 
 import os
+import threading
+import time
 from io import BytesIO
 
 from gravixlayer import GravixLayer
@@ -129,7 +132,112 @@ print(f"\nDownloaded : {len(downloaded)} bytes from /home/user/hello.txt")
 print(f"Preview    : {downloaded.decode('utf-8').splitlines()[0]!r}")
 
 # ---------------------------------------------------------------------------
-# 12. Delete a file
+# 12. Move (rename) a path
+# ---------------------------------------------------------------------------
+moved = runtime.file.move(
+    "/home/user/from_local.txt",
+    "/home/user/project/notes.txt",
+)
+print(f"\nMoved      : {moved.source} -> {moved.destination} ok={moved.success}")
+
+# ---------------------------------------------------------------------------
+# 13. Copy a file, and a directory tree with recursive=True
+# ---------------------------------------------------------------------------
+copied = runtime.file.copy(
+    "/home/user/project/notes.txt",
+    "/home/user/project/notes.bak",
+)
+print(f"Copied     : {copied.source} -> {copied.destination} ok={copied.success}")
+
+tree = runtime.file.copy(
+    "/home/user/project/src",
+    "/home/user/project/src-copy",
+    recursive=True,
+)
+print(f"Copied dir : {tree.source} -> {tree.destination} ok={tree.success}")
+
+# ---------------------------------------------------------------------------
+# 14. Change ownership (accepts names or numeric ids; recursive for a tree)
+# ---------------------------------------------------------------------------
+owner = runtime.run_cmd(command="id", args=["-un"]).stdout.strip()
+chowned = runtime.file.chown("/home/user/project/src-copy", user=owner, recursive=True)
+print(f"chown      : {chowned.path} -> {owner} ok={chowned.success}")
+
+# ---------------------------------------------------------------------------
+# 15. Find files by name (glob) and by content
+# ---------------------------------------------------------------------------
+by_name = runtime.file.find("/home/user/project", glob="*.py")
+print(f"\nfind glob  : {len(by_name)} file(s), scanned {by_name.files_scanned}")
+for match in by_name:
+    print(f"  {match.path}")
+
+# A pattern searches file contents. It is a literal string unless regex=True,
+# and each hit carries the 1-based line/column and the matching line.
+by_content = runtime.file.find("/home/user/project", pattern="GravixLayer")
+print(f"find text  : {len(by_content)} hit(s), truncated={by_content.truncated}")
+for match in by_content:
+    print(f"  {match.path}:{match.line}:{match.column}  {match.content.strip()!r}")
+
+# Combine both to search the contents of a subset of files only.
+scoped = runtime.file.find("/home/user/project", pattern="version", glob="*.py")
+print(f"find both  : {len(scoped)} hit(s) in *.py")
+
+# ---------------------------------------------------------------------------
+# 16. Search and replace across files — preview first, then apply
+# ---------------------------------------------------------------------------
+preview = runtime.file.replace(
+    "/home/user/project",
+    pattern="1.0",
+    replacement="2.0",
+    glob="*.py",
+    dry_run=True,
+)
+print(f"\ndry run    : would change {preview.total_replacements} occurrence(s)")
+for entry in preview:
+    print(f"  {entry.path}  ({entry.replacements})")
+
+applied = runtime.file.replace(
+    "/home/user/project",
+    pattern="1.0",
+    replacement="2.0",
+    glob="*.py",
+)
+print(f"replaced   : {applied.total_replacements} occurrence(s) in {len(applied)} file(s)")
+print(f"verify     : {runtime.file.read('/home/user/project/src/main.py').content.strip()}")
+
+# ---------------------------------------------------------------------------
+# 17. Watch a directory for changes (streamed as they happen)
+# ---------------------------------------------------------------------------
+armed = threading.Event()
+
+
+def make_changes() -> None:
+    """Touch the watched directory once the watch is confirmed armed."""
+    armed.wait(timeout=30)
+    runtime.file.write("/home/user/project/watched.txt", "first")
+    time.sleep(0.5)
+    runtime.file.write("/home/user/project/watched.txt", "second")
+    time.sleep(0.5)
+    runtime.file.delete("/home/user/project/watched.txt")
+
+
+threading.Thread(target=make_changes, daemon=True).start()
+
+print("\nWatching   : /home/user/project")
+seen = 0
+for event in runtime.file.watch("/home/user/project", recursive=True):
+    # The first event is always "start" and confirms the watch is armed; only
+    # changes made after it are guaranteed to be reported.
+    if event.type == "start":
+        armed.set()
+        continue
+    print(f"  {event.type:8} {event.name}")
+    seen += 1
+    if seen >= 3:
+        break
+
+# ---------------------------------------------------------------------------
+# 18. Delete a file
 # ---------------------------------------------------------------------------
 runtime.file.delete("/home/user/hello.txt")
 print("\nDeleted    : /home/user/hello.txt")

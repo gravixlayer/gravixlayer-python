@@ -34,6 +34,7 @@ PTY_EVENT_ERROR = "error"
 
 # Session lifecycle states reported by the execution plane.
 PTY_STATUS_RUNNING = "running"
+PTY_STATUS_EXITED = "exited"
 
 # Upper bound on the terminal output a handle retains in memory. Older bytes are
 # discarded so a long lived session cannot grow the client's heap without bound.
@@ -295,7 +296,10 @@ class PtyHandle:
                 self._error = str(exc)
         finally:
             with self._lock:
-                self._response = None
+                # Only retract our own stream: disconnect() may already have cleared it
+                # and a later connect() may have installed a new one.
+                if self._response is response:
+                    self._response = None
             try:
                 response.close()
             except Exception:  # already closed by disconnect()
@@ -316,8 +320,8 @@ class PtyHandle:
             return True
         if kind == PTY_EVENT_EXIT:
             exit_code = int(evt.get("exit_code") or 0)
-            status = str(evt.get("status") or "exited")
-            self._record_exit(exit_code, status)
+            status = str(evt.get("status") or PTY_STATUS_EXITED)
+            self._record_exit(exit_code)
             if self._on_exit is not None:
                 self._on_exit(exit_code, status)
             return False
@@ -325,12 +329,15 @@ class PtyHandle:
             self._error = str(evt.get("message") or "PTY stream failed")
         return True
 
-    def _record_exit(self, exit_code: int, status: str) -> None:
+    def _record_exit(self, exit_code: int) -> None:
         session = self._session
         if session is None:
             session = PtySession(session_id=self._session_id, runtime_id=self._runtime_id)
         session.exit_code = exit_code
-        session.status = status or "exited"
+        # The exit frame's own status is the process outcome ("success"/"failed"), which
+        # reaches callers through on_exit. PtySession.status stays the lifecycle value the
+        # control plane reports, so it means the same thing however the session was fetched.
+        session.status = PTY_STATUS_EXITED
         self._session = session
         self._exited.set()
 
@@ -404,6 +411,7 @@ class PtyHandle:
             self._stopping = True
             response = self._response
             thread = self._thread
+            self._response = None
             self._thread = None
             self._opened = False
         if response is not None:
@@ -412,6 +420,8 @@ class PtyHandle:
             except Exception:  # the reader may have closed it first
                 pass
         if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            # Best effort only: the reader can sit in a blocking read until the next
+            # byte arrives, and is_connected must not depend on it unwinding.
             thread.join(timeout=PTY_HANDLE_JOIN_SECONDS)
         self._connected.clear()
 
@@ -577,7 +587,10 @@ class AsyncPtyHandle:
             if not self._stopping:
                 self._error = str(exc)
         finally:
-            self._response = None
+            # Only retract our own stream: disconnect() may already have cleared it
+            # and a later connect() may have installed a new one.
+            if self._response is response:
+                self._response = None
             try:
                 await response.aclose()
             except Exception:  # already closed by disconnect()
@@ -601,8 +614,8 @@ class AsyncPtyHandle:
             return True
         if kind == PTY_EVENT_EXIT:
             exit_code = int(evt.get("exit_code") or 0)
-            status = str(evt.get("status") or "exited")
-            self._record_exit(exit_code, status)
+            status = str(evt.get("status") or PTY_STATUS_EXITED)
+            self._record_exit(exit_code)
             if self._on_exit is not None:
                 maybe = self._on_exit(exit_code, status)
                 if inspect.isawaitable(maybe):
@@ -612,12 +625,13 @@ class AsyncPtyHandle:
             self._error = str(evt.get("message") or "PTY stream failed")
         return True
 
-    def _record_exit(self, exit_code: int, status: str) -> None:
+    def _record_exit(self, exit_code: int) -> None:
         session = self._session
         if session is None:
             session = PtySession(session_id=self._session_id, runtime_id=self._runtime_id)
         session.exit_code = exit_code
-        session.status = status or "exited"
+        # See PtyHandle._record_exit: status stays the lifecycle value, not the outcome.
+        session.status = PTY_STATUS_EXITED
         self._session = session
         self._exited.set()
 
