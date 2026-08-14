@@ -64,6 +64,11 @@ from .types.templates import (
     BuildLogEntry,
     TemplateBuilder,
 )
+from .types.snapshots import (
+    Snapshot,
+    SnapshotListResponse,
+    SnapshotDeleteResponse,
+)
 from .types.agents import (
     AgentBuildStatus,
     AgentBuildPhase,
@@ -87,6 +92,8 @@ from .resources.templates import (
     TemplateBuildError,
     TemplateBuildTimeoutError,
 )
+from .resources.snapshots import Snapshots
+from .resources.async_snapshots import AsyncSnapshots
 from .resources.agents import (
     Agents,
     AgentBuildError,
@@ -222,6 +229,11 @@ __all__ = [
     "AsyncTemplates",
     "AsyncTemplateBuildError",
     "AsyncTemplateBuildTimeoutError",
+    "Snapshot",
+    "SnapshotListResponse",
+    "SnapshotDeleteResponse",
+    "Snapshots",
+    "AsyncSnapshots",
     # Agent types
     "AgentBuildStatus",
     "AgentBuildPhase",

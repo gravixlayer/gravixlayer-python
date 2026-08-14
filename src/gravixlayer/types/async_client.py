@@ -25,6 +25,7 @@ from ..types.exceptions import (
 )
 from ..resources.async_runtime import AsyncRuntimeResource
 from ..resources.async_templates import AsyncTemplates
+from ..resources.async_snapshots import AsyncSnapshots
 from ..resources.async_agents import AsyncAgents
 from ..resources.async_identity import AsyncIdentity
 from ..resources.async_network_policies import AsyncNetworkPolicies
@@ -116,6 +117,7 @@ class AsyncGravixLayer:
 
         self.runtime = AsyncRuntimeResource(self)
         self.templates = AsyncTemplates(self)
+        self.snapshots = AsyncSnapshots(self)
         self.agents = AsyncAgents(self)
         self.identity = AsyncIdentity(self)
         self.network_policies = AsyncNetworkPolicies(self)

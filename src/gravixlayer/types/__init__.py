@@ -17,6 +17,11 @@ from .templates import (
     BuildLogEntry,
     TemplateBuilder,
 )
+from .snapshots import (
+    Snapshot,
+    SnapshotListResponse,
+    SnapshotDeleteResponse,
+)
 from .agents import (
     AgentBuildStatus,
     AgentBuildPhase,
@@ -54,6 +59,9 @@ __all__ = [
     "TemplateDeleteResponse",
     "BuildLogEntry",
     "TemplateBuilder",
+    "Snapshot",
+    "SnapshotListResponse",
+    "SnapshotDeleteResponse",
     # Agent types
     "AgentBuildStatus",
     "AgentBuildPhase",

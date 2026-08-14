@@ -18,6 +18,7 @@ from ._request_utils import (
 )
 from .resources.runtime import RuntimeResource
 from .resources.templates import Templates
+from .resources.snapshots import Snapshots
 from .resources.agents import Agents
 from .resources.identity import Identity
 from .resources.network_policies import NetworkPolicies
@@ -127,6 +128,7 @@ class GravixLayer:
 
         self.runtime = RuntimeResource(self)
         self.templates = Templates(self)
+        self.snapshots = Snapshots(self)
         self.agents = Agents(self)
         self.identity = Identity(self)
         self.network_policies = NetworkPolicies(self)

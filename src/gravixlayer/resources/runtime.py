@@ -108,13 +108,15 @@ class Runtimes:
         providers: Optional[List[str]] = None,
         network_policy_ids: Optional[List[str]] = None,
         provider: Optional[str] = None,
+        snapshot: Optional[str] = None,
     ) -> Runtime:
         """Create a new runtime instance.
 
         Args:
             cloud: Cloud (azure/aws/gcp; falls back to client.cloud if not set)
             region: Cloud region (falls back to client.region if not set)
-            template: Template name or ID to use
+            template: Template name or ID to use. Ignored when ``snapshot`` is set
+                unless a non-default template is also passed (then ValueError).
             timeout: Runtime timeout in seconds (default: None = no timeout)
             env_vars: Environment variables for the runtime. Pass ``{}`` to set an
                 explicit empty map (distinct from omitting the field).
@@ -127,6 +129,8 @@ class Runtimes:
             network_policy_ids: Optional network policy IDs to attach at creation
                 (the system default is always attached).
             provider: Deprecated alias for ``cloud``.
+            snapshot: Snapshot name or UUID. Mutually exclusive with an explicit
+                ``template`` other than the default ``base-small``.
         """
         if provider is not None and cloud is None:
             cloud = provider
@@ -140,12 +144,17 @@ class Runtimes:
             raise ValueError(
                 "region is required. Pass it to create() or set region on GravixLayer client."
             )
+        if snapshot and template not in (None, "base-small"):
+            raise ValueError("template and snapshot are mutually exclusive")
 
         data: Dict[str, Any] = {
             "cloud": resolved_cloud,
             "region": resolved_region,
-            "template": template,
         }
+        if snapshot:
+            data["snapshot"] = snapshot
+        else:
+            data["template"] = template or "base-small"
         if timeout is not None:
             data["timeout"] = timeout
         if env_vars is not None:
@@ -169,13 +178,15 @@ class Runtimes:
             inputs={
                 "cloud": resolved_cloud,
                 "region": resolved_region,
-                "template": template,
+                "template": None if snapshot else template,
+                "snapshot": snapshot,
                 "timeout": timeout,
                 "agent_id": agent_id,
             },
             attributes={
-                "runtime.template": template or "",
-                "gravixlayer.template": template or "",
+                "runtime.template": "" if snapshot else (template or ""),
+                "gravixlayer.template": "" if snapshot else (template or ""),
+                "runtime.snapshot": snapshot or "",
                 "runtime.cloud": resolved_cloud,
                 "runtime.region": resolved_region,
             },

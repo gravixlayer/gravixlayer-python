@@ -124,6 +124,7 @@ class Runtime:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         client: Optional[Any] = None,
+        snapshot: Optional[str] = None,
     ) -> "Runtime":
         """
         Create a new runtime instance with simplified interface.
@@ -162,6 +163,7 @@ class Runtime:
             env_vars=env_vars,
             providers=providers,
             network_policy_ids=network_policy_ids,
+            snapshot=snapshot,
         )
 
         instance = cls(
