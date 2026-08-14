@@ -81,7 +81,7 @@ See **[examples/runtimes/07_file_operations.py](examples/runtimes/07_file_operat
 
 | Area | What you’ll learn |
 |------|-------------------|
-| **[examples/runtimes/](examples/runtimes/)** | Create runtimes, run code & shell, files, metrics, SSH, context manager, Git — **16 scripts** |
+| **[examples/runtimes/](examples/runtimes/)** | Create runtimes, run code & shell, files, metrics, SSH, Git, PTY, snapshots — **25 scripts** |
 | **[examples/templates/](examples/templates/)** | Build custom templates (Docker image, Git, Dockerfile) — **6 scripts** |
 
 Start here: **[examples/README.md](examples/README.md)** (task table + quick reference).

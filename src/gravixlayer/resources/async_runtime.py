@@ -4,6 +4,8 @@ Runtime API resource for asynchronous client.
 
 from typing import List, Dict, Any, Optional
 
+import httpx
+
 from .._resource_utils import (
     build_list_endpoint,
     normalize_runtime_api_payload,
@@ -37,6 +39,10 @@ from .runtime_git import AsyncRuntimeGitResource
 from .runtime_files import AsyncRuntimeFileResource
 from .runtime_pty import AsyncRuntimePtyResource
 from .async_runtime_service import AsyncRuntimeServiceResource
+
+# Cold snapshot restore kernel-boots systemd. Matches cellfabric's 90s wait plus
+# control-plane gRPC budget (3 minutes).
+_SNAPSHOT_RESTORE_TIMEOUT = httpx.Timeout(180.0)
 
 
 class AsyncRuntimes:
@@ -187,7 +193,12 @@ class AsyncRuntimes:
                 "runtime.region": resolved_region,
             },
         ) as span:
-            response = await self._make_agents_request("POST", "runtime", data)
+            if snapshot:
+                response = await self._make_agents_request(
+                    "POST", "runtime", data, timeout=_SNAPSHOT_RESTORE_TIMEOUT
+                )
+            else:
+                response = await self._make_agents_request("POST", "runtime", data)
             result = self._apply_defaults(response.json(), template=template)
             rt = Runtime.from_api(result)
             rt._client = self.client

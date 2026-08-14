@@ -6,6 +6,8 @@ import os
 import time
 from typing import List, Dict, Any, Optional
 
+import httpx
+
 from .._resource_utils import (
     build_list_endpoint,
     normalize_runtime_api_payload,
@@ -38,6 +40,10 @@ from .runtime_git import RuntimeGitResource
 from .runtime_files import RuntimeFileResource
 from .runtime_pty import RuntimePtyResource
 from .runtime_service import RuntimeServiceResource
+
+# Cold snapshot restore kernel-boots systemd. Matches cellfabric's 90s wait plus
+# control-plane gRPC budget (3 minutes).
+_SNAPSHOT_RESTORE_TIMEOUT = httpx.Timeout(180.0)
 
 
 class Runtimes:
@@ -191,7 +197,12 @@ class Runtimes:
                 "runtime.region": resolved_region,
             },
         ) as span:
-            response = self._make_agents_request("POST", "runtime", data)
+            if snapshot:
+                response = self._make_agents_request(
+                    "POST", "runtime", data, timeout=_SNAPSHOT_RESTORE_TIMEOUT
+                )
+            else:
+                response = self._make_agents_request("POST", "runtime", data)
             result = self._apply_defaults(response.json(), template=template)
             rt = Runtime.from_api(result)
             rt._client = self.client

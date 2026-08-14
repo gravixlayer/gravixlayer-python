@@ -49,6 +49,7 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 22 | [22_runtime_web_service.py](22_runtime_web_service.py) | FastAPI + `rt.service(port=…)` on `*.service.gravixlayer.ai` |
 | 23 | [23_runtime_git_sdk_and_cli.py](23_runtime_git_sdk_and_cli.py) | Git via SDK (`runtime.git`) and CLI (`gravixlayer runtime git`) |
 | 24 | [24_pty_sessions.py](24_pty_sessions.py) | Interactive PTY: attach, type, resize, signal, detach and re-attach |
+| 25 | [25_snapshots_lifecycle.py](25_snapshots_lifecycle.py) | Named snapshots: capture, list, restore, deactivate, activate, delete |
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py

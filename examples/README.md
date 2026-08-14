@@ -27,6 +27,7 @@ python examples/templates/01_python_docker_image.py
 | Git operations | `runtimes/17_…` (SDK), `runtimes/23_…` (SDK + CLI) |
 | Stream `run_cmd` | `runtimes/18_stream_command_output.py` |
 | Lifecycle (pause / resume / kill) | `runtimes/19_runtime_lifecycle.py` |
+| Named snapshots (capture / restore) | `runtimes/25_snapshots_lifecycle.py` |
 | Observability (traces / logs) | `runtimes/20_…`, `runtimes/21_…` |
 | Web service (`*.service.gravixlayer.ai`) | `runtimes/22_runtime_web_service.py` |
 | Build templates | `templates/` |
