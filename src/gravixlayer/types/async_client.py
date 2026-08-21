@@ -72,8 +72,8 @@ class AsyncGravixLayer:
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
             raise ValueError("Base URL must start with http:// or https://")
 
-        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD", "azure")
-        self.region = region or os.environ.get("GRAVIXLAYER_REGION", "eastus2")
+        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD", "aws")
+        self.region = region or os.environ.get("GRAVIXLAYER_REGION", "us-east-1")
         self.timeout = timeout
         self.max_retries = max_retries
         self._retry_attempts = range(self.max_retries + 1)

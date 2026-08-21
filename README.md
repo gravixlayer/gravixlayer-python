@@ -30,8 +30,8 @@ pip install gravixlayer
 
 ```bash
 export GRAVIXLAYER_API_KEY="your-api-key"
-export GRAVIXLAYER_CLOUD="azure"       # default
-export GRAVIXLAYER_REGION="eastus2"    # default
+export GRAVIXLAYER_CLOUD="aws"         # default
+export GRAVIXLAYER_REGION="us-east-1"  # default
 ```
 
 Or pass options to the client:
@@ -42,8 +42,8 @@ from gravixlayer import GravixLayer
 client = GravixLayer(
     api_key="your-api-key",
     base_url="https://api.gravixlayer.ai",
-    cloud="azure",
-    region="eastus2",
+    cloud="aws",
+    region="us-east-1",
 )
 ```
 

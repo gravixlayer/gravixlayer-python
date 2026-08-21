@@ -113,8 +113,8 @@ class Runtime:
     def create(
         cls,
         template: str = "base-small",
-        cloud: str = "azure",
-        region: str = "eastus2",
+        cloud: str = "aws",
+        region: str = "us-east-1",
         timeout: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
         internet_access: Optional[bool] = None,
@@ -131,8 +131,8 @@ class Runtime:
 
         Args:
             template: Template to use (default: "base-small")
-            cloud: Cloud (azure/aws/gcp; default: "azure")
-            region: Region to deploy in (default: "eastus2")
+            cloud: Cloud (aws/azure/gcp; default: "aws")
+            region: Region to deploy in (default: "us-east-1")
             timeout: Timeout in seconds (default: None = no timeout). Pass 0 to explicitly disable timeout.
             metadata: Optional metadata tags
             internet_access: Whether to allow internet access (default: None = server default)

@@ -35,8 +35,8 @@ class TestNormalizeRuntimeApiPayload:
     def test_no_op_when_already_sdk_shaped(self):
         data = {
             "runtime_id": "u1",
-            "cloud": "azure",
-            "region": "eastus2",
+            "cloud": "aws",
+            "region": "us-east-1",
             "metadata": {},
         }
         normalize_runtime_api_payload(data)

@@ -119,7 +119,7 @@ class Runtimes:
         """Create a new runtime instance.
 
         Args:
-            cloud: Cloud (azure/aws/gcp; falls back to client.cloud if not set)
+            cloud: Cloud (aws/azure/gcp; falls back to client.cloud if not set)
             region: Cloud region (falls back to client.region if not set)
             template: Template name or ID to use. Ignored when ``snapshot`` is set
                 unless a non-default template is also passed (then ValueError).

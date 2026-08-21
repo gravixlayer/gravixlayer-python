@@ -12,8 +12,8 @@ System Default (empty allowlist) is auto-attached at create and hidden from
 list_for_runtime unless include_system=True.
 
     export GRAVIXLAYER_API_KEY=...
-    export GRAVIXLAYER_CLOUD=azure          # optional
-    export GRAVIXLAYER_REGION=eastus2      # optional
+    export GRAVIXLAYER_CLOUD=aws            # optional
+    export GRAVIXLAYER_REGION=us-east-1    # optional
 
     python examples/network_policies/01_create_attach_and_use.py
 """

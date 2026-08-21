@@ -78,16 +78,16 @@ class TestSyncRuntimeLifecycle:
                     "id": VALID_UUID,
                     "status": "running",
                     "template_id": "tmpl-001",
-                    "compute_provider": "azure",
-                    "compute_region": "eastus2",
+                    "compute_provider": "aws",
+                    "compute_region": "us-east-1",
                     "tags": {"team": "preview"},
                 },
             )
         )
         rt = client.runtime.create(template="base-small")
         assert rt.runtime_id == VALID_UUID
-        assert rt.cloud == "azure"
-        assert rt.region == "eastus2"
+        assert rt.cloud == "aws"
+        assert rt.region == "us-east-1"
         assert rt.metadata == {"team": "preview"}
 
     def test_create_with_all_params(self, client, mock_api):

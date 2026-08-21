@@ -5,7 +5,7 @@ Create a Python Agent Runtime
 Demonstrates the simplest way to spin up a Python agent runtime from a
 public template, inspect its details, and tear it down.
 
-Cloud and region default to azure / eastus2 if not specified. Agent runtimes run
+Cloud and region default to aws / us-east-1 if not specified. Agent runtimes run
 indefinitely if timeout is not specified.
 
 Usage:

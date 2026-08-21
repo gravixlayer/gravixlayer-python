@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Named snapshots: capture, list, restore, deactivate, activate, delete.
+"""Named snapshots: cold and hot capture, restore, deactivate, activate, delete.
 
 A named snapshot is a project-scoped checkpoint of a runtime. Cold snapshots
-(the default) persist disk; hot snapshots also persist guest memory. Capture
-pauses the VM, packs overlay extents, then resumes the parent. Restore creates
-a **new** runtime from the snapshot — mutually exclusive with ``template``.
+persist disk and restore by kernel boot. Hot snapshots also persist guest
+memory and restore by UFFD resume. Restore creates a **new** runtime —
+mutually exclusive with ``template``. Kind is chosen at capture, not restore.
 
 v1 create-from-snapshot pins to the capture host. If that host has no cache the
 API returns 503 ``capacity_exhausted``.
@@ -12,139 +12,159 @@ API returns 503 ``capacity_exhausted``.
     create → write disk → capture → list/get → restore → verify
     → deactivate (blocks new creates) → activate → delete
 
+Runs **cold then hot** against one source runtime. Override with
+``GRAVIXLAYER_SNAPSHOT_KIND=cold`` or ``hot``.
+
 Usage:
     export GRAVIXLAYER_API_KEY="your-api-key"
     python examples/runtimes/25_snapshots_lifecycle.py
 
-Optional: ``GRAVIXLAYER_TEMPLATE`` (default ``base-small``),
-``GRAVIXLAYER_SNAPSHOT_KIND`` (``cold`` or ``hot``, default ``cold``).
-Capture can take several minutes.
+Optional: ``GRAVIXLAYER_TEMPLATE`` (default ``base-small``).
+Cold capture can take tens of seconds (disk flatten). Each step prints ms.
 """
 
 import os
 import uuid
+from time import perf_counter
 
 from gravixlayer import GravixLayer, GravixLayerBadRequestError
 
 client = GravixLayer()
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
-KIND = os.getenv("GRAVIXLAYER_SNAPSHOT_KIND", "cold").strip().lower()
-if KIND not in ("cold", "hot"):
-    raise SystemExit(f"GRAVIXLAYER_SNAPSHOT_KIND must be cold or hot, got {KIND!r}")
+KIND_SPEC = os.getenv("GRAVIXLAYER_SNAPSHOT_KIND", "cold,hot").strip().lower()
+KINDS = [k.strip() for k in KIND_SPEC.split(",") if k.strip()]
+if not KINDS or any(k not in ("cold", "hot") for k in KINDS):
+    raise SystemExit(
+        f"GRAVIXLAYER_SNAPSHOT_KIND must be cold, hot, or cold,hot, got {KIND_SPEC!r}"
+    )
 
-SNAP_NAME = f"demo-ckpt-{uuid.uuid4().hex[:8]}"
 MARKER = "/workspace/checkpoint.txt"
-CAPTURED = "state at capture\n"
-
 source = None
-restored = None
-snap = None
+restored = []
+snaps = []
+run_t0 = perf_counter()
 
-print(f"Snapshot   : {SNAP_NAME}  kind={KIND}")
+print(f"Kinds      : {', '.join(KINDS)}")
 print(f"Template   : {TEMPLATE}\n")
 
 
-def show(label: str, s) -> None:
+def ms(t0: float) -> str:
+    return f"{(perf_counter() - t0) * 1000:.0f}ms"
+
+
+def show(label: str, s, t0: float) -> None:
     print(
-        f"{label:<12}: {s.name}  id={s.id}\n"
+        f"{label:<12}: {s.name}  id={s.id}  {ms(t0)}\n"
         f"             kind={s.kind}  state={s.state}  active={s.is_active}\n"
         f"             dist={s.distribution_status}  size={s.size_bytes} bytes"
     )
 
 
-try:
-    # -----------------------------------------------------------------------
-    # 1. Create a runtime and write disk state to capture
-    # -----------------------------------------------------------------------
-    source = client.runtime.create(template=TEMPLATE)
-    print(f"Source     : {source.runtime_id}  status={source.status}")
+def run_kind(kind: str) -> None:
+    captured = f"state at {kind} capture\n"
+    snap_name = f"demo-{kind}-{uuid.uuid4().hex[:8]}"
 
-    source.file.write(MARKER, CAPTURED)
-    print(f"Wrote      : {MARKER!r} → {CAPTURED.strip()!r}")
+    print(f"--- {kind} ---")
+    print(f"Snapshot   : {snap_name}  kind={kind}")
 
-    # -----------------------------------------------------------------------
-    # 2. Capture into the named snapshot catalog
-    # -----------------------------------------------------------------------
+    t0 = perf_counter()
+    source.file.write(MARKER, captured)
+    print(f"Wrote      : {MARKER!r} → {captured.strip()!r}  {ms(t0)}")
+
+    t0 = perf_counter()
     snap = client.snapshots.create(
         runtime_id=source.runtime_id,
-        name=SNAP_NAME,
-        kind=KIND,
-        description="SDK snapshot lifecycle example",
+        name=snap_name,
+        kind=kind,
+        description=f"SDK {kind} snapshot lifecycle example",
     )
-    show("Captured", snap)
+    snaps.append(snap)
+    show("Captured", snap, t0)
 
-    # Mutate the source after capture so restore can prove it used the snapshot,
-    # not the live runtime.
-    source.file.write(MARKER, "mutated after capture\n")
+    t0 = perf_counter()
+    source.file.write(MARKER, f"mutated after {kind} capture\n")
     live = source.file.read(MARKER).content
-    print(f"Source now : {MARKER!r} → {live.strip()!r}")
+    print(f"Source now : {MARKER!r} → {live.strip()!r}  {ms(t0)}")
 
-    # -----------------------------------------------------------------------
-    # 3. List and get (UUID or project-unique name)
-    # -----------------------------------------------------------------------
-    listed = client.snapshots.list(kind=KIND, runtime_id=source.runtime_id)
+    t0 = perf_counter()
+    listed = client.snapshots.list(kind=kind, runtime_id=source.runtime_id)
     names = [s.name for s in listed.snapshots]
-    print(f"\nListed     : {listed.total} total, this runtime → {names}")
+    print(f"\nListed     : {listed.total} total, this runtime → {names}  {ms(t0)}")
 
-    by_name = client.snapshots.get(SNAP_NAME)
-    show("Get(name)", by_name)
+    t0 = perf_counter()
+    by_name = client.snapshots.get(snap_name)
+    show("Get(name)", by_name, t0)
 
-    # -----------------------------------------------------------------------
-    # 4. Create a new runtime from the snapshot (not from a template)
-    # -----------------------------------------------------------------------
-    restored = client.runtime.create(snapshot=SNAP_NAME)
-    print(f"\nRestored   : {restored.runtime_id}  status={restored.status}")
+    t0 = perf_counter()
+    child = client.runtime.create(snapshot=snap_name)
+    restored.append(child)
+    print(f"\nRestored   : {child.runtime_id}  status={child.status}  {ms(t0)}")
 
-    disk = restored.file.read(MARKER).content
-    print(f"Child disk : {MARKER!r} → {disk.strip()!r}")
-    if disk != CAPTURED:
-        raise SystemExit(f"restore did not replay captured disk: {disk!r}")
-    print("Verified   : child disk matches capture, not the mutated source")
+    t0 = perf_counter()
+    disk = child.file.read(MARKER).content
+    print(f"Child disk : {MARKER!r} → {disk.strip()!r}  {ms(t0)}")
+    if disk != captured:
+        raise SystemExit(f"{kind} restore did not replay captured disk: {disk!r}")
+    print(f"Verified   : {kind} child disk matches capture, not the mutated source")
 
-    after = client.snapshots.get(SNAP_NAME)
-    print(f"Last used  : {after.last_used_at}")
+    t0 = perf_counter()
+    after = client.snapshots.get(snap_name)
+    print(f"Last used  : {after.last_used_at}  {ms(t0)}")
 
-    # -----------------------------------------------------------------------
-    # 5. Deactivate — new creates from this snapshot must fail
-    # -----------------------------------------------------------------------
     print()
-    snap = client.snapshots.deactivate(SNAP_NAME)
-    show("Inactive", snap)
+    t0 = perf_counter()
+    snap = client.snapshots.deactivate(snap_name)
+    show("Inactive", snap, t0)
 
+    t0 = perf_counter()
     try:
-        blocked = client.runtime.create(snapshot=SNAP_NAME)
+        blocked = client.runtime.create(snapshot=snap_name)
         blocked.kill()
-        raise SystemExit("expected create-from-inactive-snapshot to fail")
+        raise SystemExit(f"expected create-from-inactive {kind} snapshot to fail")
     except GravixLayerBadRequestError as exc:
-        print(f"Blocked    : {exc}")
+        print(f"Blocked    : {exc}  {ms(t0)}")
 
-    # -----------------------------------------------------------------------
-    # 6. Activate — creatable again
-    # -----------------------------------------------------------------------
     print()
-    snap = client.snapshots.activate(SNAP_NAME)
-    show("Active", snap)
+    t0 = perf_counter()
+    snap = client.snapshots.activate(snap_name)
+    show("Active", snap, t0)
     print(f"Re-enabled : state={snap.state} active={snap.is_active}")
 
-    # -----------------------------------------------------------------------
-    # 7. Delete the catalog entry (running children keep already-opened files)
-    # -----------------------------------------------------------------------
-    deleted = client.snapshots.delete(SNAP_NAME)
-    print(f"\nDeleted    : {deleted.snapshot_id}  deleted={deleted.deleted}")
-    snap = None
+    t0 = perf_counter()
+    deleted = client.snapshots.delete(snap_name)
+    print(f"\nDeleted    : {deleted.snapshot_id}  deleted={deleted.deleted}  {ms(t0)}")
+    snaps[:] = [s for s in snaps if s.name != snap_name]
+
+    t0 = perf_counter()
+    child.kill()
+    print(f"Killed     : restored {child.runtime_id}  {ms(t0)}")
+    restored.remove(child)
+    print()
+
+
+try:
+    t0 = perf_counter()
+    source = client.runtime.create(template=TEMPLATE)
+    print(f"Source     : {source.runtime_id}  status={source.status}  {ms(t0)}\n")
+
+    for kind in KINDS:
+        run_kind(kind)
 
 finally:
-    if restored is not None:
-        restored.kill()
-        print(f"Killed     : restored {restored.runtime_id}")
+    for child in list(restored):
+        t0 = perf_counter()
+        child.kill()
+        print(f"Killed     : restored {child.runtime_id}  {ms(t0)}")
     if source is not None:
+        t0 = perf_counter()
         source.kill()
-        print(f"Killed     : source {source.runtime_id}")
-    if snap is not None:
+        print(f"Killed     : source {source.runtime_id}  {ms(t0)}")
+    for snap in list(snaps):
         try:
+            t0 = perf_counter()
             client.snapshots.delete(snap.name)
-            print(f"Cleaned    : leftover snapshot {snap.name}")
+            print(f"Cleaned    : leftover snapshot {snap.name}  {ms(t0)}")
         except Exception:
             pass
 
-print("\nSnapshot lifecycle complete.")
+print(f"\nSnapshot lifecycle complete.  {ms(run_t0)} total")

@@ -49,7 +49,9 @@ runtime.run_cmd(command="ls", args=["-la", "/home/user"])
 | 22 | [22_runtime_web_service.py](22_runtime_web_service.py) | FastAPI + `rt.service(port=…)` on `*.service.gravixlayer.ai` |
 | 23 | [23_runtime_git_sdk_and_cli.py](23_runtime_git_sdk_and_cli.py) | Git via SDK (`runtime.git`) and CLI (`gravixlayer runtime git`) |
 | 24 | [24_pty_sessions.py](24_pty_sessions.py) | Interactive PTY: attach, type, resize, signal, detach and re-attach |
-| 25 | [25_snapshots_lifecycle.py](25_snapshots_lifecycle.py) | Named snapshots: capture, list, restore, deactivate, activate, delete |
+| 25 | [25_snapshots_lifecycle.py](25_snapshots_lifecycle.py) | Named snapshots: cold + hot capture, restore, deactivate, activate, delete |
+| 26 | [26_sandbox_tti_benchmark.py](26_sandbox_tti_benchmark.py) | ComputeSDK-style TTI: create + `node -v`, burst/stagger, composite score |
+| 27 | [27_sandbox_runcode_tti_benchmark.py](27_sandbox_runcode_tti_benchmark.py) | TTI via `runCode` (`print("Hello")`): worker pool + first-exec path |
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py

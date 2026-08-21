@@ -6,8 +6,8 @@ Flow:
     → verify env in sandbox → list_for_runtime → detach → delete
 
     export GRAVIXLAYER_API_KEY=...
-    export GRAVIXLAYER_CLOUD=azure          # optional
-    export GRAVIXLAYER_REGION=eastus2      # optional
+    export GRAVIXLAYER_CLOUD=aws            # optional
+    export GRAVIXLAYER_REGION=us-east-1    # optional
     export DEMO_OPENAI_API_KEY=sk-...      # optional demo value
 
     python examples/providers/01_create_attach_and_use.py

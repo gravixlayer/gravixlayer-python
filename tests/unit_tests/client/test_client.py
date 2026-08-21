@@ -76,8 +76,8 @@ class TestSyncClientInit:
 
     def test_cloud_region_defaults(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
-        assert client.cloud == "azure"
-        assert client.region == "eastus2"
+        assert client.cloud == "aws"
+        assert client.region == "us-east-1"
         client.close()
 
     def test_cloud_region_from_env(self, monkeypatch):
