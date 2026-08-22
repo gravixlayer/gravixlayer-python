@@ -766,7 +766,7 @@ class RuntimeResource:
 
     All runtime operations are available directly::
 
-        client.runtime.create(template="base-small")
+        client.runtime.create()  # defaults to template="base-small"
         client.runtime.run_code(runtime_id, "print('hi')")
         client.runtime.kill(runtime_id)
         client.runtime.file.write(runtime_id, path, content)

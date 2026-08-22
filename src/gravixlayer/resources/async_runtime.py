@@ -651,7 +651,7 @@ class AsyncRuntimeResource:
 
     All runtime operations are available directly::
 
-        await client.runtime.create(template="base-small")
+        await client.runtime.create()  # defaults to template="base-small"
         await client.runtime.run_code(runtime_id, "print('hi')")
         await client.runtime.kill(runtime_id)
         await client.runtime.file.write(runtime_id, path, content)

@@ -46,8 +46,8 @@ class AsyncGravixLayer:
     HTTP/2 (ALPN ``h2``) when you want multiplexing or your measurements favor it.
 
     Example:
-        >>> async with AsyncGravixLayer(api_key="...") as client:
-        ...     runtime = await client.runtime.create(template="base-small")
+        >>> async with AsyncGravixLayer() as client:  # defaults to cloud="aws", region="us-east-1"
+        ...     runtime = await client.runtime.create()  # defaults to template="base-small"
         ...     result = await client.runtime.run_code(runtime.id, "print('hello')")
     """
 
