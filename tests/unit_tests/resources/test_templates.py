@@ -427,6 +427,9 @@ class TestSyncTemplatesResource:
         resp = client.templates.build(builder)
         assert isinstance(resp, TemplateBuildResponse)
         assert resp.build_id == "build-001"
+        body = json.loads(mock_api.calls.last.request.content)
+        assert body["cloud"] == "aws"
+        assert body["region"] == "us-east-1"
 
     def test_build_with_raw_dict(self, client, mock_api):
         mock_api.post(f"{TMPL_BASE}/build").mock(
@@ -434,6 +437,33 @@ class TestSyncTemplatesResource:
         )
         resp = client.templates.build({"name": "test", "docker_image": "python:3.11"})
         assert resp.build_id == "build-001"
+        body = json.loads(mock_api.calls.last.request.content)
+        assert body["cloud"] == "aws"
+        assert body["region"] == "us-east-1"
+
+    def test_build_honours_explicit_placement(self, client, mock_api):
+        mock_api.post(f"{TMPL_BASE}/build").mock(
+            return_value=httpx.Response(202, json=make_build_response())
+        )
+        client.templates.build(
+            {"name": "test", "docker_image": "python:3.11", "cloud": "gcp", "region": "us-central1"}
+        )
+        body = json.loads(mock_api.calls.last.request.content)
+        assert body["cloud"] == "gcp"
+        assert body["region"] == "us-central1"
+
+    def test_build_call_overrides_client_placement(self, client, mock_api):
+        mock_api.post(f"{TMPL_BASE}/build").mock(
+            return_value=httpx.Response(202, json=make_build_response())
+        )
+        client.templates.build(
+            TemplateBuilder("test").from_image("python:3.11"),
+            cloud="azure",
+            region="eastus2",
+        )
+        body = json.loads(mock_api.calls.last.request.content)
+        assert body["cloud"] == "azure"
+        assert body["region"] == "eastus2"
 
     def test_get_build_status(self, client, mock_api):
         mock_api.get(f"{TMPL_BASE}/builds/build-001/status").mock(
@@ -510,8 +540,16 @@ class TestSyncBuildAndWait:
         status = client.templates.build_and_wait(
             TemplateBuilder("test").from_image("python:3.11"),
             poll_interval_secs=0.01,
+            cloud="azure",
+            region="eastus2",
         )
         assert status.is_success is True
+        post = next(
+            c for c in mock_api.calls if c.request.method == "POST" and c.request.url.path.endswith("/build")
+        )
+        body = json.loads(post.request.content)
+        assert body["cloud"] == "azure"
+        assert body["region"] == "eastus2"
 
     def test_build_and_wait_failure(self, client, mock_api):
         mock_api.post(f"{TMPL_BASE}/build").mock(
@@ -598,6 +636,9 @@ class TestAsyncTemplatesResource:
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             resp = await client.templates.build(TemplateBuilder("test").from_image("python:3.11"))
             assert resp.build_id == "build-001"
+            body = json.loads(mock_api.calls.last.request.content)
+            assert body["cloud"] == "aws"
+            assert body["region"] == "us-east-1"
 
     @pytest.mark.asyncio
     async def test_get_build_status(self, mock_api):

@@ -1,53 +1,17 @@
-# Gravix Layer Python SDK
+# GravixLayer Python SDK
 
-[![PyPI version](https://badge.fury.io/py/gravixlayer.svg)](https://badge.fury.io/py/gravixlayer)
+[![PyPI version](https://badge.fury.io/py/gravixlayer.svg)](https://pypi.org/project/gravixlayer/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-Official Python client for **[Gravix Layer](https://gravixlayer.ai)** — create and manage cloud **agent runtimes** and **templates** for your workloads.
-
----
-
-## New to this SDK?
-
-| Step | Action |
-|------|--------|
-| 1 | **Install:** `pip install gravixlayer` |
-| 2 | **Set API key:** `export GRAVIXLAYER_API_KEY="your-api-key"` (from the Gravix Layer console) |
-| 3 | **Run the quick start** below, or open **[examples/](examples/)** for runnable scripts (runtimes, templates) |
-
-**Docs:** [docs.gravixlayer.ai](https://docs.gravixlayer.ai) · **Examples index:** [examples/README.md](examples/README.md)
-
----
-
-## Install
+Official Python client for [GravixLayer](https://gravixlayer.ai). Create isolated
+cloud runtimes, run code and commands in them, build reusable images, and
+deploy agents.
 
 ```bash
 pip install gravixlayer
-```
-
-## Configure
-
-```bash
 export GRAVIXLAYER_API_KEY="your-api-key"
-export GRAVIXLAYER_CLOUD="aws"         # default
-export GRAVIXLAYER_REGION="us-east-1"  # default
 ```
-
-Or pass options to the client:
-
-```python
-from gravixlayer import GravixLayer
-
-client = GravixLayer(
-    api_key="your-api-key",
-    base_url="https://api.gravixlayer.ai",
-    cloud="aws",
-    region="us-east-1",
-)
-```
-
-## Quick start
 
 ```python
 from gravixlayer import GravixLayer
@@ -55,62 +19,184 @@ from gravixlayer import GravixLayer
 client = GravixLayer()
 runtime = client.runtime.create(template="base-small")
 
-# Run Python code
-result = runtime.run_code(code="print('Hello from Gravix Layer')")
+result = runtime.run_code("print('Hello from GravixLayer')")
 print(result.text)
 
-# Run a shell command
-runtime.run_cmd(command="pip install pandas --quiet")
-runtime.run_cmd(command="pip", args=["install", "pandas", "--quiet"])
-
 runtime.kill()
 ```
 
-### File operations
+Cloud and region default to `aws` / `us-east-1`. Override with
+`GRAVIXLAYER_CLOUD` / `GRAVIXLAYER_REGION`, or pass them to the client.
 
-```python
-runtime = client.runtime.create(template="base-small")
-runtime.file.write("/workspace/note.txt", "hello\n")
-text = runtime.file.read("/workspace/out.txt").content
-runtime.kill()
-```
+**Docs:** [docs.gravixlayer.ai](https://docs.gravixlayer.ai) ·
+**Examples:** [examples/](examples/)
 
-See **[examples/runtimes/07_file_operations.py](examples/runtimes/07_file_operations.py)** for a full walkthrough.
-
-## Examples (runnable)
-
-| Area | What you’ll learn |
-|------|-------------------|
-| **[examples/runtimes/](examples/runtimes/)** | Create runtimes, run code & shell, files, metrics, SSH, Git, PTY, snapshots — **25 scripts** |
-| **[examples/templates/](examples/templates/)** | Build custom templates (Docker image, Git, Dockerfile) — **6 scripts** |
-
-Start here: **[examples/README.md](examples/README.md)** (task table + quick reference).
-
-## Performance note (connections and HTTP/2)
-
-The client uses **HTTP/1.1 by default** for predictable latency on typical API usage.
-
-- **Warm the connection** before creating many runtimes: call **`client.warmup()`** once (or use **`warmup_on_init=True`** when constructing the client). That pays **TCP, TLS, and protocol setup** up front so the first real request is cheaper.
-- **HTTP/2**: pass **`http2=True`** to the **`GravixLayer`** client constructor if you want multiplexing over a single established connection after TLS (useful for high concurrency). Requires the `httpx[http2]` extra (already declared by this package).
-
-Sync:
+## Configuration
 
 ```python
 from gravixlayer import GravixLayer
 
-client = GravixLayer(http2=True)
-client.warmup()
-# or: GravixLayer(http2=True, warmup_on_init=True)
+client = GravixLayer(
+    api_key="your-api-key",          # or GRAVIXLAYER_API_KEY
+    base_url="https://api.gravixlayer.ai",
+    cloud="aws",
+    region="us-east-1",
+)
 ```
 
-Async: pass **`http2=True`** to **`AsyncGravixLayer`** and call **`await client.warmup()`** before heavy traffic.
+| Option | Default | |
+| --- | --- | --- |
+| `api_key` | `GRAVIXLAYER_API_KEY` | Required. |
+| `base_url` | `GRAVIXLAYER_BASE_URL`, then `https://api.gravixlayer.ai` | |
+| `cloud` | `GRAVIXLAYER_CLOUD`, then `aws` | Runtimes and template builds. |
+| `region` | `GRAVIXLAYER_REGION`, then `us-east-1` | Runtimes and template builds. |
+| `timeout` | `60` | Per request, in seconds. |
+| `max_retries` | `3` | Transient failures only. |
+
+Construct the client once and reuse it. Call `client.warmup()` at startup if
+you want TCP and TLS paid before the first request that matters. HTTP/1.1 is
+the default; pass `http2=True` for multiplexing under high concurrency.
+
+## Runtimes
+
+A runtime is an isolated virtual machine that boots from a template. It runs
+until you stop it, or until a timeout you set expires.
 
 ```python
-from gravixlayer import AsyncGravixLayer
-
-async with AsyncGravixLayer(http2=True) as client:
-    await client.warmup()
+runtime = client.runtime.create(
+    template="base-small",
+    env_vars={"APP_ENV": "staging"},
+    timeout=600,
+)
 ```
+
+Use a context manager when you want it stopped automatically:
+
+```python
+from gravixlayer import Runtime
+
+with Runtime.create(template="base-small") as runtime:
+    print(runtime.run_code("print(2 + 2)").text)
+```
+
+### Code and commands
+
+```python
+result = runtime.run_code("print(sum(range(100)))")
+print(result.text)
+
+# Pass args when any part comes from user input — nothing in the list is
+# interpreted by a shell.
+runtime.run_cmd("python", args=["--version"])
+```
+
+Guest egress is deny-by-default. Installing a package or reaching the internet
+needs a [network policy](#network-policies).
+
+### Files
+
+```python
+runtime.file.write("/workspace/note.txt", "hello\n")
+text = runtime.file.read("/workspace/note.txt").content
+```
+
+Also: `list`, `upload`, `download`, `write_many`, `move`, `copy`, `find`,
+`replace`, `watch`, `delete`. See
+[examples/runtimes/07_file_operations.py](examples/runtimes/07_file_operations.py).
+
+### State, ports, git, SSH
+
+```python
+# Interpreter state that survives between run_code calls.
+ctx = client.runtime.create_context(runtime.runtime_id)
+client.runtime.run_code(runtime.runtime_id, "x = 1", context_id=ctx.context_id)
+
+# Publish a guest port on https://*.service.gravixlayer.ai
+with runtime.service(8000) as api:
+    print(api.web_url)
+    api.get("/items")
+
+runtime.git.clone("https://github.com/org/repo.git", "/workspace/repo", depth=1)
+
+ssh = runtime.enable_ssh()
+print(ssh.connect_cmd)
+```
+
+## Templates
+
+Build an image once so runtimes start with everything already installed.
+Placement follows the client (`aws` / `us-east-1` unless you override it).
+
+```python
+from gravixlayer import TemplateBuilder
+
+template = (
+    TemplateBuilder("data-science", "Pandas and friends")
+    .from_image("python:3.12-slim")
+    .vcpu(2)
+    .memory(2048)
+    .apt_install("git")
+    .pip_install("pandas", "matplotlib")
+    .start_cmd("python -m http.server 8080")
+    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
+)
+
+status = client.templates.build_and_wait(template)
+runtime = client.runtime.create(template=status.template_id)
+```
+
+## Snapshots
+
+```python
+client.snapshots.create(runtime.runtime_id, "ready-to-work", kind="cold")
+restored = client.runtime.create(snapshot="ready-to-work")
+```
+
+A `cold` snapshot stores the filesystem; a `hot` snapshot stores memory too, so
+the restored runtime resumes mid-process.
+
+## Agents
+
+```python
+agent = client.agents.deploy(source="./my-agent", name="my-agent", is_public=True)
+reply = client.agents.invoke(agent.agent_id, input={"prompt": "hello"})
+```
+
+## Network policies
+
+A runtime starts fail-closed. Grant access explicitly:
+
+```python
+policy = client.network_policies.create(
+    name="model-access",
+    egress_mode="allowlist",
+    rules=[{"destination": "api.example.com", "port": 443, "protocol": "tcp"}],
+)
+
+runtime = client.runtime.create(
+    template="base-small",
+    network_policy_ids=[policy.id],
+)
+```
+
+Attaching several policies applies the most restrictive of them, so adding one
+can only narrow access.
+
+## Secrets
+
+```python
+provider = client.identity.providers.create(
+    "Model API",
+    secrets=[{"key": "MODEL_API_KEY", "value": "..."}],
+)
+
+runtime = client.runtime.create(
+    template="base-small",
+    providers=[provider.id],
+)
+```
+
+Values are write-only. What comes back is masked.
 
 ## Async
 
@@ -121,33 +207,52 @@ from gravixlayer import AsyncGravixLayer
 async def main():
     async with AsyncGravixLayer() as client:
         runtime = await client.runtime.create(template="base-small")
+        result = await client.runtime.run_code(
+            runtime.runtime_id, "print('hello')"
+        )
+        print(result.stdout_text)
         await client.runtime.kill(runtime.runtime_id)
 
 asyncio.run(main())
 ```
 
-## Development
+## Errors
 
-For local development and CI, run the **unit tests** (HTTP mocked; no API key required):
+```python
+from gravixlayer import GravixLayerError, GravixLayerRateLimitError
+
+try:
+    client.runtime.create(template="base-small")
+except GravixLayerRateLimitError:
+    ...
+except GravixLayerError as exc:
+    print(exc)
+```
+
+Connection failures and 429 / 502 / 503 / 504 are retried automatically.
+
+## Examples
+
+Runnable scripts for every surface live in [examples/](examples/). Start with
+[examples/README.md](examples/README.md).
+
+## Development
 
 ```bash
 pip install -e ".[test]"
 pytest tests/unit_tests
 ```
 
-Test layout (`tests/unit_tests` vs `tests/integration_tests`), integration runs, and markers are documented in **[tests/README.md](tests/README.md)** so this file stays focused on SDK usage.
+See [tests/README.md](tests/README.md) for layout and live integration tests.
 
-## Documentation and support
+## Support
 
-- **Examples:** [examples/README.md](examples/README.md)
-- **Documentation:** [docs.gravixlayer.ai](https://docs.gravixlayer.ai)
-- **Issues:** [GitHub Issues](https://github.com/gravixlayer/gravixlayer-python/issues)
-
-**support@gravixlayer.ai**
-
-**Feedback:** [gravixlayer/gravixlayer-feedback](https://github.com/gravixlayer/gravixlayer-feedback) — bugs, features, and product feedback.
+- [docs.gravixlayer.ai](https://docs.gravixlayer.ai)
+- [GitHub Issues](https://github.com/gravixlayer/gravixlayer-python/issues)
+- [Product feedback](https://github.com/gravixlayer/gravixlayer-feedback)
+- support@gravixlayer.ai
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE).  
+Apache License 2.0 — see [LICENSE](LICENSE).
 Copyright 2026 Gravix Layer.

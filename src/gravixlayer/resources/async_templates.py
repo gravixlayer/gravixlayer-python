@@ -31,6 +31,8 @@ from ..types.templates import (
     _parse_snapshot,
 )
 
+from .templates import _attach_placement
+
 logger = logging.getLogger(__name__)
 
 
@@ -102,12 +104,19 @@ class AsyncTemplates:
     async def build(
         self,
         builder: Union[TemplateBuilder, Dict[str, Any]],
+        *,
+        cloud: Optional[str] = None,
+        region: Optional[str] = None,
     ) -> TemplateBuildResponse:
         """Start an asynchronous template build.
 
         Args:
             builder: A TemplateBuilder instance or a raw dict matching
                      the BuildTemplateRequest schema.
+            cloud: Cloud to build in. Defaults to the client's cloud
+                   (``aws``, or ``GRAVIXLAYER_CLOUD``).
+            region: Region to build in. Defaults to the client's region
+                    (``us-east-1``, or ``GRAVIXLAYER_REGION``).
 
         Returns:
             TemplateBuildResponse with build_id for status polling.
@@ -115,8 +124,9 @@ class AsyncTemplates:
         if isinstance(builder, TemplateBuilder):
             payload = builder.to_dict()
         else:
-            payload = builder
+            payload = dict(builder)
 
+        payload = _attach_placement(payload, self.client, cloud=cloud, region=region)
         response = await self._make_agents_request("POST", "template/build", payload)
         return _parse_build_response(response.json())
 
@@ -140,6 +150,8 @@ class AsyncTemplates:
         poll_interval_secs: float = 5.0,
         timeout_secs: int = 600,
         on_status: Optional[BuildLogCallback] = None,
+        cloud: Optional[str] = None,
+        region: Optional[str] = None,
     ) -> TemplateBuildStatus:
         """Start a build and wait until it completes or fails.
 
@@ -151,6 +163,8 @@ class AsyncTemplates:
             poll_interval_secs: Seconds between status polls (default 5).
             timeout_secs: Maximum seconds to wait (default 600).
             on_status: Optional callback on each **phase change** (not every poll).
+            cloud: Cloud to build in. Defaults to the client's cloud.
+            region: Region to build in. Defaults to the client's region.
 
         Returns:
             Final TemplateBuildStatus when the build reaches a terminal state.
@@ -160,7 +174,7 @@ class AsyncTemplates:
             AsyncTemplateBuildTimeoutError: If the build exceeds timeout.
         """
         display_name = template_build_display_name(builder)
-        build_response = await self.build(builder)
+        build_response = await self.build(builder, cloud=cloud, region=region)
         build_id = build_response.build_id
 
         logger.info(

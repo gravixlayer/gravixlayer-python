@@ -674,6 +674,11 @@ class AsyncRuntimeResource:
         """Git operations inside the runtime."""
         return self._runtimes.git
 
+    @property
+    def service(self) -> AsyncRuntimeServiceResource:
+        """Web services on ``*.service.gravixlayer.ai``."""
+        return self._runtimes.service
+
     def __getattr__(self, name: str):
         """Delegate any attribute not on this class to the underlying AsyncRuntimes instance."""
         attr = getattr(self._runtimes, name)
