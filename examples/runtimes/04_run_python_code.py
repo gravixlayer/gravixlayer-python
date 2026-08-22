@@ -45,7 +45,7 @@ print(json.dumps(info, indent=2))
 
 result = runtime.run_code(code=code)
 print(f"\n--- System info ---")
-print(result.stdout_text)
+print(result.stdout)
 
 # ---------------------------------------------------------------------------
 # 3. Computation example
@@ -67,7 +67,7 @@ print(f"Sum: {sum(result)}")
 
 result = runtime.run_code(code=code)
 print(f"\n--- Fibonacci ---")
-print(result.stdout_text)
+print(result.stdout)
 
 # ---------------------------------------------------------------------------
 # Clean up

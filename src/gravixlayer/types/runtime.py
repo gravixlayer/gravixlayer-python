@@ -488,7 +488,7 @@ class RuntimeFileBound:
         rid, client = self._rc()
         return client.runtime.file.delete(rid, path)
 
-    def list(self, path: str = "/home/user") -> "FileListResponse":
+    def list(self, path: str = "/workspace") -> "FileListResponse":
         rid, client = self._rc()
         return client.runtime.file.list(rid, path)
 
@@ -506,9 +506,10 @@ class RuntimeFileBound:
         self,
         entries: List["WriteEntry"],
         user: Optional[str] = None,
+        concurrency: int = 8,
     ) -> "WriteFilesResponse":
         rid, client = self._rc()
-        return client.runtime.file.write_many(rid, entries, user=user)
+        return client.runtime.file.write_many(rid, entries, user=user, concurrency=concurrency)
 
     def create_directory(
         self,
@@ -1253,10 +1254,10 @@ class FileUploadResponse:
 
 @dataclass
 class WriteEntry:
-    """Entry for batch file write via multipart upload
+    """Entry for a batch file write.
 
     Args:
-        path: Destination path inside the runtime (absolute or relative to /home/user/)
+        path: Destination path inside the runtime (absolute, or relative to /workspace/)
         data: File content as str, bytes, or file-like object (BinaryIO)
         mode: Optional file permissions as octal int (e.g. 0o755)
     """
@@ -1359,9 +1360,15 @@ class CodeRunResponse:
 
     @property
     def text(self) -> str:
-        """Get the text output from the first result, or stdout joined."""
-        if self.results and self.results[0].text:
-            return self.results[0].text
+        """The primary textual result.
+
+        A cell reports its outputs in the order they were produced, so the last
+        one carries the value the code evaluated to. Code that printed instead
+        of returning a value falls back to its standard output.
+        """
+        for result in reversed(self.results):
+            if result.text:
+                return result.text
         return self.stdout_text
 
     @property

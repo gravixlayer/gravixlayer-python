@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Execute Node.js Code in an Agent Runtime
 
-Runs JavaScript code inside a Node.js agent runtime. You can execute arbitrary
-scripts, use built-in modules, and capture stdout/stderr output.
+Runs JavaScript code inside an agent runtime. The base templates ship both
+Python and Node, so the same template runs either one — pass ``language`` to
+pick the interpreter, otherwise the code runs through Python.
 
 Usage:
     export GRAVIXLAYER_API_KEY="your-api-key"
@@ -25,9 +26,10 @@ print(f"Runtime    : {runtime.runtime_id}")
 # ---------------------------------------------------------------------------
 result = runtime.run_code(
     code="console.log('Hello from Node.js')",
+    language="javascript",
 )
 print(f"\n--- Simple output ---")
-print(f"Output     : {result.text}")
+print(f"Output     : {result.stdout.strip()}")
 
 # ---------------------------------------------------------------------------
 # 2. Multi-line script with built-in modules
@@ -45,29 +47,29 @@ const info = {
 console.log(JSON.stringify(info, null, 2));
 """
 
-result = runtime.run_code(code=code)
+result = runtime.run_code(code=code, language="javascript")
 print(f"\n--- System info ---")
-print(result.stdout_text)
+print(result.stdout)
 
 # ---------------------------------------------------------------------------
-# 3. Async code example
+# 3. Asynchronous work
 # ---------------------------------------------------------------------------
-code = """\
-async function fetchData() {
-    const start = Date.now();
-    // Simulate async work
+# run_code evaluates a snippet in a shared interpreter, the way a notebook cell
+# does. A script that should run as its own program — its own process, its own
+# event loop, its own exit code — goes through run_command instead.
+script = """\
+const start = Date.now();
+(async () => {
     await new Promise(resolve => setTimeout(resolve, 100));
-    const elapsed = Date.now() - start;
-    console.log(`Async operation completed in ${elapsed}ms`);
-    return { status: 'ok', timing: elapsed };
-}
-
-fetchData().then(r => console.log(JSON.stringify(r)));
+    console.log(JSON.stringify({ status: 'ok', timing_ms: Date.now() - start }));
+})();
 """
 
-result = runtime.run_code(code=code)
+runtime.file.write("/workspace/async_demo.js", script)
+result = runtime.run_command("node /workspace/async_demo.js")
 print(f"\n--- Async code ---")
-print(result.stdout_text)
+print(f"Exit code  : {result.exit_code}")
+print(result.stdout)
 
 # ---------------------------------------------------------------------------
 # Clean up

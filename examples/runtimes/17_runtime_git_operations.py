@@ -26,7 +26,7 @@ clone_url = os.environ.get(
 )
 # octocat/Hello-World uses ``master``; change if you point ``clone_url`` at another repo.
 branch = os.environ.get("GIT_BRANCH", "master")
-clone_path = os.environ.get("GIT_CLONE_PATH", "/home/user/git-demo")
+clone_path = os.environ.get("GIT_CLONE_PATH", "/workspace/git-demo")
 
 client = GravixLayer()
 

@@ -74,11 +74,14 @@ pty.send_input("stty size\n")
 time.sleep(2)
 
 # ---------------------------------------------------------------------------
-# 5. Interrupt a running foreground command with a signal
+# 5. Interrupt a running foreground command
 # ---------------------------------------------------------------------------
+# Sending the interrupt character is exactly what pressing Ctrl-C does: the
+# terminal turns it into a signal for the job in the foreground, so the shell
+# that started it survives.
 pty.send_input("sleep 60\n")
 time.sleep(1)
-pty.send_signal("INT")  # signal names are given without the SIG prefix
+pty.send_input("\x03")
 time.sleep(2)
 print("\n--- interrupted, shell is still alive ---")
 
@@ -118,10 +121,17 @@ with runtime.pty.handle(session.session_id) as pty2:
     print(f"\nFinished   : status={final.status} exit_code={final.exit_code}")
 
 # ---------------------------------------------------------------------------
-# 9. Sessions you do not want to wait for can be killed outright
+# 9. Signals can also be sent out of band, without attaching
 # ---------------------------------------------------------------------------
+# Signal names are given without the SIG prefix. HUP is the one a terminal sends
+# when it goes away, and a shell exits on it.
 scratch = runtime.pty.create(shell="/bin/bash")
-print(f"\nScratch    : {scratch.session_id} -> killed={runtime.pty.kill(scratch.session_id)}")
+runtime.pty.send_signal(scratch.session_id, "HUP")
+time.sleep(1)
+print(f"\nScratch    : {scratch.session_id} -> {runtime.pty.get(scratch.session_id).status}")
+
+# Killing a session ends it if it is still running, and releases it either way.
+print(f"Released   : {runtime.pty.kill(scratch.session_id)}")
 
 # ---------------------------------------------------------------------------
 # Clean up — always kill the runtime when you are done

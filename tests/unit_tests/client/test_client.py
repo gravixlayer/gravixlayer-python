@@ -5,7 +5,6 @@ Covers: initialization, auth, URL normalization, retry logic, error handling,
 context managers, headers, and resource attributes.
 """
 
-import os
 import pytest
 import httpx
 import respx
@@ -30,8 +29,6 @@ from gravixlayer.types.exceptions import (
 
 class TestSyncClientInit:
     def test_requires_api_key(self):
-        env = os.environ.copy()
-        env.pop("GRAVIXLAYER_API_KEY", None)
         with pytest.raises(ValueError, match="API key must be provided"):
             GravixLayer(api_key=None, base_url=TEST_BASE_URL)
 

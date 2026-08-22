@@ -61,8 +61,8 @@ try:
     # ---------------------------------------------------------------------------
     # 3. List files in a directory
     # ---------------------------------------------------------------------------
-    result = runtime.run_cmd(command="ls", args=["-la", "/home/user"])
-    print(f"\n--- ls /home/user ---")
+    result = runtime.run_cmd(command="ls", args=["-la", "/workspace"])
+    print(f"\n--- ls /workspace ---")
     print(result.stdout)
 
     # ---------------------------------------------------------------------------

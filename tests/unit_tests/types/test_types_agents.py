@@ -60,8 +60,9 @@ class TestAgentBuildStatusResponseProps:
 
 class TestAgentBuildRequestToDict:
     def test_minimal_only_name(self):
+        """Ports are always sent, so the guest port is never left to inference."""
         d = AgentBuildRequest(name="my-agent").to_dict()
-        assert d == {"name": "my-agent"}
+        assert d == {"name": "my-agent", "ports": [8000]}
 
     def test_includes_optional_fields_when_set(self):
         d = AgentBuildRequest(

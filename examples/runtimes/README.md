@@ -18,7 +18,7 @@ runtime.run_cmd(command="pip install pandas --quiet")
 runtime.run_cmd(command="echo hello; sleep 1; echo world")
 
 runtime.run_cmd(command="pip", args=["install", "pandas", "--quiet"])
-runtime.run_cmd(command="ls", args=["-la", "/home/user"])
+runtime.run_cmd(command="ls", args=["-la", "/workspace"])
 ```
 
 ## Examples

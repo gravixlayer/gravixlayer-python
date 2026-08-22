@@ -7,10 +7,14 @@ uses ``write_many``.
 
 from __future__ import annotations
 
+import asyncio
+import contextvars
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, AsyncIterator, BinaryIO, Callable, Dict, Iterator, List, Optional, Union
 from urllib.parse import urlencode
 
+from ..types.exceptions import GravixLayerConnectionError, GravixLayerError
 from ..types.runtime import (
     ChangeOwnerResponse,
     DirectoryCreateResponse,
@@ -33,6 +37,32 @@ from ..types.runtime import (
     _validate_path,
     _validate_runtime_id,
 )
+
+
+#: How many files ``write_many`` sends at the same time.
+DEFAULT_WRITE_CONCURRENCY = 8
+
+
+def _format_mode(mode: int) -> str:
+    """Render permission bits the way the API parses them: four octal digits."""
+    return format(mode, "04o")
+
+
+def _write_many_failure(entry: WriteEntry, error: GravixLayerError) -> WriteResult:
+    return WriteResult(
+        path=entry.path,
+        name=os.path.basename(entry.path),
+        type="file",
+        error=str(error),
+    )
+
+
+def _validate_write_many(entries: List[WriteEntry], runtime_id: str, concurrency: int) -> None:
+    _validate_runtime_id(runtime_id)
+    for entry in entries:
+        _validate_path(entry.path)
+    if concurrency <= 0:
+        raise ValueError("concurrency must be positive")
 
 
 def _file_info_from_dict(file_info: Dict[str, Any]) -> FileInfo:
@@ -248,7 +278,7 @@ class RuntimeFileResource:
         if user:
             params["username"] = user
         if mode is not None:
-            params["mode"] = oct(mode)
+            params["mode"] = _format_mode(mode)
         endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
         files = {"file": (filename, content, "application/octet-stream")}
         from .. import telemetry
@@ -282,21 +312,40 @@ class RuntimeFileResource:
         runtime_id: str,
         entries: List[WriteEntry],
         user: Optional[str] = None,
+        concurrency: int = DEFAULT_WRITE_CONCURRENCY,
     ) -> WriteFilesResponse:
-        """Write multiple files in one multipart request."""
+        """Write several files, each to its own destination path.
+
+        Every entry names its own absolute destination and may carry its own
+        permission bits. Entries are sent concurrently, ``concurrency`` at a
+        time, and the results come back in the order the entries were given.
+
+        When some files are written and others are rejected, ``partial_failure``
+        is set and each rejected entry carries its own ``error``. When every
+        entry is rejected, the first failure is raised, since that means the
+        batch as a whole did not apply.
+        """
         if not entries:
             return WriteFilesResponse(files=[], partial_failure=False)
-        multipart_files = []
-        paths: List[str] = []
-        for entry in entries:
-            content = self._coerce_to_bytes(entry.data)
-            multipart_files.append(("file", (entry.path, content, "application/octet-stream")))
-            paths.append(entry.path)
-        params: Dict[str, str] = {}
-        if user:
-            params["username"] = user
-        query = f"?{urlencode(params)}" if params else ""
-        endpoint = f"runtime/{runtime_id}/files{query}"
+        _validate_write_many(entries, runtime_id, concurrency)
+
+        paths = [entry.path for entry in entries]
+        results: List[Optional[WriteResult]] = [None] * len(entries)
+        failures: List[Optional[GravixLayerError]] = [None] * len(entries)
+
+        def write_one(index: int) -> None:
+            entry = entries[index]
+            try:
+                results[index] = self.upload(
+                    runtime_id, entry.path, entry.data, user=user, mode=entry.mode
+                )
+            except GravixLayerConnectionError:
+                # The transport failed, so this says nothing about one file.
+                raise
+            except GravixLayerError as error:
+                failures[index] = error
+                results[index] = _write_many_failure(entry, error)
+
         from .. import telemetry
 
         with telemetry.runtime_span(
@@ -304,30 +353,30 @@ class RuntimeFileResource:
             runtime_id,
             inputs={"count": len(entries), "paths": paths[:32], "user": user},
         ) as span:
-            response = self._req("POST", endpoint, data=None, files=multipart_files)
-            result = response.json()
-            partial_failure = response.status_code == 207
-            file_results: List[WriteResult] = []
-            if isinstance(result, list):
-                for entry_result in result:
-                    file_results.append(
-                        WriteResult(
-                            path=entry_result.get("path", ""),
-                            name=entry_result.get("name", ""),
-                            type=entry_result.get("type", "file"),
-                            error=entry_result.get("error"),
-                        )
-                    )
-            elif isinstance(result, dict) and "files" in result:
-                for entry_result in result["files"]:
-                    file_results.append(
-                        WriteResult(
-                            path=entry_result.get("path", ""),
-                            name=entry_result.get("name", ""),
-                            type=entry_result.get("type", "file"),
-                            error=entry_result.get("error"),
-                        )
-                    )
+            workers = min(concurrency, len(entries))
+            if workers == 1:
+                for index in range(len(entries)):
+                    write_one(index)
+            else:
+                # Each worker runs under its own copy of the calling context so
+                # that the spans it opens stay children of this one. The copies
+                # are taken here, on the calling thread, because a single
+                # context cannot be entered from two threads at once.
+                contexts = [contextvars.copy_context() for _ in entries]
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    futures = [
+                        pool.submit(contexts[index].run, write_one, index)
+                        for index in range(len(entries))
+                    ]
+                    for future in futures:
+                        future.result()
+
+            file_results = [result for result in results if result is not None]
+            failed = [error for error in failures if error is not None]
+            if len(failed) == len(entries):
+                raise failed[0]
+
+            partial_failure = bool(failed)
             written = WriteFilesResponse(files=file_results, partial_failure=partial_failure)
             if span is not None:
                 telemetry.record_outputs(
@@ -898,7 +947,7 @@ class AsyncRuntimeFileResource:
         if user:
             params["username"] = user
         if mode is not None:
-            params["mode"] = oct(mode)
+            params["mode"] = _format_mode(mode)
         endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
         files = {"file": (filename, content, "application/octet-stream")}
         from .. import telemetry
@@ -932,20 +981,42 @@ class AsyncRuntimeFileResource:
         runtime_id: str,
         entries: List[WriteEntry],
         user: Optional[str] = None,
+        concurrency: int = DEFAULT_WRITE_CONCURRENCY,
     ) -> WriteFilesResponse:
+        """Write several files, each to its own destination path.
+
+        Every entry names its own absolute destination and may carry its own
+        permission bits. Entries are sent concurrently, ``concurrency`` at a
+        time, and the results come back in the order the entries were given.
+
+        When some files are written and others are rejected, ``partial_failure``
+        is set and each rejected entry carries its own ``error``. When every
+        entry is rejected, the first failure is raised, since that means the
+        batch as a whole did not apply.
+        """
         if not entries:
             return WriteFilesResponse(files=[], partial_failure=False)
-        multipart_files = []
-        paths: List[str] = []
-        for entry in entries:
-            content = self._coerce_to_bytes(entry.data)
-            multipart_files.append(("file", (entry.path, content, "application/octet-stream")))
-            paths.append(entry.path)
-        params: Dict[str, str] = {}
-        if user:
-            params["username"] = user
-        query = f"?{urlencode(params)}" if params else ""
-        endpoint = f"runtime/{runtime_id}/files{query}"
+        _validate_write_many(entries, runtime_id, concurrency)
+
+        paths = [entry.path for entry in entries]
+        results: List[Optional[WriteResult]] = [None] * len(entries)
+        failures: List[Optional[GravixLayerError]] = [None] * len(entries)
+        limit = asyncio.Semaphore(min(concurrency, len(entries)))
+
+        async def write_one(index: int) -> None:
+            entry = entries[index]
+            async with limit:
+                try:
+                    results[index] = await self.upload(
+                        runtime_id, entry.path, entry.data, user=user, mode=entry.mode
+                    )
+                except GravixLayerConnectionError:
+                    # The transport failed, so this says nothing about one file.
+                    raise
+                except GravixLayerError as error:
+                    failures[index] = error
+                    results[index] = _write_many_failure(entry, error)
+
         from .. import telemetry
 
         with telemetry.runtime_span(
@@ -953,30 +1024,14 @@ class AsyncRuntimeFileResource:
             runtime_id,
             inputs={"count": len(entries), "paths": paths[:32], "user": user},
         ) as span:
-            response = await self._req("POST", endpoint, data=None, files=multipart_files)
-            result = response.json()
-            partial_failure = response.status_code == 207
-            file_results: List[WriteResult] = []
-            if isinstance(result, list):
-                for entry_result in result:
-                    file_results.append(
-                        WriteResult(
-                            path=entry_result.get("path", ""),
-                            name=entry_result.get("name", ""),
-                            type=entry_result.get("type", "file"),
-                            error=entry_result.get("error"),
-                        )
-                    )
-            elif isinstance(result, dict) and "files" in result:
-                for entry_result in result["files"]:
-                    file_results.append(
-                        WriteResult(
-                            path=entry_result.get("path", ""),
-                            name=entry_result.get("name", ""),
-                            type=entry_result.get("type", "file"),
-                            error=entry_result.get("error"),
-                        )
-                    )
+            await asyncio.gather(*(write_one(index) for index in range(len(entries))))
+
+            file_results = [result for result in results if result is not None]
+            failed = [error for error in failures if error is not None]
+            if len(failed) == len(entries):
+                raise failed[0]
+
+            partial_failure = bool(failed)
             written = WriteFilesResponse(files=file_results, partial_failure=partial_failure)
             if span is not None:
                 telemetry.record_outputs(

@@ -13,7 +13,7 @@ import uuid
 from gravixlayer import GravixLayer
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
-APP_DIR = "/home/user/app"
+APP_DIR = "/workspace/app"
 PORT = 8000
 
 APP_CODE = """\

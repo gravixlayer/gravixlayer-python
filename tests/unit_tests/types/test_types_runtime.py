@@ -76,7 +76,7 @@ class TestValidateRuntimeId:
 
 class TestValidatePath:
     def test_valid_path(self):
-        _validate_path("/home/user/file.py")
+        _validate_path("/workspace/file.py")
 
     def test_relative_path(self):
         _validate_path("file.py")
@@ -87,7 +87,7 @@ class TestValidatePath:
 
     def test_null_bytes_raises(self):
         with pytest.raises(ValueError, match="null bytes"):
-            _validate_path("/home/user/file\x00.py")
+            _validate_path("/workspace/file\x00.py")
 
     def test_traversal_absolute_normalized(self):
         # os.path.normpath resolves /home/../../../etc/passwd to /etc/passwd
@@ -477,6 +477,19 @@ class TestCodeRunResponse:
         assert resp.logs.stdout == []
         assert resp.error is None
 
+    def test_text_prefers_the_value_the_cell_evaluated_to(self):
+        # A cell that prints and then evaluates something reports both, in
+        # order. The value it ended on is the one callers mean by "the result".
+        resp = CodeRunResponse(
+            results=[ExecutionResult(text="printed"), ExecutionResult(text="42")],
+            logs=ExecutionLogs(stdout=["printed", "42"]),
+        )
+        assert resp.text == "42"
+
+    def test_text_falls_back_to_stdout(self):
+        resp = CodeRunResponse(results=[], logs=ExecutionLogs(stdout=["a", "b"]))
+        assert resp.text == "a\nb"
+
     def test_stdout_text_property(self):
         resp = CodeRunResponse(
             results=[],
@@ -600,7 +613,7 @@ class TestSupportingTypes:
         assert r.partial_failure is False
 
     def test_code_context(self):
-        c = CodeContext(context_id="ctx-1", language="python", cwd="/home/user")
+        c = CodeContext(context_id="ctx-1", language="python", cwd="/workspace")
         assert c.context_id == "ctx-1"
 
     def test_code_context_delete_response(self):

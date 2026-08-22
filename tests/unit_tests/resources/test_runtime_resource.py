@@ -8,6 +8,8 @@ SSH, pause/resume, code contexts.
 
 import io
 import json
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 import httpx
 import respx
@@ -25,6 +27,7 @@ from tests.utils import (
 )
 
 from gravixlayer import GravixLayer, AsyncGravixLayer
+from gravixlayer.types.exceptions import GravixLayerBadRequestError
 from gravixlayer.types.runtime import (
     Runtime,
     RuntimeList,
@@ -51,6 +54,19 @@ from gravixlayer.types.runtime import (
 SB = f"{AGENTS_BASE}/runtime"
 
 _GIT_OK = {"success": True, "exit_code": 0, "stdout": "ok\n", "stderr": "", "error": ""}
+
+
+def _uploaded_path(request: httpx.Request) -> str:
+    """The destination the client asked for, read back off the query string."""
+    return parse_qs(urlparse(str(request.url)).query)["path"][0]
+
+
+def _echo_upload(request: httpx.Request) -> httpx.Response:
+    """Answer an upload the way the API does: with the path it wrote."""
+    path = _uploaded_path(request)
+    return httpx.Response(
+        200, json=[{"path": path, "name": path.rsplit("/", 1)[-1], "type": "file"}]
+    )
 
 
 # ===================================================================
@@ -328,7 +344,7 @@ class TestSyncRuntimeFiles:
                 ]
             })
         )
-        result = client.runtime.file.list(VALID_UUID, "/home/user")
+        result = client.runtime.file.list(VALID_UUID, "/workspace")
         assert len(result.files) == 2
         assert result.files[0].name == "main.py"
         assert result.files[1].is_dir is True
@@ -415,19 +431,35 @@ class TestSyncRuntimeWrite:
         assert result is not None
 
     def test_write_files_multiple(self, client, mock_api):
-        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files").mock(
-            return_value=httpx.Response(200, json=[
-                {"path": "/tmp/a.py", "name": "a.py", "type": "file"},
-                {"path": "/tmp/b.py", "name": "b.py", "type": "file"},
-            ])
+        """Every entry keeps its own destination, including the directory."""
+        route = mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files").mock(
+            side_effect=_echo_upload
         )
         entries = [
-            WriteEntry(path="/tmp/a.py", data="code_a"),
-            WriteEntry(path="/tmp/b.py", data="code_b"),
+            WriteEntry(path="/workspace/project/a.py", data="code_a"),
+            WriteEntry(path="/workspace/project/src/b.py", data="code_b"),
         ]
         resp = client.runtime.file.write_many(VALID_UUID, entries)
         assert isinstance(resp, WriteFilesResponse)
-        assert len(resp.files) == 2
+        assert [f.path for f in resp.files] == [
+            "/workspace/project/a.py",
+            "/workspace/project/src/b.py",
+        ]
+        assert resp.partial_failure is False
+        assert sorted(_uploaded_path(call.request) for call in route.calls) == [
+            "/workspace/project/a.py",
+            "/workspace/project/src/b.py",
+        ]
+
+    def test_write_files_per_entry_mode(self, client, mock_api):
+        route = mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files").mock(
+            side_effect=_echo_upload
+        )
+        client.runtime.file.write_many(
+            VALID_UUID, [WriteEntry(path="/workspace/run.sh", data="#!/bin/sh\n", mode=0o755)]
+        )
+        query = parse_qs(urlparse(str(route.calls[0].request.url)).query)
+        assert query["mode"] == ["0755"]
 
     def test_write_files_empty_list(self, client, mock_api):
         resp = client.runtime.file.write_many(VALID_UUID, [])
@@ -435,19 +467,39 @@ class TestSyncRuntimeWrite:
         assert resp.partial_failure is False
 
     def test_write_files_partial_failure(self, client, mock_api):
-        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files").mock(
-            return_value=httpx.Response(207, json=[
-                {"path": "/tmp/ok.py", "name": "ok.py", "type": "file"},
-                {"path": "/tmp/fail.py", "name": "fail.py", "type": "file", "error": "permission denied"},
-            ])
-        )
+        def respond(request: httpx.Request) -> httpx.Response:
+            if _uploaded_path(request).endswith("fail.py"):
+                return httpx.Response(403, text="permission denied")
+            return _echo_upload(request)
+
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files").mock(side_effect=respond)
         entries = [
-            WriteEntry(path="/tmp/ok.py", data="ok"),
-            WriteEntry(path="/tmp/fail.py", data="fail"),
+            WriteEntry(path="/workspace/ok.py", data="ok"),
+            WriteEntry(path="/workspace/fail.py", data="fail"),
         ]
         resp = client.runtime.file.write_many(VALID_UUID, entries)
         assert resp.partial_failure is True
-        assert resp.files[1].error == "permission denied"
+        assert resp.files[0].error is None
+        assert resp.files[1].path == "/workspace/fail.py"
+        assert "permission denied" in resp.files[1].error
+
+    def test_write_files_all_rejected_raises(self, client, mock_api):
+        """Nothing was written, so this is a failed call rather than a report."""
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files").mock(
+            return_value=httpx.Response(403, text="permission denied")
+        )
+        entries = [
+            WriteEntry(path="/workspace/a.py", data="a"),
+            WriteEntry(path="/workspace/b.py", data="b"),
+        ]
+        with pytest.raises(GravixLayerBadRequestError, match="permission denied"):
+            client.runtime.file.write_many(VALID_UUID, entries)
+
+    def test_write_files_rejects_bad_concurrency(self, client):
+        with pytest.raises(ValueError, match="concurrency must be positive"):
+            client.runtime.file.write_many(
+                VALID_UUID, [WriteEntry(path="/workspace/a.py", data="a")], concurrency=0
+            )
 
     def test_coerce_invalid_type_raises(self, client):
         from gravixlayer.resources.runtime_files import RuntimeFileResource
@@ -571,7 +623,7 @@ class TestSyncRuntimeExecution:
 class TestSyncRuntimeCodeContexts:
     def test_create_context(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/code/contexts").mock(
-            return_value=httpx.Response(200, json={"id": "ctx-1", "language": "python", "cwd": "/home/user"})
+            return_value=httpx.Response(200, json={"id": "ctx-1", "language": "python", "cwd": "/workspace"})
         )
         ctx = client.runtime.create_context(VALID_UUID)
         assert isinstance(ctx, CodeContext)
@@ -579,7 +631,7 @@ class TestSyncRuntimeCodeContexts:
 
     def test_get_context(self, client, mock_api):
         mock_api.get(f"{SB}/{VALID_UUID}/code/contexts/ctx-1").mock(
-            return_value=httpx.Response(200, json={"id": "ctx-1", "language": "python", "cwd": "/home/user"})
+            return_value=httpx.Response(200, json={"id": "ctx-1", "language": "python", "cwd": "/workspace"})
         )
         ctx = client.runtime.get_context(VALID_UUID, "ctx-1")
         assert ctx.language == "python"
@@ -924,15 +976,34 @@ class TestAsyncRuntimeWrite:
 
     @pytest.mark.asyncio
     async def test_write_files(self, mock_api):
-        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files").mock(
-            return_value=httpx.Response(200, json=[
-                {"path": "/tmp/a.py", "name": "a.py", "type": "file"},
-            ])
-        )
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files").mock(side_effect=_echo_upload)
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
-            entries = [WriteEntry(path="/tmp/a.py", data="code")]
+            entries = [
+                WriteEntry(path="/workspace/project/a.py", data="code_a"),
+                WriteEntry(path="/workspace/project/src/b.py", data="code_b"),
+            ]
             resp = await client.runtime.file.write_many(VALID_UUID, entries)
-            assert len(resp.files) == 1
+            assert [f.path for f in resp.files] == [
+                "/workspace/project/a.py",
+                "/workspace/project/src/b.py",
+            ]
+
+    @pytest.mark.asyncio
+    async def test_write_files_partial_failure(self, mock_api):
+        def respond(request: httpx.Request) -> httpx.Response:
+            if _uploaded_path(request).endswith("fail.py"):
+                return httpx.Response(403, text="permission denied")
+            return _echo_upload(request)
+
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files").mock(side_effect=respond)
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            entries = [
+                WriteEntry(path="/workspace/ok.py", data="ok"),
+                WriteEntry(path="/workspace/fail.py", data="fail"),
+            ]
+            resp = await client.runtime.file.write_many(VALID_UUID, entries)
+            assert resp.partial_failure is True
+            assert "permission denied" in resp.files[1].error
 
     @pytest.mark.asyncio
     async def test_write_files_empty(self, mock_api):

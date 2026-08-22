@@ -533,7 +533,7 @@ class AsyncRuntimes:
         mapped_result = {
             "context_id": result.get("id") or result.get("context_id", ""),
             "language": result.get("language", language or "python"),
-            "cwd": result.get("cwd", cwd or "/home/user"),
+            "cwd": result.get("cwd") or cwd or "/workspace",
         }
 
         return CodeContext(**mapped_result)
@@ -547,7 +547,7 @@ class AsyncRuntimes:
         mapped_result = {
             "context_id": result.get("id") or result.get("context_id", ""),
             "language": result.get("language", "python"),
-            "cwd": result.get("cwd", "/home/user"),
+            "cwd": result.get("cwd") or "/workspace",
         }
 
         return CodeContext(**mapped_result)
