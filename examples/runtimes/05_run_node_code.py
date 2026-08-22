@@ -18,13 +18,13 @@ client = GravixLayer()
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
-runtime = client.runtime.create(template=TEMPLATE)
-print(f"Runtime    : {runtime.runtime_id}")
+sandbox = client.runtime.create(template=TEMPLATE)
+print(f"Runtime    : {sandbox.runtime_id}")
 
 # ---------------------------------------------------------------------------
 # 1. Simple JavaScript output
 # ---------------------------------------------------------------------------
-result = runtime.run_code(
+result = sandbox.run_code(
     code="console.log('Hello from Node.js')",
     language="javascript",
 )
@@ -47,7 +47,7 @@ const info = {
 console.log(JSON.stringify(info, null, 2));
 """
 
-result = runtime.run_code(code=code, language="javascript")
+result = sandbox.run_code(code=code, language="javascript")
 print(f"\n--- System info ---")
 print(result.stdout)
 
@@ -65,8 +65,8 @@ const start = Date.now();
 })();
 """
 
-runtime.file.write("/workspace/async_demo.js", script)
-result = runtime.run_command("node /workspace/async_demo.js")
+sandbox.file.write("/workspace/async_demo.js", script)
+result = sandbox.run_command("node /workspace/async_demo.js")
 print(f"\n--- Async code ---")
 print(f"Exit code  : {result.exit_code}")
 print(result.stdout)
@@ -74,5 +74,5 @@ print(result.stdout)
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-runtime.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

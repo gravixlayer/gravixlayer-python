@@ -37,7 +37,7 @@ def main() -> int:
     np = client.network_policies
 
     policy = None
-    runtime = None
+    sandbox = None
     try:
         # ------------------------------------------------------------------
         # 1. Create policy with initial rules
@@ -112,23 +112,23 @@ def main() -> int:
         print(f"  remaining={len(np.list_rules(policy.id).rules)}")
 
         # ------------------------------------------------------------------
-        # 5. Attach at runtime create + list attachments
+        # 5. Attach at sandbox create + list attachments
         # ------------------------------------------------------------------
         print("\n=== 5. runtime.create(network_policy_ids=[...]) ===")
-        runtime = client.runtime.create(
+        sandbox = client.runtime.create(
             template=TEMPLATE,
             network_policy_ids=[policy.id],
             timeout=600,
         )
-        print(f"  runtime_id={runtime.runtime_id} status={runtime.status}")
+        print(f"  runtime_id={sandbox.runtime_id} status={sandbox.status}")
 
-        attached = np.list_for_runtime(runtime.runtime_id)
+        attached = np.list_for_runtime(sandbox.runtime_id)
         print(f"  list_for_runtime (user policies)={len(attached.policies)}")
         for p in attached.policies:
             print(f"    - {p.name} mode={p.egress_mode} rules={p.rule_count}")
 
         with_system = np.list_for_runtime(
-            runtime.runtime_id, include_system=True
+            sandbox.runtime_id, include_system=True
         )
         print(f"  list_for_runtime(include_system=True)={len(with_system.policies)}")
 
@@ -136,7 +136,7 @@ def main() -> int:
         # 6. Verify egress (allowlisted host works; other hosts fail)
         # ------------------------------------------------------------------
         print("\n=== 6. verify egress ===")
-        allow = runtime.run_cmd(
+        allow = sandbox.run_cmd(
             "python",
             args=[
                 "-c",
@@ -146,7 +146,7 @@ def main() -> int:
         )
         print(f"  api.openai.com:443 → exit={allow.exit_code} {allow.stdout.strip()!r}")
 
-        deny = runtime.run_cmd(
+        deny = sandbox.run_cmd(
             "python",
             args=[
                 "-c",
@@ -163,36 +163,36 @@ def main() -> int:
         # 7. detach → attach again
         # ------------------------------------------------------------------
         print("\n=== 7. detach / attach ===")
-        np.detach(policy.id, runtime.runtime_id)
+        np.detach(policy.id, sandbox.runtime_id)
         print("  detached")
         print(
             f"  after detach user policies="
-            f"{len(np.list_for_runtime(runtime.runtime_id).policies)}"
+            f"{len(np.list_for_runtime(sandbox.runtime_id).policies)}"
         )
 
-        np.attach(policy.id, runtime.runtime_id)
+        np.attach(policy.id, sandbox.runtime_id)
         print("  re-attached via attach()")
         print(
             f"  after attach user policies="
-            f"{len(np.list_for_runtime(runtime.runtime_id).policies)}"
+            f"{len(np.list_for_runtime(sandbox.runtime_id).policies)}"
         )
 
         # ------------------------------------------------------------------
         # 8. Cleanup
         # ------------------------------------------------------------------
         print("\n=== 8. cleanup ===")
-        np.detach(policy.id, runtime.runtime_id)
-        runtime.kill()
-        runtime = None
+        np.detach(policy.id, sandbox.runtime_id)
+        sandbox.kill()
+        sandbox = None
         np.delete(policy.id)
         policy = None
         print("  done")
         return 0
 
     finally:
-        if runtime is not None:
+        if sandbox is not None:
             try:
-                runtime.kill()
+                sandbox.kill()
             except Exception as exc:  # noqa: BLE001 — best-effort cleanup
                 print(f"  cleanup runtime failed: {exc}", file=sys.stderr)
         if policy is not None:

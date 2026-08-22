@@ -19,15 +19,15 @@ client = GravixLayer()
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 # ---------------------------------------------------------------------------
-# Create a Node.js agent runtime
+# Create a Node.js agent sandbox
 # ---------------------------------------------------------------------------
-runtime = client.runtime.create(
+sandbox = client.runtime.create(
     template=TEMPLATE,
 )
 
-print(f"Runtime ID : {runtime.runtime_id}")
-print(f"Status     : {runtime.status}")
-print(f"Template   : {runtime.template}")
+print(f"Runtime ID : {sandbox.runtime_id}")
+print(f"Status     : {sandbox.status}")
+print(f"Template   : {sandbox.template}")
 
 # ---------------------------------------------------------------------------
 # Quick verification — run a Node.js one-liner.
@@ -35,10 +35,10 @@ print(f"Template   : {runtime.template}")
 # `run_cmd` accepts a command string and optional args list. The two forms
 # below are equivalent — use whichever reads best for your use case:
 #
-#     runtime.run_cmd(command="node -v")                     # single string
-#     runtime.run_cmd(command="node", args=["-v"])           # command + args
+#     sandbox.run_cmd(command="node -v")                     # single string
+#     sandbox.run_cmd(command="node", args=["-v"])           # command + args
 # ---------------------------------------------------------------------------
-result = runtime.run_cmd(
+result = sandbox.run_cmd(
     command="node",
     args=["-e", "console.log('Node.js ' + process.version + ' is ready')"],
 )
@@ -47,5 +47,5 @@ print(f"\nNode check : {result.stdout.strip()}")
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-runtime.kill()
+sandbox.kill()
 print("Runtime terminated.")

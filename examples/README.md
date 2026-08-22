@@ -15,7 +15,7 @@ python examples/templates/01_python_docker_image.py
 
 | Task | Scripts |
 |------|---------|
-| Create runtime (Python / Node) | `runtimes/01_…`, `runtimes/02_…` |
+| Create sandbox (Python / Node) | `runtimes/01_…`, `runtimes/02_…` |
 | Env + metadata | `runtimes/03_runtime_with_env_vars.py` |
 | Run code (Python / Node) | `runtimes/04_…`, `runtimes/05_…` |
 | Shell (+ pip with egress) | `runtimes/06_run_shell_commands.py` |
@@ -23,7 +23,7 @@ python examples/templates/01_python_docker_image.py
 | Contexts / metrics / timeouts | `runtimes/08`–`10`, `runtimes/11_list_and_manage.py` |
 | `with Runtime.create` | `runtimes/12_runtime_context_manager.py` |
 | SSH | `runtimes/13`–`15` |
-| Reconnect to existing runtime | `runtimes/16_connect_existing_runtime.py` |
+| Reconnect to existing sandbox | `runtimes/16_connect_existing_runtime.py` |
 | Git operations | `runtimes/17_…` (SDK), `runtimes/23_…` (SDK + CLI) |
 | Stream `run_cmd` | `runtimes/18_stream_command_output.py` |
 | Lifecycle (pause / resume / kill) | `runtimes/19_runtime_lifecycle.py` |

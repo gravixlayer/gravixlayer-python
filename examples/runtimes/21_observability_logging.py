@@ -63,12 +63,12 @@ def _bind_runtime_id(runtime_id: str) -> None:
 def run_logging_demo(client: GravixLayer, template: str, marker: str) -> str:
     existing = (os.environ.get("GRAVIXLAYER_RUNTIME_ID") or "").strip()
     if existing:
-        runtime = Runtime.connect(existing, client=client)
-        rid = runtime.runtime_id
+        sandbox = Runtime.connect(existing, client=client)
+        rid = sandbox.runtime_id
         print(f"connected    : {rid}")
     else:
-        runtime = client.runtime.create(template=template)
-        rid = runtime.runtime_id
+        sandbox = client.runtime.create(template=template)
+        rid = sandbox.runtime_id
         print(f"created      : {rid}")
 
     _bind_runtime_id(rid)
@@ -91,25 +91,25 @@ def run_logging_demo(client: GravixLayer, template: str, marker: str) -> str:
     )
     print(f"log_struct   : ok={structured_ok}")
 
-    # Process logs: anything printed inside the runtime becomes runtime.stdout /
-    # runtime.stderr in the Logs UI (stamped with this runtime id automatically).
+    # Process logs: anything printed inside the sandbox becomes runtime.stdout /
+    # runtime.stderr in the Logs UI (stamped with this sandbox id automatically).
     code = f"""
 import sys
 
 marker = {marker!r}
-print(f"{{marker}} runtime.stdout: hello from inside the runtime")
+print(f"{{marker}} runtime.stdout: hello from inside the sandbox")
 print(f"{{marker}} runtime.stdout: step=compute value=42")
 print(f"{{marker}} runtime.stderr: sample stderr line", file=sys.stderr)
 print("ok")
 """
-    result = runtime.run_code(code=code)
+    result = sandbox.run_code(code=code)
     print(f"run_code out : {result.text.strip()!r}")
 
     # Give the batch log exporter a moment to flush before we exit.
     time.sleep(3)
 
     if not os.environ.get("KEEP_RUNTIME"):
-        runtime.kill()
+        sandbox.kill()
         print("killed       : yes")
     else:
         print("kept alive   : KEEP_RUNTIME=1 (stop it from the dashboard when done)")

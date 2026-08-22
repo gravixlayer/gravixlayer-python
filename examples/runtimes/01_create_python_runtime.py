@@ -22,26 +22,26 @@ client = GravixLayer()
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 # ---------------------------------------------------------------------------
-# Create an agent runtime from a Python template.
+# Create an agent sandbox from a Python template.
 # ---------------------------------------------------------------------------
-runtime = client.runtime.create(
+sandbox = client.runtime.create(
     template=TEMPLATE,
 )
 
-print(f"Runtime ID : {runtime.runtime_id}")
-print(f"Status     : {runtime.status}")
-print(f"Template   : {runtime.template}")
-print(f"CPU        : {runtime.cpu_count}")
-print(f"Memory     : {runtime.memory_mb} MB")
+print(f"Runtime ID : {sandbox.runtime_id}")
+print(f"Status     : {sandbox.status}")
+print(f"Template   : {sandbox.template}")
+print(f"CPU        : {sandbox.cpu_count}")
+print(f"Memory     : {sandbox.memory_mb} MB")
 
 # ---------------------------------------------------------------------------
-# Retrieve runtime details
+# Retrieve sandbox details
 # ---------------------------------------------------------------------------
-info = client.runtime.get(runtime.runtime_id)
+info = client.runtime.get(sandbox.runtime_id)
 print(f"\nFull info  : status={info.status}, started_at={info.started_at}")
 
 # ---------------------------------------------------------------------------
-# Terminate the runtime
+# Terminate the sandbox
 # ---------------------------------------------------------------------------
-runtime.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

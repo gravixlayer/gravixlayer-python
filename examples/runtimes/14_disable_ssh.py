@@ -12,10 +12,10 @@ from gravixlayer.types.runtime import Runtime
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
-with Runtime.create(template=TEMPLATE, timeout=1800) as rt:
-    rt.enable_ssh()
-    before = rt.ssh_status()
+with Runtime.create(template=TEMPLATE, timeout=1800) as sandbox:
+    sandbox.enable_ssh()
+    before = sandbox.ssh_status()
     print(f"before disable: enabled={before.enabled} daemon_running={before.daemon_running}")
-    rt.disable_ssh()
-    after = rt.ssh_status()
+    sandbox.disable_ssh()
+    after = sandbox.ssh_status()
     print(f"after disable:  enabled={after.enabled} daemon_running={after.daemon_running}")

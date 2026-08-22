@@ -18,14 +18,13 @@ client = GravixLayer()
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
-runtime = client.runtime.create(template=TEMPLATE)
-sid = runtime.runtime_id
-print(f"Runtime    : {sid}\n")
+sandbox = client.runtime.create(template=TEMPLATE)
+print(f"Runtime    : {sandbox.runtime_id}\n")
 
 # ---------------------------------------------------------------------------
-# 1. Baseline metrics (idle runtime)
+# 1. Baseline metrics (idle sandbox)
 # ---------------------------------------------------------------------------
-metrics = client.runtime.get_metrics(sid)
+metrics = client.runtime.get_metrics(sandbox.runtime_id)
 
 print("--- Baseline metrics ---")
 print(f"CPU Usage  : {metrics.cpu_usage:.1f}%")
@@ -39,14 +38,14 @@ print(f"Timestamp  : {metrics.timestamp}")
 # ---------------------------------------------------------------------------
 # 2. Generate some CPU load, then check metrics again
 # ---------------------------------------------------------------------------
-runtime.run_code(
+sandbox.run_code(
     code="sum(i * i for i in range(10_000_000))",
 )
 
 # Small delay so metrics reflect the workload
 time.sleep(1)
 
-metrics = client.runtime.get_metrics(sid)
+metrics = client.runtime.get_metrics(sandbox.runtime_id)
 
 print("\n--- After CPU workload ---")
 print(f"CPU Usage  : {metrics.cpu_usage:.1f}%")
@@ -57,5 +56,5 @@ print(f"Disk Write : {metrics.disk_write} bytes")
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-runtime.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

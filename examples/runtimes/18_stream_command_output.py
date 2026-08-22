@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stream command output incrementally.
 
-Pass any of `on_stdout`, `on_stderr`, or `on_exit` to `runtime.run_cmd(...)` to
+Pass any of `on_stdout`, `on_stderr`, or `on_exit` to `sandbox.run_cmd(...)` to
 switch the call into streaming mode. Output is delivered chunk-by-chunk over
 Server-Sent Events as the process produces it, while the returned
 `CommandRunResponse` still aggregates the full stdout/stderr/exit code so
@@ -20,15 +20,15 @@ client = GravixLayer()
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
-runtime = client.runtime.create(template=TEMPLATE)
-print(f"Runtime    : {runtime.runtime_id}")
+sandbox = client.runtime.create(template=TEMPLATE)
+print(f"Runtime    : {sandbox.runtime_id}")
 
 # ---------------------------------------------------------------------------
 # Stream a slow command and print each chunk as it arrives.
 # ---------------------------------------------------------------------------
 print("\n--- streaming output ---")
 
-result = runtime.run_cmd(
+result = sandbox.run_cmd(
     command="sh -lc 'for i in 1 2 3 4 5; do echo line-$i; sleep 1; done'",
     on_stdout=lambda chunk: print(chunk, end="", flush=True),
     on_stderr=lambda chunk: print(chunk, end="", flush=True),
@@ -40,5 +40,5 @@ print(f"exit_code : {result.exit_code}")
 print(f"duration  : {result.duration_ms} ms")
 print(f"stdout len: {len(result.stdout)} bytes")
 
-runtime.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

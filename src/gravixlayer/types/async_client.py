@@ -47,8 +47,8 @@ class AsyncGravixLayer:
 
     Example:
         >>> async with AsyncGravixLayer() as client:  # defaults to cloud="aws", region="us-east-1"
-        ...     runtime = await client.runtime.create()  # defaults to template="base-small"
-        ...     result = await client.runtime.run_code(runtime.id, "print('hello')")
+        ...     sandbox = await client.runtime.create()  # defaults to template="base-small"
+        ...     result = await client.runtime.run_code(sandbox.runtime_id, "print('hello')")
     """
 
     def __init__(

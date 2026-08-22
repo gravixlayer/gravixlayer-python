@@ -123,27 +123,27 @@ policy = client.network_policies.create(
     description="Temporary egress for git SDK+CLI example",
 )
 
-runtime = None
+sandbox = None
 try:
-    runtime = client.runtime.create(
+    sandbox = client.runtime.create(
         template=template,
         network_policy_ids=[policy.id],
         timeout=900,
     )
-    rid = runtime.runtime_id
+    rid = sandbox.runtime_id
     print(f"runtime={rid}")
     print(f"clone_url={clone_url}  branch={branch}")
     print("auth_token=set\n")
 
     # =====================================================================
-    # Part 1 — Seed an empty remote, then exercise runtime.git (SDK)
+    # Part 1 — Seed an empty remote, then exercise sandbox.git (SDK)
     # =====================================================================
-    print("=== SDK: seed empty remote + runtime.git ===\n")
+    print("=== SDK: seed empty remote + sandbox.git ===\n")
 
     # Empty remotes have no commits and no default branch. Clone without
     # branch=/depth= — those options require a tip that does not exist yet.
     # GitHub reports "You appear to have cloned an empty repository"; that is OK.
-    r = runtime.git.clone(url=clone_url, path=sdk_path, auth_token=token)
+    r = sandbox.git.clone(url=clone_url, path=sdk_path, auth_token=token)
     print("clone:   ", r.success, r.exit_code, _preview(r.stdout or r.stderr))
     if not r.success:
         raise SystemExit(1)
@@ -151,13 +151,13 @@ try:
     # First commit — same idea as GitHub's "create a new repository on the
     # command line" snippet: README → add → commit → branch -M → push -u.
     # Unique contents so re-running the example still produces a new commit.
-    runtime.file.write(
+    sandbox.file.write(
         f"{sdk_path}/README.md",
         f"# git-demo\n\nSeeded from the GravixLayer SDK example ({uuid.uuid4().hex}).\n",
     )
-    r = runtime.git.add(sdk_path, paths=["README.md"])
+    r = sandbox.git.add(sdk_path, paths=["README.md"])
     print("add:     ", r.success, r.exit_code)
-    r = runtime.git.commit(
+    r = sandbox.git.commit(
         sdk_path,
         "first commit",
         author_name="SDK Example",
@@ -168,7 +168,7 @@ try:
         raise SystemExit(1)
 
     # Align the local branch name with GIT_BRANCH (guest default may be master).
-    rename = runtime.run_cmd(
+    rename = sandbox.run_cmd(
         command="bash",
         args=[
             "-lc",
@@ -178,7 +178,7 @@ try:
     print("branch -M:", rename.exit_code, branch)
 
     # First push creates the remote branch (e.g. origin/main).
-    r = runtime.git.push(
+    r = sandbox.git.push(
         sdk_path,
         remote="origin",
         refspec=branch,
@@ -189,49 +189,49 @@ try:
         raise SystemExit(1)
 
     # From here the remote looks like a normal non-empty repository.
-    r = runtime.git.status(sdk_path)
+    r = sandbox.git.status(sdk_path)
     print("status:  ", r.success, _preview(r.stdout))
 
-    r = runtime.git.branch_list(sdk_path)
+    r = sandbox.git.branch_list(sdk_path)
     print("branches:", r.success, _preview(r.stdout))
-    r = runtime.git.branch_list(sdk_path, scope="all")
+    r = sandbox.git.branch_list(sdk_path, scope="all")
     print("all:     ", r.success, _preview(r.stdout))
 
-    r = runtime.git.fetch(sdk_path, remote="origin", auth_token=token)
+    r = sandbox.git.fetch(sdk_path, remote="origin", auth_token=token)
     print("fetch:   ", r.success, r.exit_code)
 
-    r = runtime.git.checkout(sdk_path, branch)
+    r = sandbox.git.checkout(sdk_path, branch)
     print("checkout:", r.success, r.exit_code)
 
-    r = runtime.git.pull(sdk_path, remote="origin", branch=branch, auth_token=token)
+    r = sandbox.git.pull(sdk_path, remote="origin", branch=branch, auth_token=token)
     print("pull:    ", r.success, r.exit_code, _preview(r.stdout or r.stderr))
 
     # Short-lived local branch: create → checkout → back → delete.
     demo = f"sdk-demo-{uuid.uuid4().hex[:6]}"
-    r = runtime.git.create_branch(sdk_path, demo)
+    r = sandbox.git.create_branch(sdk_path, demo)
     print("branch+: ", r.success, r.exit_code, demo)
-    r = runtime.git.checkout(sdk_path, demo)
+    r = sandbox.git.checkout(sdk_path, demo)
     print("checkout:", r.success, r.exit_code)
-    r = runtime.git.checkout(sdk_path, branch)
+    r = sandbox.git.checkout(sdk_path, branch)
     print("checkout:", r.success, r.exit_code, f"back to {branch}")
-    r = runtime.git.delete_branch(sdk_path, demo)
+    r = sandbox.git.delete_branch(sdk_path, demo)
     print("branch-: ", r.success, r.exit_code)
 
     # Feature branch → write → stage → commit → push.
     work = f"sdk-work-{uuid.uuid4().hex[:6]}"
-    runtime.git.create_branch(sdk_path, work)
-    runtime.git.checkout(sdk_path, work)
-    runtime.file.write(f"{sdk_path}/sdk-note.txt", f"hello from sdk {uuid.uuid4().hex}\n")
-    r = runtime.git.add(sdk_path, paths=["sdk-note.txt"])
+    sandbox.git.create_branch(sdk_path, work)
+    sandbox.git.checkout(sdk_path, work)
+    sandbox.file.write(f"{sdk_path}/sdk-note.txt", f"hello from sdk {uuid.uuid4().hex}\n")
+    r = sandbox.git.add(sdk_path, paths=["sdk-note.txt"])
     print("add:     ", r.success, r.exit_code)
-    r = runtime.git.commit(
+    r = sandbox.git.commit(
         sdk_path,
         "sdk: add note",
         author_name="SDK Example",
         author_email="sdk-example@example.com",
     )
     print("commit:  ", r.success, r.exit_code)
-    r = runtime.git.push(
+    r = sandbox.git.push(
         sdk_path,
         remote="origin",
         refspec=work,
@@ -240,7 +240,7 @@ try:
     print("push:    ", r.success, r.exit_code, _preview(r.stdout or r.stderr))
 
     # Checkout is writable by the sandbox user for ordinary shell commands.
-    composed = runtime.run_cmd(
+    composed = sandbox.run_cmd(
         command="bash",
         args=["-lc", f"cd {shlex.quote(sdk_path)} && test -w . && git rev-parse --short HEAD"],
     )
@@ -315,7 +315,7 @@ try:
         )
 
         # Write with the SDK file API, then stage / commit / push with the CLI.
-        runtime.file.write(
+        sandbox.file.write(
             f"{cli_path}/cli-note.txt",
             f"hello from cli {uuid.uuid4().hex}\n",
         )
@@ -343,9 +343,9 @@ try:
         print(f"  (expected failure above — CLI exit={bad.returncode})")
 
 finally:
-    if runtime is not None:
-        runtime.kill()
-        print(f"\nkilled runtime {runtime.runtime_id}")
+    if sandbox is not None:
+        sandbox.kill()
+        print(f"\nkilled runtime {sandbox.runtime_id}")
     try:
         client.network_policies.delete(policy.id)
     except Exception:

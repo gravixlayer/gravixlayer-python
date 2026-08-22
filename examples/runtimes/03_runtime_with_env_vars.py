@@ -13,7 +13,7 @@ client = GravixLayer()
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
-runtime = client.runtime.create(
+sandbox = client.runtime.create(
     template=TEMPLATE,
     env_vars={
         "APP_ENV": "staging",
@@ -27,20 +27,20 @@ runtime = client.runtime.create(
     },
 )
 
-print(f"Runtime ID : {runtime.runtime_id}")
-print(f"Status     : {runtime.status}")
-print(f"Metadata   : {runtime.metadata}")
+print(f"Runtime ID : {sandbox.runtime_id}")
+print(f"Status     : {sandbox.status}")
+print(f"Metadata   : {sandbox.metadata}")
 
-py = runtime.run_code(
+py = sandbox.run_code(
     code="import os; print(os.environ.get('APP_ENV', 'not set'))",
 )
 print(f"\nAPP_ENV (run_code): {py.text.strip()}")
 
-sh_single = runtime.run_cmd(command='echo "${APP_ENV:-not set}"')
+sh_single = sandbox.run_cmd(command='echo "${APP_ENV:-not set}"')
 print(f"APP_ENV (single string): {sh_single.stdout.strip()}")
 
-sh_args = runtime.run_cmd(command="sh", args=["-c", 'echo "${DEBUG:-not set}"'])
+sh_args = sandbox.run_cmd(command="sh", args=["-c", 'echo "${DEBUG:-not set}"'])
 print(f"DEBUG   (command+args) : {sh_args.stdout.strip()}")
 
-runtime.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

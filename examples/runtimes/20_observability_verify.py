@@ -84,8 +84,8 @@ def run_agent(client: GravixLayer, template: str, tag: str) -> str:
     payload = build_prompt(tag)
 
     # SDK emits runtime.create automatically.
-    runtime = client.runtime.create(template=template)
-    rid = runtime.runtime_id
+    sandbox = client.runtime.create(template=template)
+    rid = sandbox.runtime_id
     print(f"[{tag}] runtime_id  : {rid}")
 
     # SDK emits runtime.code.run automatically.
@@ -93,32 +93,32 @@ def run_agent(client: GravixLayer, template: str, tag: str) -> str:
 print({payload['message']!r})
 print("ok")
 """
-    result = runtime.run_code(code=code)
+    result = sandbox.run_code(code=code)
     print(f"[{tag}] code.out    : {result.text.strip()!r}")
 
     # SDK emits runtime.command.run automatically.
-    cmd = runtime.run_cmd("uname", args=["-a"])
+    cmd = sandbox.run_cmd("uname", args=["-a"])
     print(f"[{tag}] cmd.out     : {cmd.text.strip()[:200]!r}")
 
     # SDK emits runtime.file.* automatically.
     path = f"/workspace/demo-{tag}.txt"
-    runtime.file.write(path, f"hello {tag}\n")
-    read_back = runtime.file.read(path)
+    sandbox.file.write(path, f"hello {tag}\n")
+    read_back = sandbox.file.read(path)
     print(f"[{tag}] file.read   : {read_back.content.strip()!r}")
-    listing = runtime.file.list("/workspace")
+    listing = sandbox.file.list("/workspace")
     names = [f.name for f in (listing.files or [])[:8]]
     print(f"[{tag}] file.list   : {names}")
-    runtime.file.delete(path)
+    sandbox.file.delete(path)
     print(f"[{tag}] file.delete : ok")
 
-    result2 = runtime.run_code(code="print(sum(range(100)))")
+    result2 = sandbox.run_code(code="print(sum(range(100)))")
     print(f"[{tag}] code2.out   : {result2.text.strip()!r}")
 
     if not os.environ.get("KEEP_RUNTIME"):
         # Optional trace() example: wrap a section of *your* logic.
         # SDK still emits runtime.kill underneath.
         with trace("shutdown", run_type="chain", inputs={"runtime_id": rid}):
-            runtime.kill()
+            sandbox.kill()
             print(f"[{tag}] killed      : yes")
     else:
         print(f"[{tag}] kept alive  : KEEP_RUNTIME=1 (stop it from the dashboard when done)")

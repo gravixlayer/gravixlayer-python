@@ -7,7 +7,7 @@ All convenience methods (run_code, run_cmd, file.*) work exactly as they
 do on a freshly created runtime.
 
     export GRAVIXLAYER_API_KEY=...
-    python examples/runtimes/14_connect_existing_runtime.py
+    python examples/runtimes/16_connect_existing_runtime.py
 """
 
 import os
@@ -20,37 +20,37 @@ TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 client = GravixLayer()
 
 # ---------------------------------------------------------------------------
-# 1. Create a runtime and save its ID (simulates a previous session)
+# 1. Create a sandbox and save its ID (simulates a previous session)
 # ---------------------------------------------------------------------------
 print("--- Creating initial runtime ---")
-original = client.runtime.create(template=TEMPLATE)
-saved_id = original.runtime_id
+sandbox = client.runtime.create(template=TEMPLATE)
+saved_id = sandbox.runtime_id
 print(f"Runtime ID : {saved_id}")
-print(f"Status     : {original.status}")
+print(f"Status     : {sandbox.status}")
 
 # ---------------------------------------------------------------------------
 # 2. Reconnect to it by ID — no need to know how it was originally created
 # ---------------------------------------------------------------------------
 print("\n--- Reconnecting by ID ---")
-rt = Runtime.connect(saved_id)
-print(f"Runtime ID : {rt.runtime_id}")
-print(f"Status     : {rt.status}")
+sandbox = Runtime.connect(saved_id)
+print(f"Runtime ID : {sandbox.runtime_id}")
+print(f"Status     : {sandbox.status}")
 
 # ---------------------------------------------------------------------------
-# 3. All methods work as normal on the reconnected runtime
+# 3. All methods work as normal on the reconnected sandbox
 # ---------------------------------------------------------------------------
-execution = rt.run_cmd("uname -a")
+execution = sandbox.run_cmd("uname -a")
 print(f"uname -a   : {execution.stdout.strip()}")
 
-execution = rt.run_code("print(2 ** 10)")
+execution = sandbox.run_code("print(2 ** 10)")
 print(f"2**10      : {execution.stdout.strip()}")
 
-rt.file.write("/workspace/reconnect.txt", "written after reconnect")
-content = rt.file.read("/workspace/reconnect.txt").content
+sandbox.file.write("/workspace/reconnect.txt", "written after reconnect")
+content = sandbox.file.read("/workspace/reconnect.txt").content
 print(f"File       : {content}")
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-rt.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

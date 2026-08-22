@@ -220,12 +220,12 @@ class Runtime:
         Example::
 
             # In one process — save the ID
-            rt = Runtime.create()  # defaults to template="base-small"
-            saved_id = rt.runtime_id
+            sandbox = Runtime.create()  # defaults to template="base-small"
+            saved_id = sandbox.runtime_id
 
             # Later, in the same or a different process — reconnect
-            rt = Runtime.connect(saved_id)
-            result = rt.run_cmd("whoami")
+            sandbox = Runtime.connect(saved_id)
+            result = sandbox.run_cmd("whoami")
         """
         _validate_runtime_id(runtime_id)
 

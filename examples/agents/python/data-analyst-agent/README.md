@@ -1,6 +1,6 @@
 # Data analyst sample (OpenAI + Gravix Layer)
 
-LLM-generated Python runs in a **Gravix Layer** agent runtime. This is a sample app—not part of the core SDK; see `examples/runtimes/` for minimal API examples.
+LLM-generated Python runs in a **Gravix Layer** agent sandbox. This is a sample app—not part of the core SDK; see `examples/runtimes/` for minimal API examples.
 
 ## Run
 

@@ -11,22 +11,22 @@ PATH change to pick this up.
 
 ## Running commands
 
-`runtime.run_cmd(command=...)` accepts either a single shell string or a `command` + explicit `args` list:
+`sandbox.run_cmd(command=...)` accepts either a single shell string or a `command` + explicit `args` list:
 
 ```python
-runtime.run_cmd(command="pip install pandas --quiet")
-runtime.run_cmd(command="echo hello; sleep 1; echo world")
+sandbox.run_cmd(command="pip install pandas --quiet")
+sandbox.run_cmd(command="echo hello; sleep 1; echo world")
 
-runtime.run_cmd(command="pip", args=["install", "pandas", "--quiet"])
-runtime.run_cmd(command="ls", args=["-la", "/workspace"])
+sandbox.run_cmd(command="pip", args=["install", "pandas", "--quiet"])
+sandbox.run_cmd(command="ls", args=["-la", "/workspace"])
 ```
 
 ## Examples
 
 | # | File | Topic |
 |---|------|--------|
-| 01 | [01_create_python_runtime.py](01_create_python_runtime.py) | Create Python runtime |
-| 02 | [02_create_node_runtime.py](02_create_node_runtime.py) | Create Node runtime |
+| 01 | [01_create_python_runtime.py](01_create_python_runtime.py) | Create Python sandbox |
+| 02 | [02_create_node_runtime.py](02_create_node_runtime.py) | Create Node sandbox |
 | 03 | [03_runtime_with_env_vars.py](03_runtime_with_env_vars.py) | Env vars + metadata |
 | 04 | [04_run_python_code.py](04_run_python_code.py) | Run Python |
 | 05 | [05_run_node_code.py](05_run_node_code.py) | Run Node |
@@ -40,14 +40,14 @@ runtime.run_cmd(command="ls", args=["-la", "/workspace"])
 | 13 | [13_enable_ssh.py](13_enable_ssh.py) | Enable SSH |
 | 14 | [14_disable_ssh.py](14_disable_ssh.py) | Disable SSH |
 | 15 | [15_revoke_and_reenable_ssh.py](15_revoke_and_reenable_ssh.py) | Revoke and re-enable SSH |
-| 16 | [16_connect_existing_runtime.py](16_connect_existing_runtime.py) | Reconnect to an existing runtime via `Runtime.connect(runtime_id)` |
-| 17 | [17_runtime_git_operations.py](17_runtime_git_operations.py) | `runtime.git` |
+| 16 | [16_connect_existing_runtime.py](16_connect_existing_runtime.py) | Reconnect to an existing sandbox via `Runtime.connect(runtime_id)` |
+| 17 | [17_runtime_git_operations.py](17_runtime_git_operations.py) | `sandbox.git` |
 | 18 | [18_stream_command_output.py](18_stream_command_output.py) | Stream `run_cmd` output via `on_stdout` / `on_stderr` / `on_exit` |
 | 19 | [19_runtime_lifecycle.py](19_runtime_lifecycle.py) | Full lifecycle: create → pause → resume → kill |
-| 20 | [20_observability_verify.py](20_observability_verify.py) | Enable tracing for runtime operations |
-| 21 | [21_observability_logging.py](21_observability_logging.py) | Emit agent + runtime logs and verify in Logs |
-| 22 | [22_runtime_web_service.py](22_runtime_web_service.py) | FastAPI + `rt.service(port=…)` on `*.service.gravixlayer.ai` |
-| 23 | [23_runtime_git_sdk_and_cli.py](23_runtime_git_sdk_and_cli.py) | Git via SDK (`runtime.git`) and CLI (`gravixlayer runtime git`) |
+| 20 | [20_observability_verify.py](20_observability_verify.py) | Enable tracing for sandbox operations |
+| 21 | [21_observability_logging.py](21_observability_logging.py) | Emit agent + sandbox logs and verify in Logs |
+| 22 | [22_runtime_web_service.py](22_runtime_web_service.py) | FastAPI + `sandbox.service(port=…)` on `*.service.gravixlayer.ai` |
+| 23 | [23_runtime_git_sdk_and_cli.py](23_runtime_git_sdk_and_cli.py) | Git via SDK (`sandbox.git`) and CLI (`gravixlayer runtime git`) |
 | 24 | [24_pty_sessions.py](24_pty_sessions.py) | Interactive PTY: attach, type, resize, signal, detach and re-attach |
 | 25 | [25_snapshots_lifecycle.py](25_snapshots_lifecycle.py) | Named snapshots: cold + hot capture, restore, deactivate, activate, delete |
 | 26 | [26_sandbox_tti_benchmark.py](26_sandbox_tti_benchmark.py) | ComputeSDK-style TTI: create + `node -v`, burst/stagger, composite score |

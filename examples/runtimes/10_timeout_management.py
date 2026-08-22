@@ -21,33 +21,32 @@ client = GravixLayer()
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 # ---------------------------------------------------------------------------
-# Create an agent runtime with a short timeout.
+# Create an agent sandbox with a short timeout.
 # ---------------------------------------------------------------------------
-runtime = client.runtime.create(
+sandbox = client.runtime.create(
     template=TEMPLATE,
     timeout=120,  # 2 minutes
 )
-sid = runtime.runtime_id
 
-info = client.runtime.get(sid)
-print(f"Runtime    : {sid}")
+info = client.runtime.get(sandbox.runtime_id)
+print(f"Runtime    : {sandbox.runtime_id}")
 print(f"Timeout at : {info.timeout_at}")
 
 # ---------------------------------------------------------------------------
-# Extend the timeout while the agent runtime is running
+# Extend the timeout while the agent sandbox is running
 # ---------------------------------------------------------------------------
-response = client.runtime.set_timeout(sid, timeout=600)
+response = client.runtime.set_timeout(sandbox.runtime_id, timeout=600)
 print(f"\nExtended   : {response.message}")
 print(f"New timeout: {response.timeout_at}")
 
 # ---------------------------------------------------------------------------
-# Verify by fetching runtime info again
+# Verify by fetching sandbox info again
 # ---------------------------------------------------------------------------
-info = client.runtime.get(sid)
+info = client.runtime.get(sandbox.runtime_id)
 print(f"Confirmed  : timeout_at={info.timeout_at}")
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-runtime.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

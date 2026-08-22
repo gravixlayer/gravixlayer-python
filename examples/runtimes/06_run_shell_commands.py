@@ -7,8 +7,8 @@ installation, system inspection, and running compiled binaries.
 `run_cmd` accepts either a single shell string or a `command` + explicit
 `args` list:
 
-    runtime.run_cmd(command="pip install requests --quiet")
-    runtime.run_cmd(command="pip", args=["install", "requests", "--quiet"])
+    sandbox.run_cmd(command="pip install requests --quiet")
+    sandbox.run_cmd(command="pip", args=["install", "requests", "--quiet"])
 
 Guest egress is deny-by-default (system empty allowlist). This example attaches
 a temporary ``allow_all`` policy so ``pip`` can reach PyPI.
@@ -33,19 +33,19 @@ policy = client.network_policies.create(
     description="Temporary egress for shell-command example",
 )
 
-runtime = None
+sandbox = None
 try:
-    runtime = client.runtime.create(
+    sandbox = client.runtime.create(
         template=TEMPLATE,
         network_policy_ids=[policy.id],
         timeout=600,
     )
-    print(f"Runtime    : {runtime.runtime_id}")
+    print(f"Runtime    : {sandbox.runtime_id}")
 
     # ---------------------------------------------------------------------------
     # 1. Basic command — single-string form
     # ---------------------------------------------------------------------------
-    result = runtime.run_cmd(command="uname -a")
+    result = sandbox.run_cmd(command="uname -a")
     print(f"\n--- uname -a (single string) ---")
     print(f"stdout     : {result.stdout.strip()}")
     print(f"exit_code  : {result.exit_code}")
@@ -54,21 +54,21 @@ try:
     # ---------------------------------------------------------------------------
     # 2. Same command — command + args form
     # ---------------------------------------------------------------------------
-    result = runtime.run_cmd(command="uname", args=["-a"])
+    result = sandbox.run_cmd(command="uname", args=["-a"])
     print(f"\n--- uname -a (command + args) ---")
     print(f"stdout     : {result.stdout.strip()}")
 
     # ---------------------------------------------------------------------------
     # 3. List files in a directory
     # ---------------------------------------------------------------------------
-    result = runtime.run_cmd(command="ls", args=["-la", "/workspace"])
+    result = sandbox.run_cmd(command="ls", args=["-la", "/workspace"])
     print(f"\n--- ls /workspace ---")
     print(result.stdout)
 
     # ---------------------------------------------------------------------------
     # 4. Install a package with pip — single string is convenient here
     # ---------------------------------------------------------------------------
-    result = runtime.run_cmd(command="pip install requests --quiet", timeout=180)
+    result = sandbox.run_cmd(command="pip install requests --quiet", timeout=180)
     print(f"\n--- pip install requests (single string) ---")
     print(f"exit_code  : {result.exit_code}")
     print(f"stderr     : {result.stderr.strip()}")
@@ -77,7 +77,7 @@ try:
     # 5. Install with command + args — safer for user-supplied package names
     # ---------------------------------------------------------------------------
     package = "rich"
-    result = runtime.run_cmd(
+    result = sandbox.run_cmd(
         command="pip", args=["install", package, "--quiet"], timeout=180
     )
     print(f"\n--- pip install {package} (command + args) ---")
@@ -86,14 +86,14 @@ try:
     # ---------------------------------------------------------------------------
     # 6. Run with a specific working directory
     # ---------------------------------------------------------------------------
-    result = runtime.run_cmd(command="pwd", working_dir="/tmp")
+    result = sandbox.run_cmd(command="pwd", working_dir="/tmp")
     print(f"\n--- pwd in /tmp ---")
     print(f"stdout     : {result.stdout.strip()}")
 
     # ---------------------------------------------------------------------------
     # 7. Chain multiple commands in a single shell invocation
     # ---------------------------------------------------------------------------
-    result = runtime.run_cmd(
+    result = sandbox.run_cmd(
         command="echo 'Disk usage:' && df -h / | tail -1 && echo 'Memory:' && free -m | head -2",
     )
     print(f"\n--- System resources (chained) ---")
@@ -102,15 +102,15 @@ try:
     # ---------------------------------------------------------------------------
     # 8. Handle a failing command
     # ---------------------------------------------------------------------------
-    result = runtime.run_cmd(command="ls", args=["/nonexistent"])
+    result = sandbox.run_cmd(command="ls", args=["/nonexistent"])
     print(f"\n--- Failing command ---")
     print(f"exit_code  : {result.exit_code}")
     print(f"stderr     : {result.stderr.strip()}")
     print(f"success    : {result.success}")
 
 finally:
-    if runtime is not None:
-        runtime.kill()
+    if sandbox is not None:
+        sandbox.kill()
         print("\nRuntime terminated.")
     try:
         client.network_policies.delete(policy.id)

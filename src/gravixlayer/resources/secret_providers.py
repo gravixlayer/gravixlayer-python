@@ -48,7 +48,7 @@ class Providers:
         ...     secrets=[{"key": "OPENAI_API_KEY", "value": "sk-..."}],
         ... )
         >>> client.identity.providers.attach(provider.id, runtime_id)
-        >>> runtime = client.runtime.create(
+        >>> sandbox = client.runtime.create(
         ...     providers=[provider.id],
         ... )
     """

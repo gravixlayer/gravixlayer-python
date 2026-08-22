@@ -12,12 +12,12 @@ from gravixlayer.types.runtime import Runtime
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
-with Runtime.create(template=TEMPLATE, timeout=1800) as rt:
-    a = rt.enable_ssh()
+with Runtime.create(template=TEMPLATE, timeout=1800) as sandbox:
+    a = sandbox.enable_ssh()
     print("enabled:", a.enabled, "user:", a.username)
-    rt.disable_ssh()
+    sandbox.disable_ssh()
     print("revoked")
-    b = rt.enable_ssh()
+    b = sandbox.enable_ssh()
     print("re-enabled:", b.enabled)
-    c = rt.enable_ssh(regenerate_keys=True)
+    c = sandbox.enable_ssh(regenerate_keys=True)
     print("rotated keys:", c.enabled)

@@ -17,13 +17,13 @@ client = GravixLayer()
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
-runtime = client.runtime.create(template=TEMPLATE)
-print(f"Runtime    : {runtime.runtime_id}")
+sandbox = client.runtime.create(template=TEMPLATE)
+print(f"Runtime    : {sandbox.runtime_id}")
 
 # ---------------------------------------------------------------------------
 # 1. Simple expression
 # ---------------------------------------------------------------------------
-result = runtime.run_code(code="print(2 + 2)")
+result = sandbox.run_code(code="print(2 + 2)")
 print(f"\n--- Simple expression ---")
 print(f"Output     : {result.text}")
 
@@ -43,7 +43,7 @@ info = {
 print(json.dumps(info, indent=2))
 """
 
-result = runtime.run_code(code=code)
+result = sandbox.run_code(code=code)
 print(f"\n--- System info ---")
 print(result.stdout)
 
@@ -65,12 +65,12 @@ print(f"First 15 Fibonacci numbers: {result}")
 print(f"Sum: {sum(result)}")
 """
 
-result = runtime.run_code(code=code)
+result = sandbox.run_code(code=code)
 print(f"\n--- Fibonacci ---")
 print(result.stdout)
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-runtime.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

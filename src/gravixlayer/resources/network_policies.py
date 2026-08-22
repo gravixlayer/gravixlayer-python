@@ -58,9 +58,9 @@ class NetworkPolicies:
         ...     egress_mode="allowlist",
         ...     rules=[{"destination": "api.openai.com", "port": 443, "protocol": "tcp"}],
         ... )
-        >>> runtime = client.runtime.create(network_policy_ids=[policy.id])
+        >>> sandbox = client.runtime.create(network_policy_ids=[policy.id])
         >>> client.network_policies.attach(policy.id, other_runtime_id)
-        >>> attached = client.network_policies.list_for_runtime(runtime.runtime_id)
+        >>> attached = client.network_policies.list_for_runtime(sandbox.runtime_id)
     """
 
     def __init__(self, client):

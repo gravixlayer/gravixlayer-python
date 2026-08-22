@@ -33,7 +33,7 @@ def main() -> int:
     providers = client.identity.providers
 
     provider = None
-    runtime = None
+    sandbox = None
     try:
         # ------------------------------------------------------------------
         # 1. Create (with an initial secret)
@@ -86,17 +86,17 @@ def main() -> int:
         print(f"  remaining={len(providers.list_secrets(provider.id).secrets)}")
 
         # ------------------------------------------------------------------
-        # 5. Attach at runtime create + verify injection
+        # 5. Attach at sandbox create + verify injection
         # ------------------------------------------------------------------
         print("\n=== 5. runtime.create(providers=[...]) ===")
-        runtime = client.runtime.create(
+        sandbox = client.runtime.create(
             template=TEMPLATE,
             providers=[provider.id],
             timeout=600,
         )
-        print(f"  runtime_id={runtime.runtime_id} status={runtime.status}")
+        print(f"  runtime_id={sandbox.runtime_id} status={sandbox.status}")
 
-        result = runtime.run_code(
+        result = sandbox.run_code(
             "import os; print(os.environ.get('OPENAI_API_KEY', '')[:7] or 'MISSING')"
         )
         print(f"  OPENAI_API_KEY prefix: {result.stdout.strip()!r}")
@@ -105,34 +105,34 @@ def main() -> int:
         # 6. list_for_runtime → detach → attach again
         # ------------------------------------------------------------------
         print("\n=== 6. list_for_runtime / detach / attach ===")
-        attached = providers.list_for_runtime(runtime.runtime_id)
+        attached = providers.list_for_runtime(sandbox.runtime_id)
         for p in attached.providers:
             print(f"  attached: {p.name} ({p.id})")
 
-        providers.detach(provider.id, runtime.runtime_id)
+        providers.detach(provider.id, sandbox.runtime_id)
         print("  detached")
-        print(f"  after detach: {len(providers.list_for_runtime(runtime.runtime_id).providers)}")
+        print(f"  after detach: {len(providers.list_for_runtime(sandbox.runtime_id).providers)}")
 
-        providers.attach(provider.id, runtime.runtime_id)
+        providers.attach(provider.id, sandbox.runtime_id)
         print("  re-attached via attach()")
-        print(f"  after attach: {len(providers.list_for_runtime(runtime.runtime_id).providers)}")
+        print(f"  after attach: {len(providers.list_for_runtime(sandbox.runtime_id).providers)}")
 
         # ------------------------------------------------------------------
         # 7. Cleanup
         # ------------------------------------------------------------------
         print("\n=== 7. cleanup ===")
-        providers.detach(provider.id, runtime.runtime_id)
-        runtime.kill()
-        runtime = None
+        providers.detach(provider.id, sandbox.runtime_id)
+        sandbox.kill()
+        sandbox = None
         providers.delete(provider.id)
         provider = None
         print("  done")
         return 0
 
     finally:
-        if runtime is not None:
+        if sandbox is not None:
             try:
-                runtime.kill()
+                sandbox.kill()
             except Exception as exc:  # noqa: BLE001 — best-effort cleanup
                 print(f"  cleanup runtime failed: {exc}", file=sys.stderr)
         if provider is not None:

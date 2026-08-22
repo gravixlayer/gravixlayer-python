@@ -36,11 +36,11 @@ print(f"Total      : {result.total}")
 if not result.runtimes:
     print("  (no running agent runtimes)")
 else:
-    for sb in result.runtimes:
-        print(f"  {sb.runtime_id}  status={sb.status:<10s}  template={sb.template}")
+    for sandbox in result.runtimes:
+        print(f"  {sandbox.runtime_id}  status={sandbox.status:<10s}  template={sandbox.template}")
 
     # -------------------------------------------------------------------
-    # 3. Get details of the first runtime
+    # 3. Get details of the first sandbox
     # -------------------------------------------------------------------
     first = result.runtimes[0]
     info = client.runtime.get(first.runtime_id)

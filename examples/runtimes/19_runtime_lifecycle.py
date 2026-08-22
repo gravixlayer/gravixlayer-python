@@ -23,10 +23,10 @@ from gravixlayer.types.runtime import Runtime
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
 
-def check_status(rt: Runtime, expected: str) -> None:
+def check_status(sandbox: Runtime, expected: str) -> None:
     from gravixlayer import GravixLayer
     client = GravixLayer()
-    info = client.runtime.get(rt.runtime_id)
+    info = client.runtime.get(sandbox.runtime_id)
     status = info.status
     ok = "[OK]" if status == expected else "[MISMATCH]"
     print(f"  status={status!r}  (expected {expected!r}) {ok}")
@@ -36,41 +36,41 @@ def check_status(rt: Runtime, expected: str) -> None:
 # 1. Create
 # ---------------------------------------------------------------------------
 print("=== 1. Create ===")
-rt = Runtime.create(template=TEMPLATE, timeout=1800)
-print(f"  runtime_id={rt.runtime_id}")
-check_status(rt, "running")
+sandbox = Runtime.create(template=TEMPLATE, timeout=1800)
+print(f"  runtime_id={sandbox.runtime_id}")
+check_status(sandbox, "running")
 
 # ---------------------------------------------------------------------------
 # 2. Run code while running
 # ---------------------------------------------------------------------------
 print("\n=== 2. Run code (running state) ===")
-result = rt.run_code("x = 42; print(f'x = {x}')")
+result = sandbox.run_code("x = 42; print(f'x = {x}')")
 print(f"  output: {result.stdout.strip()}")
 
 # ---------------------------------------------------------------------------
 # 3. Pause
 # ---------------------------------------------------------------------------
 print("\n=== 3. Pause ===")
-rt.pause()
+sandbox.pause()
 time.sleep(1)  # allow state propagation
-check_status(rt, "paused")
+check_status(sandbox, "paused")
 
 # ---------------------------------------------------------------------------
 # 4. Resume
 # ---------------------------------------------------------------------------
 print("\n=== 4. Resume ===")
-rt.resume()
+sandbox.resume()
 time.sleep(1)  # allow state propagation
-check_status(rt, "running")
+check_status(sandbox, "running")
 
 # ---------------------------------------------------------------------------
 # 5. Verify kernel state is preserved across pause/resume
 #    Variables survive because run_code uses a persistent kernel context.
-#    The runtime freezes the entire VM (including that Python worker process)
+#    The sandbox freezes the entire VM (including that Python worker process)
 #    on pause and thaws it on resume — state is fully intact.
 # ---------------------------------------------------------------------------
 print("\n=== 5. Kernel state after resume ===")
-result = rt.run_code("print(f'x still = {x}')")
+result = sandbox.run_code("print(f'x still = {x}')")
 print(f"  output: {result.stdout.strip()}")
 if result.stderr.strip():
     print(f"  stderr: {result.stderr.strip()}")
@@ -79,5 +79,5 @@ if result.stderr.strip():
 # 6. Kill
 # ---------------------------------------------------------------------------
 print("\n=== 6. Kill ===")
-rt.kill()
+sandbox.kill()
 print("  terminated.")

@@ -39,7 +39,7 @@ if not KINDS or any(k not in ("cold", "hot") for k in KINDS):
     )
 
 MARKER = "/workspace/checkpoint.txt"
-source = None
+sandbox = None
 restored = []
 snaps = []
 run_t0 = perf_counter()
@@ -68,12 +68,12 @@ def run_kind(kind: str) -> None:
     print(f"Snapshot   : {snap_name}  kind={kind}")
 
     t0 = perf_counter()
-    source.file.write(MARKER, captured)
+    sandbox.file.write(MARKER, captured)
     print(f"Wrote      : {MARKER!r} → {captured.strip()!r}  {ms(t0)}")
 
     t0 = perf_counter()
     snap = client.snapshots.create(
-        runtime_id=source.runtime_id,
+        runtime_id=sandbox.runtime_id,
         name=snap_name,
         kind=kind,
         description=f"SDK {kind} snapshot lifecycle example",
@@ -82,12 +82,12 @@ def run_kind(kind: str) -> None:
     show("Captured", snap, t0)
 
     t0 = perf_counter()
-    source.file.write(MARKER, f"mutated after {kind} capture\n")
-    live = source.file.read(MARKER).content
+    sandbox.file.write(MARKER, f"mutated after {kind} capture\n")
+    live = sandbox.file.read(MARKER).content
     print(f"Source now : {MARKER!r} → {live.strip()!r}  {ms(t0)}")
 
     t0 = perf_counter()
-    listed = client.snapshots.list(kind=kind, runtime_id=source.runtime_id)
+    listed = client.snapshots.list(kind=kind, runtime_id=sandbox.runtime_id)
     names = [s.name for s in listed.snapshots]
     print(f"\nListed     : {listed.total} total, this runtime → {names}  {ms(t0)}")
 
@@ -144,8 +144,8 @@ def run_kind(kind: str) -> None:
 
 try:
     t0 = perf_counter()
-    source = client.runtime.create(template=TEMPLATE)
-    print(f"Source     : {source.runtime_id}  status={source.status}  {ms(t0)}\n")
+    sandbox = client.runtime.create(template=TEMPLATE)
+    print(f"Source     : {sandbox.runtime_id}  status={sandbox.status}  {ms(t0)}\n")
 
     for kind in KINDS:
         run_kind(kind)
@@ -155,10 +155,10 @@ finally:
         t0 = perf_counter()
         child.kill()
         print(f"Killed     : restored {child.runtime_id}  {ms(t0)}")
-    if source is not None:
+    if sandbox is not None:
         t0 = perf_counter()
-        source.kill()
-        print(f"Killed     : source {source.runtime_id}  {ms(t0)}")
+        sandbox.kill()
+        print(f"Killed     : source {sandbox.runtime_id}  {ms(t0)}")
     for snap in list(snaps):
         try:
             t0 = perf_counter()

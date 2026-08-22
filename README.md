@@ -17,12 +17,12 @@ export GRAVIXLAYER_API_KEY="your-api-key"
 from gravixlayer import GravixLayer
 
 client = GravixLayer()
-runtime = client.runtime.create(template="base-small")
+sandbox = client.runtime.create()  # defaults to template="base-small"
 
-result = runtime.run_code("print('Hello from GravixLayer')")
+result = sandbox.run_code(code="print('Hello from GravixLayer')")
 print(result.text)
 
-runtime.kill()
+sandbox.kill()
 ```
 
 Cloud and region default to `aws` / `us-east-1`. Override with
@@ -59,11 +59,11 @@ the default; pass `http2=True` for multiplexing under high concurrency.
 
 ## Runtimes
 
-A runtime is an isolated virtual machine that boots from a template. It runs
+A sandbox is an isolated virtual machine that boots from a template. It runs
 until you stop it, or until a timeout you set expires.
 
 ```python
-runtime = client.runtime.create(
+sandbox = client.runtime.create(
     template="base-small",
     env_vars={"APP_ENV": "staging"},
     timeout=600,
@@ -75,19 +75,19 @@ Use a context manager when you want it stopped automatically:
 ```python
 from gravixlayer import Runtime
 
-with Runtime.create(template="base-small") as runtime:
-    print(runtime.run_code("print(2 + 2)").text)
+with Runtime.create(template="base-small") as sandbox:
+    print(sandbox.run_code("print(2 + 2)").text)
 ```
 
 ### Code and commands
 
 ```python
-result = runtime.run_code("print(sum(range(100)))")
+result = sandbox.run_code("print(sum(range(100)))")
 print(result.text)
 
 # Pass args when any part comes from user input — nothing in the list is
 # interpreted by a shell.
-runtime.run_cmd("python", args=["--version"])
+sandbox.run_cmd("python", args=["--version"])
 ```
 
 Guest egress is deny-by-default. Installing a package or reaching the internet
@@ -96,8 +96,8 @@ needs a [network policy](#network-policies).
 ### Files
 
 ```python
-runtime.file.write("/workspace/note.txt", "hello\n")
-text = runtime.file.read("/workspace/note.txt").content
+sandbox.file.write("/workspace/note.txt", "hello\n")
+text = sandbox.file.read("/workspace/note.txt").content
 ```
 
 Also: `list`, `upload`, `download`, `write_many`, `move`, `copy`, `find`,
@@ -108,17 +108,17 @@ Also: `list`, `upload`, `download`, `write_many`, `move`, `copy`, `find`,
 
 ```python
 # Interpreter state that survives between run_code calls.
-ctx = client.runtime.create_context(runtime.runtime_id)
-client.runtime.run_code(runtime.runtime_id, "x = 1", context_id=ctx.context_id)
+ctx = client.runtime.create_context(sandbox.runtime_id)
+client.runtime.run_code(sandbox.runtime_id, "x = 1", context_id=ctx.context_id)
 
 # Publish a guest port on https://*.service.gravixlayer.ai
-with runtime.service(8000) as api:
+with sandbox.service(8000) as api:
     print(api.web_url)
     api.get("/items")
 
-runtime.git.clone("https://github.com/org/repo.git", "/workspace/repo", depth=1)
+sandbox.git.clone("https://github.com/org/repo.git", "/workspace/repo", depth=1)
 
-ssh = runtime.enable_ssh()
+ssh = sandbox.enable_ssh()
 print(ssh.connect_cmd)
 ```
 
@@ -142,18 +142,18 @@ template = (
 )
 
 status = client.templates.build_and_wait(template)
-runtime = client.runtime.create(template=status.template_id)
+sandbox = client.runtime.create(template=status.template_id)
 ```
 
 ## Snapshots
 
 ```python
-client.snapshots.create(runtime.runtime_id, "ready-to-work", kind="cold")
+client.snapshots.create(sandbox.runtime_id, "ready-to-work", kind="cold")
 restored = client.runtime.create(snapshot="ready-to-work")
 ```
 
 A `cold` snapshot stores the filesystem; a `hot` snapshot stores memory too, so
-the restored runtime resumes mid-process.
+the restored sandbox resumes mid-process.
 
 ## Agents
 
@@ -164,7 +164,7 @@ reply = client.agents.invoke(agent.agent_id, input={"prompt": "hello"})
 
 ## Network policies
 
-A runtime starts fail-closed. Grant access explicitly:
+A sandbox starts fail-closed. Grant access explicitly:
 
 ```python
 policy = client.network_policies.create(
@@ -173,7 +173,7 @@ policy = client.network_policies.create(
     rules=[{"destination": "api.example.com", "port": 443, "protocol": "tcp"}],
 )
 
-runtime = client.runtime.create(
+sandbox = client.runtime.create(
     template="base-small",
     network_policy_ids=[policy.id],
 )
@@ -190,7 +190,7 @@ provider = client.identity.providers.create(
     secrets=[{"key": "MODEL_API_KEY", "value": "..."}],
 )
 
-runtime = client.runtime.create(
+sandbox = client.runtime.create(
     template="base-small",
     providers=[provider.id],
 )
@@ -206,12 +206,12 @@ from gravixlayer import AsyncGravixLayer
 
 async def main():
     async with AsyncGravixLayer() as client:
-        runtime = await client.runtime.create(template="base-small")
+        sandbox = await client.runtime.create(template="base-small")
         result = await client.runtime.run_code(
-            runtime.runtime_id, "print('hello')"
+            sandbox.runtime_id, "print('hello')"
         )
         print(result.stdout_text)
-        await client.runtime.kill(runtime.runtime_id)
+        await client.runtime.kill(sandbox.runtime_id)
 
 asyncio.run(main())
 ```

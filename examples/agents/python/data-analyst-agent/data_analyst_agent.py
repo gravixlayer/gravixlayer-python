@@ -155,10 +155,10 @@ STDERR_FILTERS = [
 # ---------------------------------------------------------------------------
 
 
-def execute_code_in_runtime(runtime: Runtime, code: str) -> tuple[str, float]:
+def execute_code_in_runtime(sandbox: Runtime, code: str) -> tuple[str, float]:
     """Execute Python code in the Agent Runtime and return (output, elapsed_ms)."""
     t0 = time.perf_counter()
-    result = runtime.run_code(code)
+    result = sandbox.run_code(code)
     elapsed = (time.perf_counter() - t0) * 1000
 
     parts = []
@@ -182,9 +182,9 @@ def extract_code_block(text: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
-def discover_columns(runtime: Runtime) -> str:
+def discover_columns(sandbox: Runtime) -> str:
     """Read column names from the dataset so the LLM gets exact names."""
-    result = runtime.run_code(
+    result = sandbox.run_code(
         "import pandas as pd\n"
         f"df = pd.read_csv('{DATASET_PATH}', nrows=1)\n"
         "print(', '.join(df.columns.tolist()))"
@@ -197,13 +197,13 @@ def discover_columns(runtime: Runtime) -> str:
 # ---------------------------------------------------------------------------
 
 
-def run_analysis(openai_client: OpenAI, runtime: Runtime) -> None:
+def run_analysis(openai_client: OpenAI, sandbox: Runtime) -> None:
     """Run each analysis step, executing LLM-generated code in the runtime."""
     model = os.environ.get("OPENAI_MODEL", "gpt-4o")
     tracker.analysis_start = time.perf_counter()
 
     print("\nDiscovering dataset columns...")
-    columns = discover_columns(runtime)
+    columns = discover_columns(sandbox)
     print(f"  Columns: {columns}")
 
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(columns=columns)
@@ -244,7 +244,7 @@ def run_analysis(openai_client: OpenAI, runtime: Runtime) -> None:
             print(code if len(code) <= 600 else code[:600] + "\n... (truncated)")
             print(f"{'='*60}")
 
-            output, exec_ms = execute_code_in_runtime(runtime, code)
+            output, exec_ms = execute_code_in_runtime(sandbox, code)
 
             # Classify the execution by what it does
             label = ""
@@ -281,10 +281,10 @@ def run_analysis(openai_client: OpenAI, runtime: Runtime) -> None:
 # ---------------------------------------------------------------------------
 
 
-def download_charts(runtime: Runtime, local_dir: str = LOCAL_CHARTS_DIR) -> None:
+def download_charts(sandbox: Runtime, local_dir: str = LOCAL_CHARTS_DIR) -> None:
     """Download generated charts from the Agent Runtime to the local machine."""
     os.makedirs(local_dir, exist_ok=True)
-    files = runtime.file.list(CHARTS_DIR).files
+    files = sandbox.file.list(CHARTS_DIR).files
     chart_files = [f for f in files if f.name.endswith(".png")]
     if not chart_files:
         print("\nNo charts were generated.")
@@ -292,7 +292,7 @@ def download_charts(runtime: Runtime, local_dir: str = LOCAL_CHARTS_DIR) -> None
     print(f"\nDownloading {len(chart_files)} chart(s) to ./{local_dir}/")
     for fi in chart_files:
         remote_path = f"{CHARTS_DIR}/{fi.name}"
-        data = runtime.file.download_file(remote_path)
+        data = sandbox.file.download_file(remote_path)
         local_path = os.path.join(local_dir, fi.name)
         with open(local_path, "wb") as f:
             f.write(data)
@@ -338,12 +338,12 @@ def main():
             template=os.getenv("GRAVIXLAYER_TEMPLATE", "base-medium"),
             timeout=int(os.getenv("GRAVIXLAYER_TIMEOUT", "600")),
             network_policy_ids=[policy.id],
-        ) as runtime:
-            print(f"Runtime ready: {runtime.runtime_id}")
-            print(f"  CPU: {runtime.cpu_count}, Memory: {runtime.memory_mb}MB")
+        ) as sandbox:
+            print(f"Runtime ready: {sandbox.runtime_id}")
+            print(f"  CPU: {sandbox.cpu_count}, Memory: {sandbox.memory_mb}MB")
 
             print("\nInstalling analysis packages...")
-            install = runtime.run_cmd(
+            install = sandbox.run_cmd(
                 "pip",
                 args=["install", "pandas", "matplotlib", "seaborn", "numpy", "--quiet"],
                 timeout=300,
@@ -354,7 +354,7 @@ def main():
             print("Packages installed.")
 
             print("\nDownloading dataset...")
-            dl = runtime.run_code(
+            dl = sandbox.run_code(
                 f"import urllib.request, os\n"
                 f"os.makedirs('/workspace', exist_ok=True)\n"
                 f"urllib.request.urlretrieve('{DATASET_URL}', '{DATASET_PATH}')\n"
@@ -366,13 +366,13 @@ def main():
                 sys.exit(1)
             print(dl.stdout.strip() if dl.stdout else "Dataset ready.")
 
-            runtime.file.create_directory(CHARTS_DIR, recursive=True)
-            runtime.run_code("import matplotlib; matplotlib.use('Agg')")
+            sandbox.file.create_directory(CHARTS_DIR, recursive=True)
+            sandbox.run_code("import matplotlib; matplotlib.use('Agg')")
 
-            run_analysis(openai_client, runtime)
+            run_analysis(openai_client, sandbox)
             tracker.analysis_end = time.perf_counter()
 
-            download_charts(runtime)
+            download_charts(sandbox)
             tracker.print_summary()
 
             print("\nDone. Runtime will be terminated automatically.")

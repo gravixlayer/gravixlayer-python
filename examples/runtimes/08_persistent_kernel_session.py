@@ -22,14 +22,13 @@ client = GravixLayer()
 
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
-runtime = client.runtime.create(template=TEMPLATE)
-sid = runtime.runtime_id
-print(f"Runtime    : {sid}\n")
+sandbox = client.runtime.create(template=TEMPLATE)
+print(f"Runtime    : {sandbox.runtime_id}\n")
 
 # ---------------------------------------------------------------------------
 # 1. Create a persistent code context
 # ---------------------------------------------------------------------------
-ctx = client.runtime.create_context(sid, language="python")
+ctx = client.runtime.create_context(sandbox.runtime_id, language="python")
 print(f"Context ID : {ctx.context_id}")
 print(f"Language   : {ctx.language}")
 
@@ -37,7 +36,7 @@ print(f"Language   : {ctx.language}")
 # 2. Define variables — they persist across calls within the context
 # ---------------------------------------------------------------------------
 client.runtime.run_code(
-    sid,
+    sandbox.runtime_id,
     code="data = [10, 20, 30, 40, 50]",
     context_id=ctx.context_id,
 )
@@ -47,7 +46,7 @@ print("\nDefined    : data = [10, 20, 30, 40, 50]")
 # 3. Use the variables in a subsequent call
 # ---------------------------------------------------------------------------
 result = client.runtime.run_code(
-    sid,
+    sandbox.runtime_id,
     code="total = sum(data)\navg = total / len(data)\nprint(f'Total: {total}, Average: {avg}')",
     context_id=ctx.context_id,
 )
@@ -57,7 +56,7 @@ print(f"Computed   : {result.stdout_text}")
 # 4. Define a function, then call it later
 # ---------------------------------------------------------------------------
 client.runtime.run_code(
-    sid,
+    sandbox.runtime_id,
     code="""\
 def describe(values):
     return {
@@ -72,7 +71,7 @@ def describe(values):
 )
 
 result = client.runtime.run_code(
-    sid,
+    sandbox.runtime_id,
     code="import json; print(json.dumps(describe(data), indent=2))",
     context_id=ctx.context_id,
 )
@@ -81,17 +80,17 @@ print(f"\nDescribe   :\n{result.stdout_text}")
 # ---------------------------------------------------------------------------
 # 5. Inspect the context
 # ---------------------------------------------------------------------------
-ctx_info = client.runtime.get_context(sid, ctx.context_id)
+ctx_info = client.runtime.get_context(sandbox.runtime_id, ctx.context_id)
 print(f"\nContext    : language={ctx_info.language}, cwd={ctx_info.cwd}")
 
 # ---------------------------------------------------------------------------
 # 6. Delete the context (kernel resources are freed)
 # ---------------------------------------------------------------------------
-delete_result = client.runtime.delete_context(sid, ctx.context_id)
+delete_result = client.runtime.delete_context(sandbox.runtime_id, ctx.context_id)
 print(f"Deleted    : {delete_result.message}")
 
 # ---------------------------------------------------------------------------
 # Clean up
 # ---------------------------------------------------------------------------
-runtime.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

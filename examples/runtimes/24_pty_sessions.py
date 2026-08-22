@@ -6,7 +6,7 @@ plane rather than by the client that opened it, so the shell keeps running after
 disconnect and you can attach to the same session again later — from another process
 or another machine.
 
-`runtime.pty.handle(session_id)` wraps the stateless calls in a connection-managing
+`sandbox.pty.handle(session_id)` wraps the stateless calls in a connection-managing
 object: it owns one output stream, buffers what it receives, and exposes
 `wait_for_connection` / `wait_for_completion`.
 
@@ -25,8 +25,8 @@ from gravixlayer import GravixLayer
 client = GravixLayer()
 TEMPLATE = os.getenv("GRAVIXLAYER_TEMPLATE", "base-small")
 
-runtime = client.runtime.create(template=TEMPLATE)
-print(f"Runtime    : {runtime.runtime_id}\n")
+sandbox = client.runtime.create(template=TEMPLATE)
+print(f"Runtime    : {sandbox.runtime_id}\n")
 
 
 def show(chunk: bytes) -> None:
@@ -36,7 +36,7 @@ def show(chunk: bytes) -> None:
 # ---------------------------------------------------------------------------
 # 1. Create a session
 # ---------------------------------------------------------------------------
-session = runtime.pty.create(
+session = sandbox.pty.create(
     shell="/bin/bash",
     working_dir="/workspace",
     environment={"DEMO": "pty"},
@@ -52,7 +52,7 @@ print(f"  status   : {session.status}")
 # ---------------------------------------------------------------------------
 # 2. Attach a handle and stream the terminal live
 # ---------------------------------------------------------------------------
-pty = runtime.pty.handle(session.session_id)
+pty = sandbox.pty.handle(session.session_id)
 pty.connect(on_data=show, on_exit=lambda code, err: print(f"\n[session exited {code}]"))
 
 if not pty.wait_for_connection(timeout=30):
@@ -86,9 +86,9 @@ time.sleep(2)
 print("\n--- interrupted, shell is still alive ---")
 
 # ---------------------------------------------------------------------------
-# 6. List the runtime's sessions
+# 6. List the sandbox's sessions
 # ---------------------------------------------------------------------------
-sessions = runtime.pty.list()
+sessions = sandbox.pty.list()
 print(f"\nSessions   : {len(sessions)}")
 for s in sessions:
     print(f"  {s.session_id}  pid={s.pid}  {s.status}")
@@ -100,7 +100,7 @@ buffered = pty.output
 pty.disconnect()
 print(f"\nDetached   : connected={pty.is_connected}, buffered {len(buffered)} bytes")
 
-still_there = runtime.pty.get(session.session_id)
+still_there = sandbox.pty.get(session.session_id)
 print(f"Session    : still {still_there.status} after detaching")
 
 # ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ print(f"Session    : still {still_there.status} after detaching")
 # ---------------------------------------------------------------------------
 # Attaching replays the session's retained scrollback first, so everything typed
 # above is reprinted before the new output.
-with runtime.pty.handle(session.session_id) as pty2:
+with sandbox.pty.handle(session.session_id) as pty2:
     pty2.connect(on_data=show)
     pty2.wait_for_connection(timeout=30)
     print("\n--- re-attached ---")
@@ -125,16 +125,16 @@ with runtime.pty.handle(session.session_id) as pty2:
 # ---------------------------------------------------------------------------
 # Signal names are given without the SIG prefix. HUP is the one a terminal sends
 # when it goes away, and a shell exits on it.
-scratch = runtime.pty.create(shell="/bin/bash")
-runtime.pty.send_signal(scratch.session_id, "HUP")
+scratch = sandbox.pty.create(shell="/bin/bash")
+sandbox.pty.send_signal(scratch.session_id, "HUP")
 time.sleep(1)
-print(f"\nScratch    : {scratch.session_id} -> {runtime.pty.get(scratch.session_id).status}")
+print(f"\nScratch    : {scratch.session_id} -> {sandbox.pty.get(scratch.session_id).status}")
 
 # Killing a session ends it if it is still running, and releases it either way.
-print(f"Released   : {runtime.pty.kill(scratch.session_id)}")
+print(f"Released   : {sandbox.pty.kill(scratch.session_id)}")
 
 # ---------------------------------------------------------------------------
-# Clean up — always kill the runtime when you are done
+# Clean up — always kill the sandbox when you are done
 # ---------------------------------------------------------------------------
-runtime.kill()
+sandbox.kill()
 print("\nRuntime terminated.")

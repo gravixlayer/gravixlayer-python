@@ -44,7 +44,7 @@ The platform:
 1. Detects the project as Google ADK (via `pyproject.toml` dependency).
 2. Auto-discovers `time_agent/` as the ADK package and uses the directory
    name as the ADK `app_name`.
-3. Auto-loads `time_agent/.env` and `./.env` into the runtime environment.
+3. Auto-loads `time_agent/.env` and `./.env` into the sandbox environment.
 4. Exposes both the GravixLayer canonical routes (`/invoke`, `/stream`)
    and the **ADK REST contract** (`/list-apps`, sessions CRUD,
    `/run`, `/run_sse`) so any existing ADK client just works.

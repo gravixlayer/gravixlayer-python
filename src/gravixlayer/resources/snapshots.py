@@ -40,7 +40,7 @@ class Snapshots:
         >>> from gravixlayer import GravixLayer
         >>> client = GravixLayer(api_key="...")
         >>> snap = client.snapshots.create(runtime_id=rid, name="ckpt-1", kind="hot")
-        >>> rt = client.runtime.create(snapshot="ckpt-1")
+        >>> sandbox = client.runtime.create(snapshot="ckpt-1")
     """
 
     def __init__(self, client):
