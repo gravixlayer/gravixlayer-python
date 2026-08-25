@@ -82,11 +82,11 @@ class TestPrepareRequestKwargs:
         assert kwargs["json"] == {"a": 1}
         assert kwargs["headers"] == JSON_HEADERS
 
-    def test_none_data_only_headers(self):
+    def test_none_data_omits_json_headers(self):
         kwargs: dict = {}
         prepare_request_kwargs(None, kwargs)
         assert "json" not in kwargs
-        assert kwargs["headers"] == JSON_HEADERS
+        assert "headers" not in kwargs
 
     def test_files_with_data_puts_form_data(self):
         kwargs = {"files": [("f", ("a.txt", b"x", "text/plain"))]}

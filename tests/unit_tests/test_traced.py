@@ -34,5 +34,37 @@ def test_runtime_span_noop(monkeypatch):
         assert span is None
 
 
+def test_runtime_span_noop_without_opt_in(monkeypatch):
+    monkeypatch.setattr(telemetry, "_ENABLED", True)
+    monkeypatch.setattr(telemetry, "_SPANS_ACTIVE", False)
+    monkeypatch.setattr(telemetry, "_SPANS_RESOLVED", False)
+    monkeypatch.delenv("GRAVIXLAYER_ENABLE_TELEMETRY", raising=False)
+    with telemetry.runtime_span("code.run", "rid-1", inputs={"language": "python"}) as span:
+        assert span is None
+
+
+def test_client_span_noop_without_opt_in(monkeypatch):
+    monkeypatch.setattr(telemetry, "_ENABLED", True)
+    monkeypatch.setattr(telemetry, "_SPANS_ACTIVE", False)
+    monkeypatch.setattr(telemetry, "_SPANS_RESOLVED", False)
+    monkeypatch.delenv("GRAVIXLAYER_ENABLE_TELEMETRY", raising=False)
+    with telemetry.client_span("POST", "https://api.example/runtime") as span:
+        assert span is None
+
+
+def test_spans_active_caches_env_miss(monkeypatch):
+    monkeypatch.setattr(telemetry, "_ENABLED", True)
+    monkeypatch.setattr(telemetry, "_SPANS_ACTIVE", False)
+    monkeypatch.setattr(telemetry, "_SPANS_RESOLVED", False)
+    monkeypatch.delenv("GRAVIXLAYER_ENABLE_TELEMETRY", raising=False)
+    assert telemetry._spans_active() is False
+    assert telemetry._SPANS_RESOLVED is True
+    monkeypatch.setenv("GRAVIXLAYER_ENABLE_TELEMETRY", "true")
+    # Cached miss: later env mutation without enable_telemetry() is ignored.
+    assert telemetry._spans_active() is False
+    telemetry._activate_spans()
+    assert telemetry._spans_active() is True
+
+
 def test_mark_span_error_noop():
     telemetry.mark_span_error(None, "boom")

@@ -34,6 +34,7 @@ docs/
 
 # Local agent samples that are not shipped in this repo.
 examples/agents/internal/
+examples/runtimes/tti.py
 
 # PyBuilder
 target/

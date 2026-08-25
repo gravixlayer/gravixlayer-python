@@ -318,7 +318,7 @@ class Runtime:
         response = self._client.runtime.run_cmd(
             self.runtime_id,
             command=command,
-            args=args or [],
+            args=args,
             working_dir=working_dir,
             timeout=timeout,
             on_stdout=on_stdout,

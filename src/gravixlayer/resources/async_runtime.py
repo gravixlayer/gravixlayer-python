@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 
 import httpx
 
+from .. import telemetry
 from .._resource_utils import (
     build_list_endpoint,
     normalize_runtime_api_payload,
@@ -172,8 +173,6 @@ class AsyncRuntimes:
         if network_policy_ids is not None:
             data["network_policy_ids"] = network_policy_ids
 
-        from .. import telemetry
-
         with telemetry.runtime_span(
             "create",
             "",
@@ -243,8 +242,6 @@ class AsyncRuntimes:
     async def kill(self, runtime_id: str) -> RuntimeKillResponse:
         """Terminate a running runtime immediately."""
         _validate_runtime_id(runtime_id)
-        from .. import telemetry
-
         with telemetry.runtime_span(
             "kill",
             runtime_id,
@@ -326,8 +323,6 @@ class AsyncRuntimes:
         if timeout is not None:
             data["timeout"] = timeout * 1000
 
-        from .. import telemetry
-
         with telemetry.runtime_span(
             "command.run",
             runtime_id,
@@ -397,8 +392,6 @@ class AsyncRuntimes:
             data["timeout"] = timeout
 
         streaming = any(cb is not None for cb in (on_stdout, on_stderr, on_result, on_error))
-        from .. import telemetry
-
         with telemetry.runtime_span(
             "code.run",
             runtime_id,

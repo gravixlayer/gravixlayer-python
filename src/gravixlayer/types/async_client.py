@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any
 from .. import __version__
 from .._resource_utils import build_list_endpoint
 from .._request_utils import (
+    HTTP_LIMITS,
     RETRYABLE_STATUS,
     SUCCESS_STATUS,
     build_url,
@@ -109,10 +110,7 @@ class AsyncGravixLayer:
                 "User-Agent": user_agent,
                 **custom_headers,
             },
-            limits=httpx.Limits(
-                max_connections=20,
-                max_keepalive_connections=10,
-            ),
+            limits=HTTP_LIMITS,
         )
 
         self.runtime = AsyncRuntimeResource(self)
@@ -158,11 +156,13 @@ class AsyncGravixLayer:
         url = build_url(endpoint, _service, self._service_urls, self.base_url)
         prepare_request_kwargs(data, kwargs)
 
+        if not telemetry._spans_active():
+            return await self._send_with_retries(method, url, stream, kwargs)
+
         with telemetry.client_span(method, url) as span:
-            if span is not None:
-                headers = dict(kwargs.get("headers") or {})
-                telemetry.inject(headers)
-                kwargs["headers"] = headers
+            headers = dict(kwargs.get("headers") or {})
+            telemetry.inject(headers)
+            kwargs["headers"] = headers
             resp = await self._send_with_retries(method, url, stream, kwargs)
             if span is not None:
                 span.set_attribute("http.response.status_code", resp.status_code)

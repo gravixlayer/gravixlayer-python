@@ -104,28 +104,69 @@ except Exception:  # noqa: BLE001 - any import failure must disable telemetry.
     StatusCode = None  # type: ignore[assignment]
 
 
+_NOOP_SPAN = contextlib.nullcontext(None)
+_SPANS_ACTIVE = False
+# Once True, skip getenv on the request path. ``_activate_spans`` still turns
+# recording on later (enable_telemetry / configure_for_agent / env at first check).
+_SPANS_RESOLVED = False
+
+
+def _activate_spans() -> None:
+    """Turn on in-process span recording (opt-in client or agent serve)."""
+    global _SPANS_ACTIVE, _SPANS_RESOLVED
+    _SPANS_ACTIVE = True
+    _SPANS_RESOLVED = True
+
+
+def _spans_active() -> bool:
+    """Whether SDK spans should run on this process.
+
+    OpenTelemetry is a hard dependency, so ``_ENABLED`` is True on a normal
+    install. Bare client usage must not start spans, inject ``traceparent``,
+    or JSON-serialize span inputs on every request.
+    """
+    global _SPANS_RESOLVED
+    if not _ENABLED:
+        return False
+    if _SPANS_ACTIVE:
+        return True
+    if _SPANS_RESOLVED:
+        return False
+    if gravixlayer_telemetry_opted_in():
+        _activate_spans()
+        return True
+    _SPANS_RESOLVED = True
+    return False
+
+
 def inject(carrier: Dict[str, str]) -> Dict[str, str]:
     """Inject the active W3C trace context (``traceparent``/``tracestate``) into
     a header mapping for outbound propagation. Returns the same mapping for
     convenience. No-op when telemetry is disabled."""
-    if _ENABLED:
+    if _spans_active():
         propagate.inject(carrier)
     return carrier
 
 
-@contextlib.contextmanager
 def client_span(
     method: str,
     url: str,
     attributes: Optional[Mapping[str, Any]] = None,
-) -> Iterator[Any]:
+) -> Any:
     """Context manager for an outbound HTTP client span. Yields the span (or
     ``None`` when disabled). Records exceptions and sets an error status on
     failure following OpenTelemetry semantic conventions."""
-    if not _ENABLED:
-        yield None
-        return
+    if not _spans_active():
+        return _NOOP_SPAN
+    return _client_span(method, url, attributes)
 
+
+@contextlib.contextmanager
+def _client_span(
+    method: str,
+    url: str,
+    attributes: Optional[Mapping[str, Any]] = None,
+) -> Iterator[Any]:
     name = f"{method.upper()} {_span_path(url)}"
     with _tracer.start_as_current_span(name, kind=SpanKind.CLIENT) as span:
         span.set_attribute("http.request.method", method.upper())
@@ -141,15 +182,17 @@ def client_span(
             raise
 
 
-@contextlib.contextmanager
-def server_span(name: str, carrier: Optional[Mapping[str, str]] = None) -> Iterator[Any]:
+def server_span(name: str, carrier: Optional[Mapping[str, str]] = None) -> Any:
     """Context manager for an inbound request span, parented to the upstream
     trace context extracted from ``carrier`` (request headers). Yields the span
     (or ``None`` when disabled)."""
-    if not _ENABLED:
-        yield None
-        return
+    if not _spans_active():
+        return _NOOP_SPAN
+    return _server_span(name, carrier)
 
+
+@contextlib.contextmanager
+def _server_span(name: str, carrier: Optional[Mapping[str, str]] = None) -> Iterator[Any]:
     context = propagate.extract(carrier) if carrier else None
     with _tracer.start_as_current_span(name, context=context, kind=SpanKind.SERVER) as span:
         try:
@@ -160,20 +203,27 @@ def server_span(name: str, carrier: Optional[Mapping[str, str]] = None) -> Itera
             raise
 
 
-@contextlib.contextmanager
 def genai_span(
     operation: str,
     system: str,
     model: Optional[str] = None,
     attributes: Optional[Mapping[str, Any]] = None,
-) -> Iterator[Any]:
+) -> Any:
     """Context manager for a GenAI operation span following the
     ``gen_ai.*`` semantic conventions. Yields the span (or ``None`` when
     disabled)."""
-    if not _ENABLED:
-        yield None
-        return
+    if not _spans_active():
+        return _NOOP_SPAN
+    return _genai_span(operation, system, model, attributes)
 
+
+@contextlib.contextmanager
+def _genai_span(
+    operation: str,
+    system: str,
+    model: Optional[str] = None,
+    attributes: Optional[Mapping[str, Any]] = None,
+) -> Iterator[Any]:
     name = f"{operation} {model}" if model else operation
     with _tracer.start_as_current_span(name, kind=SpanKind.CLIENT) as span:
         span.set_attribute("gen_ai.operation.name", operation)
@@ -712,6 +762,8 @@ def configure_otel(
     if not _ENABLED:
         return False
 
+    _activate_spans()
+
     try:
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
         from opentelemetry.sdk.resources import Resource
@@ -793,6 +845,7 @@ def enable_telemetry(
     if not observability_enabled():
         return False
 
+    _activate_spans()
     configured = configure_otel(
         endpoint=endpoint,
         service_name=resolve_service_name(service_name),
@@ -815,9 +868,14 @@ def maybe_configure_from_env() -> bool:
     Called from ``GravixLayer()`` / ``AsyncGravixLayer()`` construction. Agent
     serving paths should use :func:`configure_for_agent` / :func:`enable_telemetry`.
     """
+    global _SPANS_RESOLVED
     if not observability_enabled():
+        if not _SPANS_ACTIVE:
+            _SPANS_RESOLVED = True
         return False
     if not gravixlayer_telemetry_opted_in():
+        if not _SPANS_ACTIVE:
+            _SPANS_RESOLVED = True
         return False
     configured = configure_otel(GravixLayerTelemetryConfig.from_env(), silent=True)
     _install_auto_instrumentation()
@@ -893,7 +951,6 @@ def _bind_inputs(fn: Callable[..., Any], args: tuple, kwargs: dict) -> Dict[str,
         return {"args": list(args), "kwargs": dict(kwargs)}
 
 
-@contextlib.contextmanager
 def trace(
     name: str,
     *,
@@ -902,17 +959,27 @@ def trace(
     attributes: Optional[Mapping[str, Any]] = None,
     process_inputs: Optional[Callable[[Any], Any]] = None,
     process_outputs: Optional[Callable[[Any], Any]] = None,
-) -> Iterator[Any]:
+) -> Any:
     """Optional manual span context manager for application logic.
 
     Yields the active OTel span (or ``None`` when disabled). Callers may set
     additional attributes or record outputs via :func:`record_outputs`.
     Not required for SDK ``runtime.*`` spans — those are emitted automatically.
     """
-    if not _ENABLED:
-        yield None
-        return
+    if not _spans_active():
+        return _NOOP_SPAN
+    return _trace(name, run_type, inputs, attributes, process_inputs, process_outputs)
 
+
+@contextlib.contextmanager
+def _trace(
+    name: str,
+    run_type: str,
+    inputs: Optional[Mapping[str, Any]],
+    attributes: Optional[Mapping[str, Any]],
+    process_inputs: Optional[Callable[[Any], Any]],
+    process_outputs: Optional[Callable[[Any], Any]],
+) -> Iterator[Any]:
     with _tracer.start_as_current_span(name, kind=SpanKind.INTERNAL) as span:
         span.set_attribute(ATTR_RUN_TYPE, run_type)
         if inputs is not None:
@@ -986,7 +1053,7 @@ def traced(
 
             @functools.wraps(fn)
             async def async_gen_wrapper(*args: Any, **kwargs: Any) -> Any:
-                if not _ENABLED:
+                if not _spans_active():
                     async for item in fn(*args, **kwargs):
                         yield item
                     return
@@ -1014,7 +1081,7 @@ def traced(
 
             @functools.wraps(fn)
             def gen_wrapper(*args: Any, **kwargs: Any) -> Any:
-                if not _ENABLED:
+                if not _spans_active():
                     yield from fn(*args, **kwargs)
                     return
                 inputs = _bind_inputs(fn, args, kwargs)
@@ -1041,7 +1108,7 @@ def traced(
 
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                if not _ENABLED:
+                if not _spans_active():
                     return await fn(*args, **kwargs)
                 inputs = _bind_inputs(fn, args, kwargs)
                 with trace(
@@ -1059,7 +1126,7 @@ def traced(
 
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            if not _ENABLED:
+            if not _spans_active():
                 return fn(*args, **kwargs)
             inputs = _bind_inputs(fn, args, kwargs)
             with trace(
@@ -1080,7 +1147,6 @@ def traced(
     return decorator
 
 
-@contextlib.contextmanager
 def runtime_span(
     operation: str,
     runtime_id: str,
@@ -1088,16 +1154,25 @@ def runtime_span(
     name: Optional[str] = None,
     attributes: Optional[Mapping[str, Any]] = None,
     inputs: Optional[Mapping[str, Any]] = None,
-) -> Iterator[Any]:
+) -> Any:
     """Semantic span for a sandbox runtime operation (code/cmd/file/git).
 
     Distinct from generic HTTP ``client_span`` so Traces UI can filter by
     ``gravixlayer.operation`` and group by ``gravixlayer.runtime.id``.
     """
-    if not _ENABLED:
-        yield None
-        return
+    if not _spans_active():
+        return _NOOP_SPAN
+    return _runtime_span(operation, runtime_id, name, attributes, inputs)
 
+
+@contextlib.contextmanager
+def _runtime_span(
+    operation: str,
+    runtime_id: str,
+    name: Optional[str],
+    attributes: Optional[Mapping[str, Any]],
+    inputs: Optional[Mapping[str, Any]],
+) -> Iterator[Any]:
     span_name = name or f"runtime.{operation}"
     # INTERNAL: product/runtime operations (not wire CLIENT/SERVER). UI shows run_type.
     with _tracer.start_as_current_span(span_name, kind=SpanKind.INTERNAL) as span:
@@ -1210,6 +1285,7 @@ def configure_for_agent(service_name: Optional[str] = None) -> bool:
     if not _ENABLED or not observability_enabled():
         return False
 
+    _activate_spans()
     _load_run_otel_env()
 
     # Prefer runtime UUID as service.name when present (sandbox identity), else

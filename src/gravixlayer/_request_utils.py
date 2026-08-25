@@ -1,9 +1,20 @@
 from typing import Any, Callable, Dict, Optional
 
+import httpx
+
 RETRYABLE_STATUS = frozenset((502, 503, 504))
 SUCCESS_STATUS = frozenset((200, 201, 202, 204, 207))
 JSON_HEADERS = {"Content-Type": "application/json"}
 _ABSOLUTE_URL_PREFIXES = ("http://", "https://")
+
+# Shared by sync and async clients. Keepalive must cover concurrent create+exec
+# (never a 1-connection pool). Expiry is longer than httpx's 5s default so a
+# warmed connection is still there for the next request in a short CLI.
+HTTP_LIMITS = httpx.Limits(
+    max_connections=20,
+    max_keepalive_connections=20,
+    keepalive_expiry=30.0,
+)
 
 
 def build_url(
@@ -42,7 +53,7 @@ def prepare_request_kwargs(
 
     if data is not None:
         kwargs["json"] = data
-    kwargs["headers"] = JSON_HEADERS
+        kwargs["headers"] = JSON_HEADERS
 
 
 def next_retry_delay(
