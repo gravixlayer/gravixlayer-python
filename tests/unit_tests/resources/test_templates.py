@@ -371,14 +371,23 @@ class TestTemplateBuilder:
 
     # Ready command helpers
     def test_wait_for_port(self):
-        cmd = TemplateBuilder.wait_for_port(8080)
-        assert cmd == "bash -c 'echo >/dev/tcp/127.0.0.1/8080'"
+        check = TemplateBuilder.wait_for_port(8080)
+        assert check.port == 8080
+        d = TemplateBuilder("t").ready_cmd(check).to_dict()
+        assert d["ready_port"] == 8080
+        assert "ready_cmd" not in d
+        assert d["ready_timeout_secs"] == 300
 
     def test_wait_for_port_rejects_invalid(self):
         with pytest.raises(ValueError):
             TemplateBuilder.wait_for_port(0)
         with pytest.raises(ValueError):
             TemplateBuilder.wait_for_port(70000)
+
+    def test_string_ready_cmd_does_not_set_ready_port(self):
+        d = TemplateBuilder("t").ready_cmd("curl -sf localhost:8080/health").to_dict()
+        assert d["ready_cmd"] == "curl -sf localhost:8080/health"
+        assert "ready_port" not in d
 
     def test_wait_for_url(self):
         cmd = TemplateBuilder.wait_for_url("http://localhost:8080/health")
@@ -417,6 +426,8 @@ class TestTemplateBuilder:
         assert d["disk_mb"] == 8192
         assert len(d["build_steps"]) == 4  # apt, pip, run, copy
         assert d["start_cmd"] == "python /app/main.py"
+        assert d["ready_port"] == 8080
+        assert "ready_cmd" not in d
         assert d["environment"]["PYTHONPATH"] == "/app"
         assert d["tags"]["team"] == "ml"
 
@@ -1063,9 +1074,10 @@ class TestImports:
             TemplateBuildPhase, TemplateBuildResponse, TemplateBuildStatus,
             TemplateInfo, TemplateSnapshot, TemplateListResponse,
             TemplateDeleteResponse, BuildLogEntry, TemplateBuilder,
-            DEFAULT_READY_TIMEOUT_SECS,
+            DEFAULT_READY_TIMEOUT_SECS, TcpPortCheck,
         )
         assert DEFAULT_READY_TIMEOUT_SECS == 300
+        assert TcpPortCheck(8080).port == 8080
 
     def test_resources_templates(self):
         from gravixlayer.resources.templates import (
@@ -1076,7 +1088,7 @@ class TestImports:
         from gravixlayer import (
             TemplateBuilder, Templates, TemplateBuildError,
             TemplateBuildTimeoutError, BuildStepType, TemplateBuildStatus,
-            TemplateInfo,
+            TemplateInfo, TcpPortCheck,
         )
 
     def test_types_init(self):
@@ -1085,9 +1097,10 @@ class TestImports:
             TemplateBuildPhase, TemplateBuildResponse, TemplateBuildStatus,
             TemplateInfo, TemplateSnapshot, TemplateListResponse,
             TemplateDeleteResponse, BuildLogEntry, TemplateBuilder,
-            DEFAULT_READY_TIMEOUT_SECS,
+            DEFAULT_READY_TIMEOUT_SECS, TcpPortCheck,
         )
         assert DEFAULT_READY_TIMEOUT_SECS == 300
+        assert TcpPortCheck(443).port == 443
 
 
 # ===================================================================
@@ -1120,6 +1133,8 @@ class TestRealWorldBuilders:
         assert d["vcpu_count"] == 4
         assert d["memory_mb"] == 4096
         assert d["ready_timeout_secs"] == 300
+        assert d["ready_port"] == 8000
+        assert "ready_cmd" not in d
         assert len(d["build_steps"]) == 6
 
     def test_node_express_template_payload(self):
@@ -1163,3 +1178,5 @@ class TestRealWorldBuilders:
         )
         assert "dockerfile" in d
         assert "docker_image" not in d
+        assert d["ready_port"] == 8888
+        assert "ready_cmd" not in d

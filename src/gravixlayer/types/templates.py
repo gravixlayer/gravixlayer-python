@@ -18,6 +18,29 @@ from pathlib import Path
 DEFAULT_READY_TIMEOUT_SECS = 300
 
 
+@dataclass(frozen=True)
+class TcpPortCheck:
+    """Host-side TCP readiness check for a published port.
+
+    Serialized as ``ready_port`` so the platform probes the port from the
+    host. The process must listen on ``0.0.0.0``, not loopback-only.
+    """
+
+    port: int
+
+    def __post_init__(self) -> None:
+        try:
+            p = int(self.port)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("port must be an integer") from exc
+        if p < 1 or p > 65535:
+            raise ValueError("port must be between 1 and 65535")
+        object.__setattr__(self, "port", p)
+
+    def __str__(self) -> str:
+        return f"tcp:{self.port}"
+
+
 # ---------------------------------------------------------------------------
 # Build step type values accepted by the Gravix Layer API.
 # ---------------------------------------------------------------------------
@@ -285,6 +308,7 @@ class TemplateBuilder:
         self._disk_mb: int = 4096
         self._start_cmd: Optional[str] = None
         self._ready_cmd: Optional[str] = None
+        self._ready_port: Optional[int] = None
         self._ready_timeout_secs: int = DEFAULT_READY_TIMEOUT_SECS
         self._environment: Dict[str, str] = {}
         self._build_steps: List[BuildStep] = []
@@ -368,16 +392,24 @@ class TemplateBuilder:
         return self
 
     def ready_cmd(
-        self, cmd: str, timeout_secs: int = DEFAULT_READY_TIMEOUT_SECS
+        self,
+        cmd: Union[str, TcpPortCheck],
+        timeout_secs: int = DEFAULT_READY_TIMEOUT_SECS,
     ) -> "TemplateBuilder":
-        """Set the readiness check command that must exit 0.
+        """Set the snapshot-phase ready check.
 
-        The build process polls this command until success or timeout.
+        Pass a shell command that must exit 0, or
+        ``TemplateBuilder.wait_for_port(port)`` for a host-side TCP probe.
         Timeouts below 300 seconds are raised to 300.
         """
         if timeout_secs < 1:
             raise ValueError("timeout_secs must be >= 1")
-        self._ready_cmd = cmd
+        if isinstance(cmd, TcpPortCheck):
+            self._ready_port = cmd.port
+            self._ready_cmd = None
+        else:
+            self._ready_cmd = cmd
+            self._ready_port = None
         self._ready_timeout_secs = timeout_secs
         return self
 
@@ -583,15 +615,13 @@ class TemplateBuilder:
     # -- Ready command helpers ----------------------------------------------
 
     @staticmethod
-    def wait_for_port(port: int) -> str:
-        """Generate a ready_cmd that waits for a TCP port to be listening."""
-        try:
-            p = int(port)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("port must be an integer") from exc
-        if p < 1 or p > 65535:
-            raise ValueError("port must be between 1 and 65535")
-        return f"bash -c 'echo >/dev/tcp/127.0.0.1/{p}'"
+    def wait_for_port(port: int) -> TcpPortCheck:
+        """Wait until a published TCP port accepts connections.
+
+        The platform probes the port from the host. Bind the process to
+        ``0.0.0.0``, not ``127.0.0.1``.
+        """
+        return TcpPortCheck(port)
 
     @staticmethod
     def wait_for_url(url: str, expected_status: int = 200) -> str:
@@ -639,8 +669,11 @@ class TemplateBuilder:
 
         if self._start_cmd:
             data["start_cmd"] = self._start_cmd
+        if self._ready_port is not None:
+            data["ready_port"] = self._ready_port
         if self._ready_cmd:
             data["ready_cmd"] = self._ready_cmd
+        if self._ready_cmd or self._ready_port is not None:
             data["ready_timeout_secs"] = max(
                 DEFAULT_READY_TIMEOUT_SECS, self._ready_timeout_secs
             )
