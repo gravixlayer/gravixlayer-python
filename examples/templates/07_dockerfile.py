@@ -25,16 +25,16 @@ client = GravixLayer()
 # -- Dockerfile content -----------------------------------------------------
 
 dockerfile_content = """\
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
+FROM python:3.12-slim
 
-ENV UV_SYSTEM_PYTHON=1
+ENV PYTHONUNBUFFERED=1
 
 # Example: install a Debian package inside the image (optional for this API).
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN uv pip install --system --no-cache fastapi "uvicorn[standard]"
+RUN pip install --no-cache-dir fastapi "uvicorn[standard]"
 
 WORKDIR /app
 
@@ -66,13 +66,13 @@ builder = (
     .disk(4096)
     .tags({"source": "dockerfile"})
     .start_cmd("cd /app && uvicorn main:app --host 0.0.0.0 --port 8080")
-    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
+    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
-    timeout_secs=600,
+    timeout_secs=900,
 )
 
 print(f"Build finished: status={status.status}, phase={status.phase}")

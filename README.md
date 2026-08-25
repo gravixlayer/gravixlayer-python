@@ -138,7 +138,7 @@ template = (
     .apt_install("git")
     .pip_install("pandas", "matplotlib")
     .start_cmd("python -m http.server 8080")
-    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
+    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
 status = client.templates.build_and_wait(template)

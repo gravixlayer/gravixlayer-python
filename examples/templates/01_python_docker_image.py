@@ -2,15 +2,8 @@
 """
 Python template from a public Docker image.
 
-Uses: from_image, pip_install, apt_install, copy_file (inline content), start_cmd
-
-Demonstrates building a Python FastAPI template from the **uv** base image
-(``ghcr.io/astral-sh/uv:python3.14-bookworm-slim``), with pip_install, apt_install
-(e.g. curl), inline copy_file, and build_and_wait. Agent template builds use this
-uv image, not ``python:*-slim`` from Docker Hub.
-
-Note: uv and ``node:*-slim`` images share the same Debian-based pipeline
-when applicable; failures are often apt network/state or step order.
+Uses: from_image, pip_install, apt_install, copy_file (inline content),
+start_cmd, ready_cmd, build_and_wait
 """
 
 import sys
@@ -25,12 +18,12 @@ client = GravixLayer()
 template_name = f"sdk-python-image-{int(time.time())}"
 builder = (
     TemplateBuilder(template_name, "python-template-from-docker-image")
-    .from_image("ghcr.io/astral-sh/uv:python3.14-bookworm-slim")
+    .from_image("python:3.12-slim")
     .vcpu(2)
     .memory(1024)
     .disk(4096)
-    .pip_install("fastapi", "uvicorn")
     .apt_install("curl")
+    .pip_install("fastapi", "uvicorn")
     .mkdir("/app")
     .copy_file(
         """
@@ -46,13 +39,13 @@ def health():
         "/app/main.py",
     )
     .start_cmd("uvicorn main:app --host 0.0.0.0 --port 8080 --app-dir /app")
-    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=120)
+    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
-    timeout_secs=600,
+    timeout_secs=900,
 )
 
 

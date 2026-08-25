@@ -39,9 +39,9 @@ builder = (
         f"python-private-repo-{_TEMPLATE_SUFFIX}",
         description="Python template from private Git repo",
     )
-    .from_image("ghcr.io/astral-sh/uv:python3.14-bookworm-slim")
+    .from_image("python:3.12-slim")
     .vcpu(2)
-    .memory(512)
+    .memory(1024)
     .disk(4096)
     .envs({"PYTHONUNBUFFERED": "1"})
     .tags({"runtime": "python", "source": "private-git"})
@@ -55,13 +55,13 @@ builder = (
     )
     .run("pip install --no-cache-dir -r /app/requirements.txt")
     .start_cmd("cd /app && uvicorn main:app --host 0.0.0.0 --port 8080")
-    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
+    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
-    timeout_secs=600,
+    timeout_secs=900,
 )
 
 print(f"Build finished: status={status.status}, phase={status.phase}")

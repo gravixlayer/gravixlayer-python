@@ -43,8 +43,7 @@ from .runtime_files import RuntimeFileResource
 from .runtime_pty import RuntimePtyResource
 from .runtime_service import RuntimeServiceResource
 
-# Cold snapshot restore kernel-boots systemd. Matches cellfabric's 90s wait plus
-# control-plane gRPC budget (3 minutes).
+# Timeout for restoring a runtime from a snapshot (3 minutes).
 _SNAPSHOT_RESTORE_TIMEOUT = httpx.Timeout(180.0)
 
 

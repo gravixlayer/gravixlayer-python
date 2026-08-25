@@ -231,7 +231,15 @@ class TestTemplateBuilder:
     def test_ready_cmd(self):
         d = TemplateBuilder("t").ready_cmd("curl localhost:8080", timeout_secs=120).to_dict()
         assert d["ready_cmd"] == "curl localhost:8080"
-        assert d["ready_timeout_secs"] == 120
+        assert d["ready_timeout_secs"] == 300
+
+    def test_ready_cmd_default_timeout(self):
+        d = TemplateBuilder("t").ready_cmd("true").to_dict()
+        assert d["ready_timeout_secs"] == 300
+
+    def test_ready_cmd_floors_short_timeout(self):
+        d = TemplateBuilder("t").ready_cmd("true", timeout_secs=30).to_dict()
+        assert d["ready_timeout_secs"] == 300
 
     def test_env_single(self):
         d = TemplateBuilder("t").env("KEY", "VALUE").to_dict()
@@ -364,7 +372,13 @@ class TestTemplateBuilder:
     # Ready command helpers
     def test_wait_for_port(self):
         cmd = TemplateBuilder.wait_for_port(8080)
-        assert "8080" in cmd
+        assert cmd == "bash -c 'echo >/dev/tcp/127.0.0.1/8080'"
+
+    def test_wait_for_port_rejects_invalid(self):
+        with pytest.raises(ValueError):
+            TemplateBuilder.wait_for_port(0)
+        with pytest.raises(ValueError):
+            TemplateBuilder.wait_for_port(70000)
 
     def test_wait_for_url(self):
         cmd = TemplateBuilder.wait_for_url("http://localhost:8080/health")
@@ -1049,7 +1063,9 @@ class TestImports:
             TemplateBuildPhase, TemplateBuildResponse, TemplateBuildStatus,
             TemplateInfo, TemplateSnapshot, TemplateListResponse,
             TemplateDeleteResponse, BuildLogEntry, TemplateBuilder,
+            DEFAULT_READY_TIMEOUT_SECS,
         )
+        assert DEFAULT_READY_TIMEOUT_SECS == 300
 
     def test_resources_templates(self):
         from gravixlayer.resources.templates import (
@@ -1069,7 +1085,9 @@ class TestImports:
             TemplateBuildPhase, TemplateBuildResponse, TemplateBuildStatus,
             TemplateInfo, TemplateSnapshot, TemplateListResponse,
             TemplateDeleteResponse, BuildLogEntry, TemplateBuilder,
+            DEFAULT_READY_TIMEOUT_SECS,
         )
+        assert DEFAULT_READY_TIMEOUT_SECS == 300
 
 
 # ===================================================================
@@ -1101,7 +1119,7 @@ class TestRealWorldBuilders:
         assert d["docker_image"] == "python:3.11-slim"
         assert d["vcpu_count"] == 4
         assert d["memory_mb"] == 4096
-        assert d["ready_timeout_secs"] == 120
+        assert d["ready_timeout_secs"] == 300
         assert len(d["build_steps"]) == 6
 
     def test_node_express_template_payload(self):
@@ -1131,7 +1149,7 @@ class TestRealWorldBuilders:
         )
         assert d["docker_image"] == "node:20-slim"
         assert d["environment"]["NODE_ENV"] == "production"
-        assert d["ready_timeout_secs"] == 30
+        assert d["ready_timeout_secs"] == 300
         assert len(d["build_steps"]) == 6
 
     def test_dockerfile_template_payload(self):

@@ -30,7 +30,7 @@ builder = (
     )
     .from_image("node:20-slim")
     .vcpu(2)
-    .memory(512)
+    .memory(1024)
     .disk(4096)
     .env("NODE_ENV", "production")
     .tags({"runtime": "node", "source": "git-repo"})
@@ -43,13 +43,13 @@ builder = (
     )
     .run("cd /app && npm install --production")
     .start_cmd("cd /app && node app.js")
-    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=60)
+    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
-    timeout_secs=600,
+    timeout_secs=900,
 )
 
 print(f"Build finished: status={status.status}, phase={status.phase}")

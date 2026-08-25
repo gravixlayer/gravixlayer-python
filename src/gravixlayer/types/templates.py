@@ -14,6 +14,10 @@ from enum import Enum
 from pathlib import Path
 
 
+# Minimum ready_timeout_secs sent with a ready check.
+DEFAULT_READY_TIMEOUT_SECS = 300
+
+
 # ---------------------------------------------------------------------------
 # Build step type values accepted by the Gravix Layer API.
 # ---------------------------------------------------------------------------
@@ -150,7 +154,7 @@ class TemplateSnapshot:
     vcpu_count: int
     memory_mb: int
     created_at: str
-    cellcore_version: Optional[str] = None  # Baked cellcore guest daemon version, when reported
+    cellcore_version: Optional[str] = None
     snapshot_size_bytes: Optional[int] = None
 
 
@@ -257,7 +261,7 @@ class TemplateBuilder:
 
         template = (
             TemplateBuilder("my-ml-template")
-            .from_image("python:3.11-slim")
+            .from_image("python:3.12-slim")
             .vcpu(2)
             .memory(1024)
             .apt_install("git", "curl")
@@ -281,7 +285,7 @@ class TemplateBuilder:
         self._disk_mb: int = 4096
         self._start_cmd: Optional[str] = None
         self._ready_cmd: Optional[str] = None
-        self._ready_timeout_secs: int = 60
+        self._ready_timeout_secs: int = DEFAULT_READY_TIMEOUT_SECS
         self._environment: Dict[str, str] = {}
         self._build_steps: List[BuildStep] = []
         self._tags: Dict[str, str] = {}
@@ -301,9 +305,9 @@ class TemplateBuilder:
 
         Examples::
 
-            builder.from_image("python:3.11-slim")
+            builder.from_image("python:3.12-slim")
             builder.from_image("node:20-slim")
-            builder.from_image("ubuntu:22.04")
+            builder.from_image("ubuntu:24.04")
             builder.from_image("nvidia/cuda:12.2.0-base-ubuntu22.04")
         """
         if self._dockerfile:
@@ -363,11 +367,16 @@ class TemplateBuilder:
         self._start_cmd = cmd
         return self
 
-    def ready_cmd(self, cmd: str, timeout_secs: int = 60) -> "TemplateBuilder":
+    def ready_cmd(
+        self, cmd: str, timeout_secs: int = DEFAULT_READY_TIMEOUT_SECS
+    ) -> "TemplateBuilder":
         """Set the readiness check command that must exit 0.
 
         The build process polls this command until success or timeout.
+        Timeouts below 300 seconds are raised to 300.
         """
+        if timeout_secs < 1:
+            raise ValueError("timeout_secs must be >= 1")
         self._ready_cmd = cmd
         self._ready_timeout_secs = timeout_secs
         return self
@@ -576,7 +585,13 @@ class TemplateBuilder:
     @staticmethod
     def wait_for_port(port: int) -> str:
         """Generate a ready_cmd that waits for a TCP port to be listening."""
-        return f"ss -tuln | grep -q :{port}"
+        try:
+            p = int(port)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("port must be an integer") from exc
+        if p < 1 or p > 65535:
+            raise ValueError("port must be between 1 and 65535")
+        return f"bash -c 'echo >/dev/tcp/127.0.0.1/{p}'"
 
     @staticmethod
     def wait_for_url(url: str, expected_status: int = 200) -> str:
@@ -626,7 +641,9 @@ class TemplateBuilder:
             data["start_cmd"] = self._start_cmd
         if self._ready_cmd:
             data["ready_cmd"] = self._ready_cmd
-            data["ready_timeout_secs"] = self._ready_timeout_secs
+            data["ready_timeout_secs"] = max(
+                DEFAULT_READY_TIMEOUT_SECS, self._ready_timeout_secs
+            )
         if self._environment:
             data["environment"] = self._environment
         if self._build_steps:

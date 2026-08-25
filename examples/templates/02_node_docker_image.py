@@ -58,7 +58,7 @@ builder = (
     )
     .from_image("node:20-slim")
     .vcpu(2)
-    .memory(512)
+    .memory(1024)
     .disk(4096)
     .env("NODE_ENV", "production")
     .tags({"runtime": "node", "framework": "express"})
@@ -68,13 +68,13 @@ builder = (
     .copy_file(server_js, "/app/server.js")
     .run("cd /app && npm install")
     .start_cmd("node /app/server.js")
-    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=30)
+    .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
 status = client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
-    timeout_secs=600,
+    timeout_secs=900,
 )
 
 if status.is_success:

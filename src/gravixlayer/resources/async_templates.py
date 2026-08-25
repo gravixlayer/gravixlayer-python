@@ -75,12 +75,12 @@ class AsyncTemplates:
         >>> async with AsyncGravixLayer(api_key="...") as client:
         ...     builder = (
         ...         TemplateBuilder("my-ml-env")
-        ...         .from_image("python:3.11-slim")
+        ...         .from_image("python:3.12-slim")
         ...         .apt_install("git", "curl")
         ...         .pip_install("numpy", "pandas")
         ...         .start_cmd("python /app/serve.py")
         ...     )
-        ...     status = await client.templates.build_and_wait(builder, timeout_secs=600)
+        ...     status = await client.templates.build_and_wait(builder, timeout_secs=900)
         ...     print(status.template_id)
     """
 
@@ -148,7 +148,7 @@ class AsyncTemplates:
         self,
         builder: Union[TemplateBuilder, Dict[str, Any]],
         poll_interval_secs: float = 5.0,
-        timeout_secs: int = 600,
+        timeout_secs: int = 900,
         on_status: Optional[BuildLogCallback] = None,
         cloud: Optional[str] = None,
         region: Optional[str] = None,
@@ -161,7 +161,7 @@ class AsyncTemplates:
         Args:
             builder: A TemplateBuilder or raw dict for the build request.
             poll_interval_secs: Seconds between status polls (default 5).
-            timeout_secs: Maximum seconds to wait (default 600).
+            timeout_secs: Maximum seconds to wait (default 900).
             on_status: Optional callback on each **phase change** (not every poll).
             cloud: Cloud to build in. Defaults to the client's cloud.
             region: Region to build in. Defaults to the client's region.

@@ -63,6 +63,7 @@ from .types.templates import (
     TemplateDeleteResponse,
     BuildLogEntry,
     TemplateBuilder,
+    DEFAULT_READY_TIMEOUT_SECS,
 )
 from .types.snapshots import (
     Snapshot,
@@ -223,6 +224,7 @@ __all__ = [
     "TemplateDeleteResponse",
     "BuildLogEntry",
     "TemplateBuilder",
+    "DEFAULT_READY_TIMEOUT_SECS",
     "Templates",
     "TemplateBuildError",
     "TemplateBuildTimeoutError",
