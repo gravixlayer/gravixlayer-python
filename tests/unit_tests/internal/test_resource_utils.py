@@ -1,6 +1,8 @@
 """Unit tests for gravixlayer._resource_utils."""
 
 from gravixlayer._resource_utils import (
+    aiter_sse_payloads,
+    iter_sse_payloads,
     normalize_runtime_api_payload,
     build_list_endpoint,
     parse_total_items,
@@ -104,3 +106,30 @@ class TestParsePaginatedItems:
         assert items == []
         assert limit == 5
         assert offset == 10
+
+
+class TestIterSsePayloads:
+    def test_skips_comments_and_empty_frames(self):
+        lines = [
+            "",
+            ": keep-alive",
+            "event: ping",
+            "data: {\"ok\": true}",
+            b"data: {\"n\": 1}",
+            b": comment",
+            "data:   ",
+        ]
+        assert list(iter_sse_payloads(lines)) == ['{"ok": true}', '{"n": 1}']
+
+    def test_strips_optional_space_after_prefix(self):
+        assert list(iter_sse_payloads(["data: hello"])) == ["hello"]
+        assert list(iter_sse_payloads(["data:[DONE]"])) == ["[DONE]"]
+
+
+async def test_aiter_sse_payloads():
+    async def _gen():
+        yield "data: one"
+        yield "event: skip"
+        yield b"data: two"
+
+    assert [p async for p in aiter_sse_payloads(_gen())] == ["one", "two"]

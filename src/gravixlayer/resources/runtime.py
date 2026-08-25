@@ -2,7 +2,7 @@
 Runtime API resource for synchronous client
 """
 
-import os
+import json
 import time
 from typing import List, Dict, Any, Optional
 
@@ -11,6 +11,7 @@ import httpx
 from .. import telemetry
 from .._resource_utils import (
     build_list_endpoint,
+    iter_sse_payloads,
     normalize_runtime_api_payload,
     parse_paginated_items,
     parse_total_items,
@@ -94,7 +95,7 @@ class Runtimes:
         """Fill in missing runtime fields with safe defaults."""
         normalize_runtime_api_payload(data)
         for key, default in _RUNTIME_DEFAULTS.items():
-            if key not in data or data[key] is None:
+            if data.get(key) is None:
                 data[key] = default
         if template and not data.get("template"):
             data["template"] = template
@@ -177,25 +178,7 @@ class Runtimes:
         if network_policy_ids is not None:
             data["network_policy_ids"] = network_policy_ids
 
-        with telemetry.runtime_span(
-            "create",
-            "",
-            inputs={
-                "cloud": resolved_cloud,
-                "region": resolved_region,
-                "template": None if snapshot else template,
-                "snapshot": snapshot,
-                "timeout": timeout,
-                "agent_id": agent_id,
-            },
-            attributes={
-                "runtime.template": "" if snapshot else (template or ""),
-                "gravixlayer.template": "" if snapshot else (template or ""),
-                "runtime.snapshot": snapshot or "",
-                "runtime.cloud": resolved_cloud,
-                "runtime.region": resolved_region,
-            },
-        ) as span:
+        with telemetry.runtime_span("create", "") as span:
             if snapshot:
                 response = self._make_agents_request(
                     "POST", "runtime", data, timeout=_SNAPSHOT_RESTORE_TIMEOUT
@@ -246,15 +229,15 @@ class Runtimes:
     def kill(self, runtime_id: str) -> RuntimeKillResponse:
         """Terminate a running runtime immediately."""
         _validate_runtime_id(runtime_id)
-        with telemetry.runtime_span(
-            "kill",
-            runtime_id,
-            inputs={"runtime_id": runtime_id},
-        ) as span:
+        with telemetry.runtime_span("kill", runtime_id) as span:
             response = self._make_agents_request("DELETE", f"runtime/{runtime_id}")
-            result = dict(response.json())
-            body_rid = result.pop("runtime_id", None)
-            killed = RuntimeKillResponse(runtime_id=body_rid or runtime_id, **result)
+            result = response.json()
+            body_rid = result.get("runtime_id")
+            message = result.get("message")
+            killed = RuntimeKillResponse(
+                message="" if message is None else str(message),
+                runtime_id=runtime_id if body_rid is None else body_rid,
+            )
             if span is not None:
                 telemetry.record_outputs(
                     span,
@@ -293,8 +276,7 @@ class Runtimes:
         _validate_runtime_id(runtime_id)
         response = self._make_agents_request("GET", f"runtime/{runtime_id}/metrics")
         result = response.json()
-        filtered = {k: v for k, v in result.items() if k in _METRICS_FIELDS}
-        return RuntimeMetrics(**filtered)
+        return RuntimeMetrics(**{k: result[k] for k in _METRICS_FIELDS if k in result})
 
     # Command Execution Methods
 
@@ -340,20 +322,15 @@ class Runtimes:
             # Backend expects milliseconds; SDK interface uses seconds
             data["timeout"] = timeout * 1000
 
-        streaming = any(cb is not None for cb in (on_stdout, on_stderr, on_exit))
-        with telemetry.runtime_span(
-            "command.run",
-            runtime_id,
-            inputs={"command": command, "args": args or [], "working_dir": working_dir},
-            attributes={"process.command": command},
-        ) as span:
+        streaming = on_stdout is not None or on_stderr is not None or on_exit is not None
+        with telemetry.runtime_span("command.run", runtime_id) as span:
             if streaming:
                 result = self._run_cmd_streaming(
                     runtime_id, data, on_stdout, on_stderr, on_exit,
                 )
             else:
                 response = self._make_agents_request("POST", f"runtime/{runtime_id}/commands/run", data)
-                result = CommandRunResponse(**response.json())
+                result = CommandRunResponse.from_api(response.json())
             if span is not None:
                 span.set_attribute("process.exit_code", int(getattr(result, "exit_code", 0) or 0))
                 telemetry.record_outputs(
@@ -384,7 +361,6 @@ class Runtimes:
         mirrors the unary response shape so callers can switch between modes
         without changing downstream code.
         """
-        import json
         endpoint = f"runtime/{runtime_id}/commands/run?stream=true"
         response = self._make_agents_request("POST", endpoint, data, stream=True)
 
@@ -394,17 +370,7 @@ class Runtimes:
         start = time.monotonic()
 
         try:
-            for line in response.iter_lines():
-                if not line:
-                    continue
-                # SSE frames are "data: <json>".
-                if isinstance(line, bytes):
-                    line = line.decode("utf-8", errors="replace")
-                if not line.startswith("data:"):
-                    continue
-                payload = line[len("data:"):].strip()
-                if not payload:
-                    continue
+            for payload in iter_sse_payloads(response.iter_lines()):
                 try:
                     evt = json.loads(payload)
                 except json.JSONDecodeError:
@@ -498,20 +464,13 @@ class Runtimes:
         if timeout is not None:
             data["timeout"] = timeout
 
-        streaming = any(cb is not None for cb in (on_stdout, on_stderr, on_result, on_error))
-        with telemetry.runtime_span(
-            "code.run",
-            runtime_id,
-            inputs={
-                "language": language or "python",
-                "context_id": context_id,
-                "code_preview": (code[:500] + "...") if len(code) > 500 else code,
-            },
-            attributes={
-                "code.language": language or "python",
-                "code.context_id": context_id or "",
-            },
-        ) as span:
+        streaming = (
+            on_stdout is not None
+            or on_stderr is not None
+            or on_result is not None
+            or on_error is not None
+        )
+        with telemetry.runtime_span("code.run", runtime_id) as span:
             if streaming:
                 result = self._run_code_streaming(
                     runtime_id, data, on_stdout, on_stderr, on_result, on_error,
@@ -547,8 +506,6 @@ class Runtimes:
         caller's callbacks for each incremental event, so callers can switch between
         streaming and buffered modes without changing downstream code.
         """
-        import json
-
         endpoint = f"runtime/{runtime_id}/code/run?stream=true"
         response = self._make_agents_request("POST", endpoint, data, stream=True)
 
@@ -557,16 +514,7 @@ class Runtimes:
         error: Optional[ExecutionError] = None
 
         try:
-            for line in response.iter_lines():
-                if not line:
-                    continue
-                if isinstance(line, bytes):
-                    line = line.decode("utf-8", errors="replace")
-                if not line.startswith("data:"):
-                    continue
-                payload = line[len("data:"):].strip()
-                if not payload:
-                    continue
+            for payload in iter_sse_payloads(response.iter_lines()):
                 try:
                     evt = json.loads(payload)
                 except json.JSONDecodeError:

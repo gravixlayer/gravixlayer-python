@@ -6,6 +6,7 @@ Execution wrapper, CodeRunResponse, CommandRunResponse, and all supporting types
 """
 
 import io
+import os
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -73,6 +74,14 @@ class TestValidateRuntimeId:
         with pytest.raises(ValueError, match="Invalid runtime_id"):
             _validate_runtime_id("12345678123456781234567812345678")
 
+    def test_wrong_hex_at_uuid_length_raises(self):
+        with pytest.raises(ValueError, match="Invalid runtime_id"):
+            _validate_runtime_id("12345678-1234-5678-1234-56781234567z")
+
+    def test_uuid_length_mismatch_raises(self):
+        with pytest.raises(ValueError, match="Invalid runtime_id"):
+            _validate_runtime_id("12345678-1234-5678-1234-56781234567")
+
 
 class TestValidatePath:
     def test_valid_path(self):
@@ -97,6 +106,17 @@ class TestValidatePath:
     def test_relative_dotdot_raises(self):
         with pytest.raises(ValueError, match="traversal"):
             _validate_path("../secret")
+
+    def test_literal_backslash_dotdot_matches_os_normpath(self):
+        # Do not rewrite ``\\`` into ``/`` before the component check: on POSIX a
+        # backslash is a filename character, and ``foo\\..\\bar`` is not traversal.
+        path = "foo\\..\\bar"
+        normalized = os.path.normpath(path)
+        if ".." in normalized.split(os.sep) or ".." in normalized.split("/"):
+            with pytest.raises(ValueError, match="traversal"):
+                _validate_path(path)
+        else:
+            _validate_path(path)
 
 
 class TestValidateTemplateId:
@@ -152,6 +172,12 @@ class TestRuntimeDataclass:
         rt = Runtime.from_api(data)
         assert rt.runtime_id == "uuid-2"
         assert not hasattr(rt, "unknown_field")
+
+    def test_from_api_maps_provider_to_cloud(self):
+        data = {"runtime_id": "uuid-p", "status": "running", "provider": "gcp"}
+        rt = Runtime.from_api(data)
+        assert rt.cloud == "gcp"
+        assert "cloud" not in data
 
     def test_post_init_sets_internal_state(self):
         rt = Runtime(runtime_id="uuid-3", status="running")
@@ -238,7 +264,16 @@ class TestRuntimeInstanceMethods:
             stdout="output", stderr="", exit_code=0, duration_ms=10, success=True
         )
         result = rt.run_cmd("ls -la")
-        mock_client.runtime.run_cmd.assert_called_once()
+        mock_client.runtime.run_cmd.assert_called_once_with(
+            rt.runtime_id,
+            command="ls -la",
+            args=[],
+            working_dir=None,
+            timeout=None,
+            on_stdout=None,
+            on_stderr=None,
+            on_exit=None,
+        )
         assert isinstance(result, Execution)
         assert result.stdout == "output"
 
@@ -517,6 +552,23 @@ class TestCodeRunResponse:
             logs=ExecutionLogs(stdout=["fallback"]),
         )
         assert resp.text == "fallback"
+
+
+class TestCommandRunResponse:
+    def test_from_api_ignores_unknown_fields(self):
+        resp = CommandRunResponse.from_api(
+            {
+                "stdout": "out",
+                "stderr": "",
+                "exit_code": 0,
+                "duration_ms": 3,
+                "success": True,
+                "pid": 99,
+            }
+        )
+        assert resp.stdout == "out"
+        assert resp.duration_ms == 3
+        assert not hasattr(resp, "pid")
 
 
 # ===================================================================

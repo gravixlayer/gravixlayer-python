@@ -1,10 +1,11 @@
+from types import MappingProxyType
 from typing import Any, Callable, Dict, Optional
 
 import httpx
 
 RETRYABLE_STATUS = frozenset((502, 503, 504))
 SUCCESS_STATUS = frozenset((200, 201, 202, 204, 207))
-JSON_HEADERS = {"Content-Type": "application/json"}
+JSON_HEADERS = MappingProxyType({"Content-Type": "application/json"})
 _ABSOLUTE_URL_PREFIXES = ("http://", "https://")
 
 # Shared by sync and async clients. Keepalive must cover concurrent create+exec
@@ -53,7 +54,13 @@ def prepare_request_kwargs(
 
     if data is not None:
         kwargs["json"] = data
-        kwargs["headers"] = JSON_HEADERS
+        existing = kwargs.get("headers")
+        if existing:
+            headers = dict(existing)
+            headers.setdefault("Content-Type", "application/json")
+            kwargs["headers"] = headers
+        else:
+            kwargs["headers"] = JSON_HEADERS
 
 
 def next_retry_delay(

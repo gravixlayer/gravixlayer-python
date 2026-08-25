@@ -19,7 +19,7 @@ _UUID_RE = re.compile(
 
 def _validate_runtime_id(runtime_id: str) -> None:
     """Validate that a runtime ID is a well-formed UUID."""
-    if not runtime_id or not _UUID_RE.match(runtime_id):
+    if not runtime_id or len(runtime_id) != 36 or _UUID_RE.match(runtime_id) is None:
         raise ValueError(f"Invalid runtime_id: expected UUID, got {runtime_id!r}")
 
 
@@ -29,7 +29,9 @@ def _validate_path(path: str) -> None:
         raise ValueError("Path must not be empty")
     if "\x00" in path:
         raise ValueError("Path must not contain null bytes")
-    # Reject path traversal attempts
+    # After normpath, ``/a/../b`` is ``/b`` (allowed). A remaining ``..`` component
+    # is traversal. Check both separators so Windows paths still fail on POSIX
+    # ``/`` splits and POSIX paths with literal backslashes are not rewritten.
     normalized = os.path.normpath(path)
     if ".." in normalized.split(os.sep) or ".." in normalized.split("/"):
         raise ValueError("Path must not contain directory traversal (..)")
@@ -67,9 +69,11 @@ class Runtime:
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> "Runtime":
         """Create a Runtime from an API response dict, ignoring unknown fields."""
-        if data.get("cloud") is None and data.get("provider") is not None:
-            data = {**data, "cloud": data["provider"]}
-        filtered = {k: v for k, v in data.items() if k in _RUNTIME_KNOWN_FIELDS}
+        filtered = {k: data[k] for k in _RUNTIME_KNOWN_FIELDS if k in data}
+        if filtered.get("cloud") is None:
+            provider = data.get("provider")
+            if provider is not None:
+                filtered["cloud"] = provider
         return cls(**filtered)
 
     def __post_init__(self):
@@ -318,7 +322,7 @@ class Runtime:
         response = self._client.runtime.run_cmd(
             self.runtime_id,
             command=command,
-            args=args,
+            args=args or [],
             working_dir=working_dir,
             timeout=timeout,
             on_stdout=on_stdout,
@@ -1299,6 +1303,18 @@ class CommandRunResponse:
     duration_ms: int
     success: bool
     error: Optional[str] = None
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "CommandRunResponse":
+        """Build from an API dict, ignoring unknown fields."""
+        return cls(
+            stdout=data["stdout"],
+            stderr=data["stderr"],
+            exit_code=data["exit_code"],
+            duration_ms=data["duration_ms"],
+            success=data["success"],
+            error=data.get("error"),
+        )
 
 
 # ---------------------------------------------------------------------------

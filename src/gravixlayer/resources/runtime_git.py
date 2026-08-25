@@ -4,8 +4,9 @@ Git sub-resource for runtime API: ``client.runtime.git.clone(...)``, etc.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from .. import telemetry
 from ..types.runtime import GitOperationResult, _validate_path, _validate_runtime_id
 
 if TYPE_CHECKING:
@@ -17,7 +18,6 @@ def _record_git_result(span: Any, result: GitOperationResult) -> None:
     """Attach git exit metadata to the active span."""
     if span is None:
         return
-    from .. import telemetry
 
     telemetry.record_outputs(
         span,
@@ -34,6 +34,34 @@ def _record_git_result(span: Any, result: GitOperationResult) -> None:
         telemetry.mark_span_error(span, result.error or f"exit_code={result.exit_code}")
 
 
+_GIT_SECRET_KEYS = frozenset({"auth_token", "password", "username"})
+
+
+def _git_span_inputs(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Span inputs from the request body, never including credentials."""
+    inputs = {k: v for k, v in data.items() if k not in _GIT_SECRET_KEYS}
+    if not _GIT_SECRET_KEYS.isdisjoint(data):
+        inputs["auth"] = True
+    return inputs
+
+
+def _git_span_attributes(data: Dict[str, Any]) -> Dict[str, Any]:
+    attrs: Dict[str, Any] = {}
+    path = data.get("path") or data.get("repository_path")
+    if path:
+        attrs["file.path"] = path
+    url = data.get("url")
+    if url:
+        attrs["git.repository_url"] = url
+    ref_name = data.get("ref_name")
+    if ref_name:
+        attrs["git.ref"] = ref_name
+    branch_name = data.get("branch_name")
+    if branch_name:
+        attrs["git.branch"] = branch_name
+    return attrs
+
+
 class RuntimeGitResource:
     """Git operations on runtimes (sync). Use ``client.runtime.git.clone(...)``."""
 
@@ -48,17 +76,16 @@ class RuntimeGitResource:
         runtime_id: str,
         endpoint: str,
         data: Dict[str, Any],
-        inputs: Mapping[str, Any],
-        *,
-        attributes: Optional[Mapping[str, Any]] = None,
     ) -> GitOperationResult:
-        from .. import telemetry
+        if not telemetry._spans_active():
+            response = self._rt._make_agents_request("POST", endpoint, data)
+            return GitOperationResult.from_api(response.json())
 
         with telemetry.runtime_span(
             f"git.{operation}",
             runtime_id,
-            inputs=dict(inputs),
-            attributes=dict(attributes) if attributes else None,
+            inputs=_git_span_inputs(data),
+            attributes=_git_span_attributes(data),
         ) as span:
             response = self._rt._make_agents_request("POST", endpoint, data)
             result = GitOperationResult.from_api(response.json())
@@ -99,8 +126,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/clone",
             data,
-            {"url": url, "path": path, "branch": branch, "depth": depth, "auth": bool(auth_token)},
-            attributes={"git.repository_url": url, "file.path": path},
         )
 
     def status(self, runtime_id: str, repository_path: str) -> GitOperationResult:
@@ -112,8 +137,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/status",
             data,
-            {"repository_path": repository_path},
-            attributes={"file.path": repository_path},
         )
 
     def branch_list(
@@ -133,8 +156,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/branches",
             data,
-            {"repository_path": repository_path, "scope": scope},
-            attributes={"file.path": repository_path},
         )
 
     def checkout(
@@ -148,8 +169,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/checkout",
             data,
-            {"repository_path": repository_path, "ref_name": ref_name},
-            attributes={"file.path": repository_path, "git.ref": ref_name},
         )
 
     def pull(
@@ -176,13 +195,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/pull",
             data,
-            {
-                "repository_path": repository_path,
-                "remote": remote,
-                "branch": branch,
-                "auth": bool(auth_token),
-            },
-            attributes={"file.path": repository_path},
         )
 
     def push(
@@ -219,13 +231,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/push",
             data,
-            {
-                "repository_path": repository_path,
-                "remote": remote,
-                "refspec": refspec,
-                "auth": bool(username or password or auth_token),
-            },
-            attributes={"file.path": repository_path},
         )
 
     def fetch(
@@ -249,12 +254,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/fetch",
             data,
-            {
-                "repository_path": repository_path,
-                "remote": remote,
-                "auth": bool(auth_token),
-            },
-            attributes={"file.path": repository_path},
         )
 
     def add(
@@ -270,8 +269,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/add",
             data,
-            {"repository_path": repository_path, "paths": paths},
-            attributes={"file.path": repository_path},
         )
 
     def commit(
@@ -297,13 +294,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/commit",
             data,
-            {
-                "repository_path": repository_path,
-                "message": message,
-                "author_name": author_name,
-                "allow_empty": allow_empty,
-            },
-            attributes={"file.path": repository_path},
         )
 
     def create_branch(
@@ -327,12 +317,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/branch/create",
             data,
-            {
-                "repository_path": repository_path,
-                "branch_name": branch_name,
-                "start_point": start_point,
-            },
-            attributes={"file.path": repository_path, "git.branch": branch_name},
         )
 
     def delete_branch(
@@ -356,12 +340,6 @@ class RuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/branch/delete",
             data,
-            {
-                "repository_path": repository_path,
-                "branch_name": branch_name,
-                "force": force,
-            },
-            attributes={"file.path": repository_path, "git.branch": branch_name},
         )
 
 
@@ -379,17 +357,16 @@ class AsyncRuntimeGitResource:
         runtime_id: str,
         endpoint: str,
         data: Dict[str, Any],
-        inputs: Mapping[str, Any],
-        *,
-        attributes: Optional[Mapping[str, Any]] = None,
     ) -> GitOperationResult:
-        from .. import telemetry
+        if not telemetry._spans_active():
+            response = await self._rt._make_agents_request("POST", endpoint, data)
+            return GitOperationResult.from_api(response.json())
 
         with telemetry.runtime_span(
             f"git.{operation}",
             runtime_id,
-            inputs=dict(inputs),
-            attributes=dict(attributes) if attributes else None,
+            inputs=_git_span_inputs(data),
+            attributes=_git_span_attributes(data),
         ) as span:
             response = await self._rt._make_agents_request("POST", endpoint, data)
             result = GitOperationResult.from_api(response.json())
@@ -429,8 +406,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/clone",
             data,
-            {"url": url, "path": path, "branch": branch, "depth": depth, "auth": bool(auth_token)},
-            attributes={"git.repository_url": url, "file.path": path},
         )
 
     async def status(self, runtime_id: str, repository_path: str) -> GitOperationResult:
@@ -442,8 +417,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/status",
             data,
-            {"repository_path": repository_path},
-            attributes={"file.path": repository_path},
         )
 
     async def branch_list(
@@ -462,8 +435,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/branches",
             data,
-            {"repository_path": repository_path, "scope": scope},
-            attributes={"file.path": repository_path},
         )
 
     async def checkout(
@@ -477,8 +448,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/checkout",
             data,
-            {"repository_path": repository_path, "ref_name": ref_name},
-            attributes={"file.path": repository_path, "git.ref": ref_name},
         )
 
     async def pull(
@@ -505,13 +474,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/pull",
             data,
-            {
-                "repository_path": repository_path,
-                "remote": remote,
-                "branch": branch,
-                "auth": bool(auth_token),
-            },
-            attributes={"file.path": repository_path},
         )
 
     async def push(
@@ -548,13 +510,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/push",
             data,
-            {
-                "repository_path": repository_path,
-                "remote": remote,
-                "refspec": refspec,
-                "auth": bool(username or password or auth_token),
-            },
-            attributes={"file.path": repository_path},
         )
 
     async def fetch(
@@ -578,12 +533,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/fetch",
             data,
-            {
-                "repository_path": repository_path,
-                "remote": remote,
-                "auth": bool(auth_token),
-            },
-            attributes={"file.path": repository_path},
         )
 
     async def add(
@@ -599,8 +548,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/add",
             data,
-            {"repository_path": repository_path, "paths": paths},
-            attributes={"file.path": repository_path},
         )
 
     async def commit(
@@ -626,13 +573,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/commit",
             data,
-            {
-                "repository_path": repository_path,
-                "message": message,
-                "author_name": author_name,
-                "allow_empty": allow_empty,
-            },
-            attributes={"file.path": repository_path},
         )
 
     async def create_branch(
@@ -655,12 +595,6 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/branch/create",
             data,
-            {
-                "repository_path": repository_path,
-                "branch_name": branch_name,
-                "start_point": start_point,
-            },
-            attributes={"file.path": repository_path, "git.branch": branch_name},
         )
 
     async def delete_branch(
@@ -683,10 +617,4 @@ class AsyncRuntimeGitResource:
             runtime_id,
             f"runtime/{runtime_id}/git/branch/delete",
             data,
-            {
-                "repository_path": repository_path,
-                "branch_name": branch_name,
-                "force": force,
-            },
-            attributes={"file.path": repository_path, "git.branch": branch_name},
         )

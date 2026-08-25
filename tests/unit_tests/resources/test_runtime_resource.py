@@ -27,6 +27,7 @@ from tests.utils import (
 )
 
 from gravixlayer import GravixLayer, AsyncGravixLayer
+from gravixlayer.resources.runtime_files import _file_read_response
 from gravixlayer.types.exceptions import GravixLayerBadRequestError
 from gravixlayer.types.runtime import (
     Runtime,
@@ -159,11 +160,15 @@ class TestSyncRuntimeLifecycle:
 
     def test_kill(self, client, mock_api):
         mock_api.delete(f"{SB}/{VALID_UUID}").mock(
-            return_value=httpx.Response(200, json={"message": "Terminated", "runtime_id": VALID_UUID})
+            return_value=httpx.Response(
+                200,
+                json={"message": "Terminated", "runtime_id": VALID_UUID, "status": "killed"},
+            )
         )
         result = client.runtime.kill(VALID_UUID)
         assert isinstance(result, RuntimeKillResponse)
         assert result.message == "Terminated"
+        assert result.runtime_id == VALID_UUID
 
     def test_connect(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/connect").mock(
@@ -226,6 +231,29 @@ class TestSyncRuntimeConfig:
 
 
 class TestSyncRuntimeGit:
+    def test_span_helpers_omit_credentials(self):
+        from gravixlayer.resources.runtime_git import (
+            _git_span_attributes,
+            _git_span_inputs,
+        )
+
+        data = {
+            "url": "https://github.com/foo/bar.git",
+            "path": "/workspace/bar",
+            "auth_token": "secret",
+            "username": "user",
+            "password": "pass",
+        }
+        inputs = _git_span_inputs(data)
+        assert "auth_token" not in inputs
+        assert "username" not in inputs
+        assert "password" not in inputs
+        assert inputs["auth"] is True
+        assert inputs["url"] == data["url"]
+        attrs = _git_span_attributes(data)
+        assert attrs["git.repository_url"] == data["url"]
+        assert attrs["file.path"] == data["path"]
+
     def test_git_clone(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/git/clone").mock(
             return_value=httpx.Response(200, json=_GIT_OK)
@@ -327,6 +355,24 @@ class TestSyncRuntimeFiles:
         )
         result = client.runtime.file.read(VALID_UUID, "/tmp/f.txt")
         assert result.content == "hello world"
+        assert result.size == 11
+
+    def test_read_file_utf8_size_without_server_size(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/files/read").mock(
+            return_value=httpx.Response(200, json={"content": "é", "path": "/tmp/e.txt"})
+        )
+        result = client.runtime.file.read(VALID_UUID, "/tmp/e.txt")
+        assert result.size == 2
+
+    def test_file_read_response_ignores_unknown_fields(self):
+        parsed = _file_read_response(
+            {"content": "hi", "path": "/tmp/a", "encoding": "utf-8"},
+            "/tmp/fallback",
+        )
+        assert parsed.content == "hi"
+        assert parsed.path == "/tmp/a"
+        assert parsed.size == 2
+        assert not hasattr(parsed, "encoding")
 
     def test_write_file(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/files/write").mock(
@@ -522,6 +568,9 @@ class TestSyncRuntimeExecution:
         assert isinstance(result, CommandRunResponse)
         assert result.success is True
         assert result.exit_code == 0
+        import json
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert "args" not in body
 
     def test_run_cmd_with_timeout_converts_to_ms(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/commands/run").mock(

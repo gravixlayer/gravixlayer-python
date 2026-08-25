@@ -1,5 +1,7 @@
 """Unit tests for gravixlayer._request_utils."""
 
+import pytest
+
 from gravixlayer._request_utils import (
     RETRYABLE_STATUS,
     SUCCESS_STATUS,
@@ -81,6 +83,17 @@ class TestPrepareRequestKwargs:
         prepare_request_kwargs({"a": 1}, kwargs)
         assert kwargs["json"] == {"a": 1}
         assert kwargs["headers"] == JSON_HEADERS
+
+    def test_json_headers_mapping_is_immutable(self):
+        with pytest.raises((TypeError, AttributeError)):
+            JSON_HEADERS["Content-Type"] = "text/plain"  # type: ignore[index]
+
+    def test_json_body_preserves_caller_headers(self):
+        kwargs = {"headers": {"X-Request-Id": "abc"}}
+        prepare_request_kwargs({"a": 1}, kwargs)
+        assert kwargs["headers"]["X-Request-Id"] == "abc"
+        assert kwargs["headers"]["Content-Type"] == "application/json"
+        assert "X-Request-Id" not in JSON_HEADERS
 
     def test_none_data_omits_json_headers(self):
         kwargs: dict = {}

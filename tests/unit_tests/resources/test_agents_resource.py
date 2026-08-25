@@ -366,6 +366,29 @@ class TestSyncAgentsAPI:
         assert body["session_id"] == "s1"
         assert body["metadata"] == {"k": "v"}
 
+    def test_stream_done_requires_space_after_data_prefix(self, client, mock_api):
+        mock_api.get(f"{AGENTS_BASE}/ag-1/endpoint").mock(
+            return_value=httpx.Response(200, json=_sample_endpoint_json())
+        )
+        sse = (
+            'data: {"type": "token", "text": "hi"}\n\n'
+            "data:[DONE]\n\n"
+            'data: {"type": "more"}\n\n'
+            "data: [DONE]\n\n"
+        )
+        mock_api.post("https://agent.example.com/stream").mock(
+            return_value=httpx.Response(
+                200,
+                text=sse,
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        events = list(client.agents.stream("ag-1", input={"prompt": "hello"}))
+        assert events == [
+            {"type": "token", "text": "hi"},
+            {"type": "more"},
+        ]
+
 
 # ===================================================================
 # Async Agents — API

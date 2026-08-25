@@ -15,11 +15,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import inspect
 import json
 import threading
 import time
 from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, Dict, Iterator, List, Optional
 
+from .. import telemetry
+from .._resource_utils import aiter_sse_payloads, iter_sse_payloads
 from ..types.runtime import PtyInputResponse, PtySession, _validate_runtime_id
 
 if TYPE_CHECKING:
@@ -103,19 +106,6 @@ def _decode_event(payload: str) -> Optional[Dict[str, Any]]:
         except (ValueError, TypeError):
             evt["data"] = b""
     return evt
-
-
-def _sse_payloads(lines: Any) -> Iterator[str]:
-    for line in lines:
-        if not line:
-            continue
-        if isinstance(line, bytes):
-            line = line.decode("utf-8", errors="replace")
-        if not line.startswith("data:"):
-            continue
-        body = line[len("data:"):].strip()
-        if body:
-            yield body
 
 
 def _deadline(timeout: Optional[float]) -> Optional[float]:
@@ -288,7 +278,7 @@ class PtyHandle:
             self._opened = True
         self._connected.set()
         try:
-            for body in _sse_payloads(response.iter_lines()):
+            for body in iter_sse_payloads(response.iter_lines()):
                 if not self._dispatch(body):
                     break
         except Exception as exc:  # closed by disconnect(), or the stream broke
@@ -573,12 +563,7 @@ class AsyncPtyHandle:
         self._opened = True
         self._connected.set()
         try:
-            async for line in response.aiter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                body = line[len("data:"):].strip()
-                if not body:
-                    continue
+            async for body in aiter_sse_payloads(response.aiter_lines()):
                 if not await self._dispatch(body):
                     break
         except asyncio.CancelledError:
@@ -598,8 +583,6 @@ class AsyncPtyHandle:
 
     async def _dispatch(self, body: str) -> bool:
         """Handle one SSE frame. Returns ``False`` when the stream should stop."""
-        import inspect
-
         evt = _decode_event(body)
         if evt is None:
             return True
@@ -778,13 +761,7 @@ class RuntimePtyResource:
         """
         _validate_runtime_id(runtime_id)
         payload = _create_payload(shell, args, working_dir, environment, cols, rows)
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "pty.create",
-            runtime_id,
-            inputs={"shell": shell, "working_dir": working_dir, "cols": cols, "rows": rows},
-        ) as span:
+        with telemetry.runtime_span("pty.create", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/pty", payload)
             session = PtySession.from_api(response.json())
             if span is not None:
@@ -885,7 +862,7 @@ class RuntimePtyResource:
             "GET", f"runtime/{runtime_id}/pty/{session_id}/stream", stream=True
         )
         try:
-            for body in _sse_payloads(response.iter_lines()):
+            for body in iter_sse_payloads(response.iter_lines()):
                 evt = _decode_event(body)
                 if evt is None:
                     continue
@@ -942,13 +919,7 @@ class AsyncRuntimePtyResource:
         """Create a PTY session inside the runtime."""
         _validate_runtime_id(runtime_id)
         payload = _create_payload(shell, args, working_dir, environment, cols, rows)
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "pty.create",
-            runtime_id,
-            inputs={"shell": shell, "working_dir": working_dir, "cols": cols, "rows": rows},
-        ) as span:
+        with telemetry.runtime_span("pty.create", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/pty", payload)
             session = PtySession.from_api(response.json())
             if span is not None:
@@ -1012,8 +983,6 @@ class AsyncRuntimePtyResource:
         Async generator yielding the same event dicts as the sync ``stream``.
         ``on_data`` and ``on_exit`` may be coroutine functions.
         """
-        import inspect
-
         _validate_runtime_id(runtime_id)
         _validate_session_id(session_id)
 
@@ -1021,12 +990,7 @@ class AsyncRuntimePtyResource:
             "GET", f"runtime/{runtime_id}/pty/{session_id}/stream", stream=True
         )
         try:
-            async for line in response.aiter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                body = line[len("data:"):].strip()
-                if not body:
-                    continue
+            async for body in aiter_sse_payloads(response.aiter_lines()):
                 evt = _decode_event(body)
                 if evt is None:
                     continue

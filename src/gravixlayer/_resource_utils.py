@@ -1,7 +1,49 @@
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypeVar
+from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, TypeVar
 from urllib.parse import urlencode
 
 T = TypeVar("T")
+
+_SSE_PREFIX = "data:"
+_SSE_PREFIX_B = b"data:"
+_SSE_PREFIX_LEN = 5
+
+
+def iter_sse_payloads(lines: Any) -> Iterator[str]:
+    """Yield the JSON body of each ``data:`` frame in an SSE line iterator.
+
+    Skips comments, empty lines, and non-data frames without decoding them when
+    the transport already handed us bytes.
+    """
+    for line in lines:
+        if not line:
+            continue
+        if isinstance(line, bytes):
+            if not line.startswith(_SSE_PREFIX_B):
+                continue
+            payload = line[_SSE_PREFIX_LEN:].strip().decode("utf-8", errors="replace")
+        else:
+            if not line.startswith(_SSE_PREFIX):
+                continue
+            payload = line[_SSE_PREFIX_LEN:].strip()
+        if payload:
+            yield payload
+
+
+async def aiter_sse_payloads(lines: Any) -> AsyncIterator[str]:
+    """Async counterpart of :func:`iter_sse_payloads`."""
+    async for line in lines:
+        if not line:
+            continue
+        if isinstance(line, bytes):
+            if not line.startswith(_SSE_PREFIX_B):
+                continue
+            payload = line[_SSE_PREFIX_LEN:].strip().decode("utf-8", errors="replace")
+        else:
+            if not line.startswith(_SSE_PREFIX):
+                continue
+            payload = line[_SSE_PREFIX_LEN:].strip()
+        if payload:
+            yield payload
 
 
 def normalize_runtime_api_payload(data: Dict[str, Any]) -> None:
@@ -11,16 +53,24 @@ def normalize_runtime_api_payload(data: Dict[str, Any]) -> None:
     the Python model expects ``runtime_id``, ``cloud``, ``region``, and ``metadata``.
     Mutates *data* in place; safe to call on responses that already use SDK names.
     """
-    if data.get("runtime_id") is None and data.get("id") is not None:
-        data["runtime_id"] = data["id"]
-    if data.get("cloud") is None and data.get("compute_provider") is not None:
-        data["cloud"] = data["compute_provider"]
-    elif data.get("cloud") is None and data.get("provider") is not None:
-        data["cloud"] = data["provider"]
-    if data.get("region") is None and data.get("compute_region") is not None:
-        data["region"] = data["compute_region"]
-    if data.get("metadata") is None and data.get("tags") is not None:
-        data["metadata"] = data["tags"]
+    if data.get("runtime_id") is None:
+        rid = data.get("id")
+        if rid is not None:
+            data["runtime_id"] = rid
+    if data.get("cloud") is None:
+        cloud = data.get("compute_provider")
+        if cloud is None:
+            cloud = data.get("provider")
+        if cloud is not None:
+            data["cloud"] = cloud
+    if data.get("region") is None:
+        region = data.get("compute_region")
+        if region is not None:
+            data["region"] = region
+    if data.get("metadata") is None:
+        tags = data.get("tags")
+        if tags is not None:
+            data["metadata"] = tags
 
 
 def build_list_endpoint(

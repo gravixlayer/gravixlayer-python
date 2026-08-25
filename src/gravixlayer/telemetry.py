@@ -19,6 +19,8 @@ import inspect
 import json
 import logging
 import os
+import threading
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -109,13 +111,30 @@ _SPANS_ACTIVE = False
 # Once True, skip getenv on the request path. ``_activate_spans`` still turns
 # recording on later (enable_telemetry / configure_for_agent / env at first check).
 _SPANS_RESOLVED = False
+# Serializes the off-path check with ``enable_telemetry`` so a request cannot
+# miss an in-flight activate after client construction.
+_SPANS_LOCK = threading.Lock()
 
 
 def _activate_spans() -> None:
     """Turn on in-process span recording (opt-in client or agent serve)."""
+    with _SPANS_LOCK:
+        _activate_spans_locked()
+
+
+def _activate_spans_locked() -> None:
+    """Caller holds ``_SPANS_LOCK``."""
     global _SPANS_ACTIVE, _SPANS_RESOLVED
     _SPANS_ACTIVE = True
     _SPANS_RESOLVED = True
+
+
+def _mark_spans_resolved_off() -> None:
+    """Remember that client telemetry is off, unless activate already won."""
+    global _SPANS_RESOLVED
+    with _SPANS_LOCK:
+        if not _SPANS_ACTIVE:
+            _SPANS_RESOLVED = True
 
 
 def _spans_active() -> bool:
@@ -124,19 +143,26 @@ def _spans_active() -> bool:
     OpenTelemetry is a hard dependency, so ``_ENABLED`` is True on a normal
     install. Bare client usage must not start spans, inject ``traceparent``,
     or JSON-serialize span inputs on every request.
+
+    Once recording is on, the first check returns without the lock. While it is
+    off, the lock serializes with :func:`enable_telemetry` so a request cannot
+    observe a resolved-off miss after activate has already won.
     """
     global _SPANS_RESOLVED
     if not _ENABLED:
         return False
     if _SPANS_ACTIVE:
         return True
-    if _SPANS_RESOLVED:
+    with _SPANS_LOCK:
+        if _SPANS_ACTIVE:
+            return True
+        if _SPANS_RESOLVED:
+            return False
+        if gravixlayer_telemetry_opted_in():
+            _activate_spans_locked()
+            return True
+        _SPANS_RESOLVED = True
         return False
-    if gravixlayer_telemetry_opted_in():
-        _activate_spans()
-        return True
-    _SPANS_RESOLVED = True
-    return False
 
 
 def inject(carrier: Dict[str, str]) -> Dict[str, str]:
@@ -868,14 +894,11 @@ def maybe_configure_from_env() -> bool:
     Called from ``GravixLayer()`` / ``AsyncGravixLayer()`` construction. Agent
     serving paths should use :func:`configure_for_agent` / :func:`enable_telemetry`.
     """
-    global _SPANS_RESOLVED
     if not observability_enabled():
-        if not _SPANS_ACTIVE:
-            _SPANS_RESOLVED = True
+        _mark_spans_resolved_off()
         return False
     if not gravixlayer_telemetry_opted_in():
-        if not _SPANS_ACTIVE:
-            _SPANS_RESOLVED = True
+        _mark_spans_resolved_off()
         return False
     configured = configure_otel(GravixLayerTelemetryConfig.from_env(), silent=True)
     _install_auto_instrumentation()
@@ -886,8 +909,6 @@ def _span_path(url: str) -> str:
     """Return the path component of a URL for use in a span name, falling back to
     the full URL if parsing fails."""
     try:
-        from urllib.parse import urlsplit
-
         path = urlsplit(url).path
         return path or url
     except Exception:  # noqa: BLE001 - never let span naming break a request.
@@ -985,7 +1006,7 @@ def _trace(
         if inputs is not None:
             span.set_attribute(
                 ATTR_INPUTS,
-                serialize_for_span(dict(inputs), process=process_inputs),
+                serialize_for_span(inputs, process=process_inputs),
             )
         if attributes:
             for key, value in attributes.items():
@@ -1181,7 +1202,7 @@ def _runtime_span(
         if runtime_id:
             span.set_attribute(ATTR_RUNTIME_ID, runtime_id)
         if inputs is not None:
-            span.set_attribute(ATTR_INPUTS, serialize_for_span(dict(inputs)))
+            span.set_attribute(ATTR_INPUTS, serialize_for_span(inputs))
         if attributes:
             for key, value in attributes.items():
                 span.set_attribute(key, value)

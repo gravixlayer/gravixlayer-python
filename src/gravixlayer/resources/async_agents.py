@@ -16,7 +16,6 @@ import time as _time
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Optional, Union
 
-
 from .._cli_progress import AGENT_BUILD_PHASE_LABELS, PhaseSpinner, fmt_duration
 from ..types.agents import (
     AgentBuildRequest,

@@ -2,12 +2,15 @@
 Runtime API resource for asynchronous client.
 """
 
+import inspect
+import json
 from typing import List, Dict, Any, Optional
 
 import httpx
 
 from .. import telemetry
 from .._resource_utils import (
+    aiter_sse_payloads,
     build_list_endpoint,
     normalize_runtime_api_payload,
     parse_paginated_items,
@@ -93,7 +96,7 @@ class AsyncRuntimes:
         """Fill in missing runtime fields with safe defaults."""
         normalize_runtime_api_payload(data)
         for key, default in _RUNTIME_DEFAULTS.items():
-            if key not in data or data[key] is None:
+            if data.get(key) is None:
                 data[key] = default
         if template and not data.get("template"):
             data["template"] = template
@@ -173,25 +176,7 @@ class AsyncRuntimes:
         if network_policy_ids is not None:
             data["network_policy_ids"] = network_policy_ids
 
-        with telemetry.runtime_span(
-            "create",
-            "",
-            inputs={
-                "cloud": resolved_cloud,
-                "region": resolved_region,
-                "template": None if snapshot else template,
-                "snapshot": snapshot,
-                "timeout": timeout,
-                "agent_id": agent_id,
-            },
-            attributes={
-                "runtime.template": "" if snapshot else (template or ""),
-                "gravixlayer.template": "" if snapshot else (template or ""),
-                "runtime.snapshot": snapshot or "",
-                "runtime.cloud": resolved_cloud,
-                "runtime.region": resolved_region,
-            },
-        ) as span:
+        with telemetry.runtime_span("create", "") as span:
             if snapshot:
                 response = await self._make_agents_request(
                     "POST", "runtime", data, timeout=_SNAPSHOT_RESTORE_TIMEOUT
@@ -242,14 +227,15 @@ class AsyncRuntimes:
     async def kill(self, runtime_id: str) -> RuntimeKillResponse:
         """Terminate a running runtime immediately."""
         _validate_runtime_id(runtime_id)
-        with telemetry.runtime_span(
-            "kill",
-            runtime_id,
-            inputs={"runtime_id": runtime_id},
-        ) as span:
+        with telemetry.runtime_span("kill", runtime_id) as span:
             response = await self._make_agents_request("DELETE", f"runtime/{runtime_id}")
             result = response.json()
-            killed = RuntimeKillResponse(**result)
+            body_rid = result.get("runtime_id")
+            message = result.get("message")
+            killed = RuntimeKillResponse(
+                message="" if message is None else str(message),
+                runtime_id=runtime_id if body_rid is None else body_rid,
+            )
             if span is not None:
                 telemetry.record_outputs(
                     span,
@@ -288,8 +274,7 @@ class AsyncRuntimes:
         _validate_runtime_id(runtime_id)
         response = await self._make_agents_request("GET", f"runtime/{runtime_id}/metrics")
         result = response.json()
-        filtered = {k: v for k, v in result.items() if k in _METRICS_FIELDS}
-        return RuntimeMetrics(**filtered)
+        return RuntimeMetrics(**{k: result[k] for k in _METRICS_FIELDS if k in result})
 
     # Command Execution Methods
 
@@ -323,14 +308,9 @@ class AsyncRuntimes:
         if timeout is not None:
             data["timeout"] = timeout * 1000
 
-        with telemetry.runtime_span(
-            "command.run",
-            runtime_id,
-            inputs={"command": command, "args": args or [], "working_dir": working_dir},
-            attributes={"process.command": command},
-        ) as span:
+        with telemetry.runtime_span("command.run", runtime_id) as span:
             response = await self._make_agents_request("POST", f"runtime/{runtime_id}/commands/run", data)
-            result = CommandRunResponse(**response.json())
+            result = CommandRunResponse.from_api(response.json())
             if span is not None:
                 span.set_attribute("process.exit_code", int(getattr(result, "exit_code", 0) or 0))
                 telemetry.record_outputs(
@@ -391,20 +371,13 @@ class AsyncRuntimes:
         if timeout is not None:
             data["timeout"] = timeout
 
-        streaming = any(cb is not None for cb in (on_stdout, on_stderr, on_result, on_error))
-        with telemetry.runtime_span(
-            "code.run",
-            runtime_id,
-            inputs={
-                "language": language or "python",
-                "context_id": context_id,
-                "code_preview": (code[:500] + "...") if len(code) > 500 else code,
-            },
-            attributes={
-                "code.language": language or "python",
-                "code.context_id": context_id or "",
-            },
-        ) as span:
+        streaming = (
+            on_stdout is not None
+            or on_stderr is not None
+            or on_result is not None
+            or on_error is not None
+        )
+        with telemetry.runtime_span("code.run", runtime_id) as span:
             if streaming:
                 result = await self._run_code_streaming(
                     runtime_id, data, on_stdout, on_stderr, on_result, on_error,
@@ -439,9 +412,6 @@ class AsyncRuntimes:
         Accumulates the same fields the unary endpoint returns while invoking the
         caller's callbacks for each incremental event.
         """
-        import inspect
-        import json
-
         async def dispatch(callback: Optional[Any], value: Any) -> None:
             if callback is None:
                 return
@@ -457,12 +427,7 @@ class AsyncRuntimes:
         error: Optional[ExecutionError] = None
 
         try:
-            async for line in response.aiter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                payload = line[len("data:"):].strip()
-                if not payload:
-                    continue
+            async for payload in aiter_sse_payloads(response.aiter_lines()):
                 try:
                     evt = json.loads(payload)
                 except json.JSONDecodeError:

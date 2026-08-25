@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import inspect
+import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, AsyncIterator, BinaryIO, Callable, Dict, Iterator, List, Optional, Union
 from urllib.parse import urlencode
+
+from .. import telemetry
+from .._resource_utils import aiter_sse_payloads, iter_sse_payloads
 
 from ..types.exceptions import GravixLayerConnectionError, GravixLayerError
 from ..types.runtime import (
@@ -41,6 +46,25 @@ from ..types.runtime import (
 
 #: How many files ``write_many`` sends at the same time.
 DEFAULT_WRITE_CONCURRENCY = 8
+
+
+def _utf8_nbytes(text: str) -> int:
+    """Byte length of ``text`` as UTF-8 without copying ASCII payloads."""
+    return len(text) if text.isascii() else len(text.encode("utf-8"))
+
+
+def _file_read_response(result: Dict[str, Any], path: str) -> FileReadResponse:
+    """Map a files/read JSON body onto :class:`FileReadResponse`."""
+    content = result.get("content", "")
+    size = result.get("size")
+    if size is None and isinstance(content, str):
+        size = _utf8_nbytes(content)
+    body_path = result.get("path")
+    return FileReadResponse(
+        content=content,
+        path=path if body_path is None else body_path,
+        size=size,
+    )
 
 
 def _format_mode(mode: int) -> str:
@@ -151,22 +175,10 @@ def _replace_payload(
     return payload
 
 
-def _iter_sse_payloads(lines: Any) -> Iterator[str]:
-    """Yield the JSON body of each ``data:`` frame in an SSE line iterator."""
-    for line in lines:
-        if not line:
-            continue
-        if isinstance(line, bytes):
-            line = line.decode("utf-8", errors="replace")
-        if not line.startswith("data:"):
-            continue
-        payload = line[len("data:"):].strip()
-        if payload:
-            yield payload
-
-
 class RuntimeFileResource:
     """Filesystem operations under ``client.runtime.file``."""
+
+    __slots__ = ("_r",)
 
     def __init__(self, runtimes: Any):
         self._r = runtimes
@@ -179,41 +191,20 @@ class RuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         data = {"path": path}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.read",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.read", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/read", data)
             result = response.json()
-            content = result.get("content", "")
-            if result.get("path") is None:
-                result["path"] = path
-            if result.get("size") is None and isinstance(content, str):
-                result["size"] = len(content.encode("utf-8"))
+            parsed = _file_read_response(result, path)
             if span is not None:
-                size = result.get("size")
-                if size is None and isinstance(content, str):
-                    size = len(content.encode("utf-8"))
-                telemetry.record_outputs(span, {"path": path, "size": size})
-            return FileReadResponse(**result)
+                telemetry.record_outputs(span, {"path": path, "size": parsed.size})
+            return parsed
 
     def write(self, runtime_id: str, path: str, content: str) -> FileWriteResponse:
         """Write text content via JSON API (``POST .../files/write``)."""
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path, "content": content}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.write",
-            runtime_id,
-            inputs={"path": path, "size": len(content)},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.write", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/write", payload)
             result = response.json()
             if span is not None:
@@ -225,14 +216,7 @@ class RuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.delete",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.delete", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/delete", payload)
             result = response.json()
             if span is not None:
@@ -244,14 +228,7 @@ class RuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.list",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.list", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/list", payload)
             result = response.json()
             files = [_file_info_from_dict(f) for f in result.get("files", ())]
@@ -281,14 +258,7 @@ class RuntimeFileResource:
             params["mode"] = _format_mode(mode)
         endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
         files = {"file": (filename, content, "application/octet-stream")}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.upload",
-            runtime_id,
-            inputs={"path": path, "size": len(content), "user": user, "mode": mode},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.upload", runtime_id) as span:
             response = self._req("POST", endpoint, data=None, files=files)
             result = response.json()
             if isinstance(result, list) and len(result) > 0:
@@ -329,7 +299,6 @@ class RuntimeFileResource:
             return WriteFilesResponse(files=[], partial_failure=False)
         _validate_write_many(entries, runtime_id, concurrency)
 
-        paths = [entry.path for entry in entries]
         results: List[Optional[WriteResult]] = [None] * len(entries)
         failures: List[Optional[GravixLayerError]] = [None] * len(entries)
 
@@ -346,18 +315,12 @@ class RuntimeFileResource:
                 failures[index] = error
                 results[index] = _write_many_failure(entry, error)
 
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.write_many",
-            runtime_id,
-            inputs={"count": len(entries), "paths": paths[:32], "user": user},
-        ) as span:
+        with telemetry.runtime_span("file.write_many", runtime_id) as span:
             workers = min(concurrency, len(entries))
             if workers == 1:
                 for index in range(len(entries)):
                     write_one(index)
-            else:
+            elif telemetry._spans_active():
                 # Each worker runs under its own copy of the calling context so
                 # that the spans it opens stay children of this one. The copies
                 # are taken here, on the calling thread, because a single
@@ -367,6 +330,13 @@ class RuntimeFileResource:
                     futures = [
                         pool.submit(contexts[index].run, write_one, index)
                         for index in range(len(entries))
+                    ]
+                    for future in futures:
+                        future.result()
+            else:
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    futures = [
+                        pool.submit(write_one, index) for index in range(len(entries))
                     ]
                     for future in futures:
                         future.result()
@@ -405,14 +375,7 @@ class RuntimeFileResource:
         payload: Dict[str, Any] = {"path": path, "recursive": recursive}
         if mode is not None:
             payload["mode"] = mode
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.create_directory",
-            runtime_id,
-            inputs={"path": path, "recursive": recursive, "mode": mode},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.create_directory", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/create-directory", payload)
             result = response.json()
             created = DirectoryCreateResponse(
@@ -431,14 +394,7 @@ class RuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.get_info",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.get_info", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/info", payload)
             result = response.json()
             if not result.get("exists"):
@@ -457,14 +413,7 @@ class RuntimeFileResource:
         if not str(mode).strip():
             raise ValueError("mode must be a non-empty chmod-style octal string")
         payload = {"path": path, "mode": mode}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.set_permissions",
-            runtime_id,
-            inputs={"path": path, "mode": mode},
-            attributes={"file.path": path, "file.mode": mode},
-        ) as span:
+        with telemetry.runtime_span("file.set_permissions", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/set-mode", payload)
             result = response.json()
             perms = SetPermissionsResponse(
@@ -492,14 +441,7 @@ class RuntimeFileResource:
         _validate_path(source)
         _validate_path(destination)
         payload = {"source": source, "destination": destination, "overwrite": overwrite}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.move",
-            runtime_id,
-            inputs={"source": source, "destination": destination, "overwrite": overwrite},
-            attributes={"file.path": source},
-        ) as span:
+        with telemetry.runtime_span("file.move", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/move", payload)
             result = response.json()
             moved = FileMoveResponse(
@@ -538,14 +480,7 @@ class RuntimeFileResource:
             "recursive": recursive,
             "overwrite": overwrite,
         }
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.copy",
-            runtime_id,
-            inputs={"source": source, "destination": destination, "recursive": recursive},
-            attributes={"file.path": source},
-        ) as span:
+        with telemetry.runtime_span("file.copy", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/copy", payload)
             result = response.json()
             copied = FileCopyResponse(
@@ -580,14 +515,7 @@ class RuntimeFileResource:
             payload["user"] = user
         if group:
             payload["group"] = group
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.chown",
-            runtime_id,
-            inputs={"path": path, "user": user, "group": group, "recursive": recursive},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.chown", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/chown", payload)
             result = response.json()
             owner = ChangeOwnerResponse(
@@ -638,11 +566,9 @@ class RuntimeFileResource:
         payload: Dict[str, Any],
         on_event: Optional[Callable[[WatchEvent], None]],
     ) -> Iterator[WatchEvent]:
-        import json
-
         response = self._req("POST", f"runtime/{runtime_id}/files/watch", payload, stream=True)
         try:
-            for raw in _iter_sse_payloads(response.iter_lines()):
+            for raw in iter_sse_payloads(response.iter_lines()):
                 try:
                     evt = json.loads(raw)
                 except json.JSONDecodeError:
@@ -703,14 +629,7 @@ class RuntimeFileResource:
         payload = _find_payload(
             path, pattern, glob, regex, case_sensitive, include_hidden, max_results, max_depth
         )
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.find",
-            runtime_id,
-            inputs={"path": path, "pattern": pattern, "glob": glob, "regex": regex},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.find", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/find", payload)
             found = FileFindResponse.from_api(response.json())
             if span is not None:
@@ -768,14 +687,7 @@ class RuntimeFileResource:
         payload = _replace_payload(
             path, pattern, replacement, glob, regex, case_sensitive, include_hidden, max_depth, dry_run
         )
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.replace",
-            runtime_id,
-            inputs={"path": path, "pattern": pattern, "glob": glob, "dry_run": dry_run},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.replace", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/replace", payload)
             replaced = FileReplaceResponse.from_api(response.json())
             if span is not None:
@@ -795,14 +707,7 @@ class RuntimeFileResource:
         if path:
             data["path"] = path
         files = {"file": file}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.upload_file",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path or ""},
-        ) as span:
+        with telemetry.runtime_span("file.upload_file", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/upload", data=data, files=files)
             result = response.json()
             uploaded = FileUploadResponse(**result)
@@ -814,14 +719,7 @@ class RuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         endpoint = f"runtime/{runtime_id}/download?{urlencode({'path': path})}"
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.download",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.download", runtime_id) as span:
             response = self._req("GET", endpoint)
             content = response.content
             if span is not None:
@@ -842,6 +740,8 @@ class RuntimeFileResource:
 class AsyncRuntimeFileResource:
     """Async filesystem operations under ``await client.runtime.file.*``."""
 
+    __slots__ = ("_r",)
+
     def __init__(self, runtimes: Any):
         self._r = runtimes
 
@@ -852,40 +752,19 @@ class AsyncRuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.read",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.read", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/read", payload)
             result = response.json()
-            content = result.get("content", "")
-            if result.get("path") is None:
-                result["path"] = path
-            if result.get("size") is None and isinstance(content, str):
-                result["size"] = len(content.encode("utf-8"))
+            parsed = _file_read_response(result, path)
             if span is not None:
-                size = result.get("size")
-                if size is None and isinstance(content, str):
-                    size = len(content.encode("utf-8"))
-                telemetry.record_outputs(span, {"path": path, "size": size})
-            return FileReadResponse(**result)
+                telemetry.record_outputs(span, {"path": path, "size": parsed.size})
+            return parsed
 
     async def write(self, runtime_id: str, path: str, content: str) -> FileWriteResponse:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path, "content": content}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.write",
-            runtime_id,
-            inputs={"path": path, "size": len(content)},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.write", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/write", payload)
             result = response.json()
             if span is not None:
@@ -896,14 +775,7 @@ class AsyncRuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.delete",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.delete", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/delete", payload)
             result = response.json()
             if span is not None:
@@ -914,14 +786,7 @@ class AsyncRuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.list",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.list", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/list", payload)
             result = response.json()
             files = [_file_info_from_dict(f) for f in result.get("files", ())]
@@ -950,14 +815,7 @@ class AsyncRuntimeFileResource:
             params["mode"] = _format_mode(mode)
         endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
         files = {"file": (filename, content, "application/octet-stream")}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.upload",
-            runtime_id,
-            inputs={"path": path, "size": len(content), "user": user, "mode": mode},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.upload", runtime_id) as span:
             response = await self._req("POST", endpoint, data=None, files=files)
             result = response.json()
             if isinstance(result, list) and len(result) > 0:
@@ -998,7 +856,6 @@ class AsyncRuntimeFileResource:
             return WriteFilesResponse(files=[], partial_failure=False)
         _validate_write_many(entries, runtime_id, concurrency)
 
-        paths = [entry.path for entry in entries]
         results: List[Optional[WriteResult]] = [None] * len(entries)
         failures: List[Optional[GravixLayerError]] = [None] * len(entries)
         limit = asyncio.Semaphore(min(concurrency, len(entries)))
@@ -1017,13 +874,7 @@ class AsyncRuntimeFileResource:
                     failures[index] = error
                     results[index] = _write_many_failure(entry, error)
 
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.write_many",
-            runtime_id,
-            inputs={"count": len(entries), "paths": paths[:32], "user": user},
-        ) as span:
+        with telemetry.runtime_span("file.write_many", runtime_id) as span:
             await asyncio.gather(*(write_one(index) for index in range(len(entries))))
 
             file_results = [result for result in results if result is not None]
@@ -1059,14 +910,7 @@ class AsyncRuntimeFileResource:
         payload: Dict[str, Any] = {"path": path, "recursive": recursive}
         if mode is not None:
             payload["mode"] = mode
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.create_directory",
-            runtime_id,
-            inputs={"path": path, "recursive": recursive, "mode": mode},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.create_directory", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/create-directory", payload)
             result = response.json()
             created = DirectoryCreateResponse(
@@ -1084,14 +928,7 @@ class AsyncRuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.get_info",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.get_info", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/info", payload)
             result = response.json()
             if not result.get("exists"):
@@ -1109,14 +946,7 @@ class AsyncRuntimeFileResource:
         if not str(mode).strip():
             raise ValueError("mode must be a non-empty chmod-style octal string")
         payload = {"path": path, "mode": mode}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.set_permissions",
-            runtime_id,
-            inputs={"path": path, "mode": mode},
-            attributes={"file.path": path, "file.mode": mode},
-        ) as span:
+        with telemetry.runtime_span("file.set_permissions", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/set-mode", payload)
             result = response.json()
             perms = SetPermissionsResponse(
@@ -1134,14 +964,7 @@ class AsyncRuntimeFileResource:
         _validate_path(source)
         _validate_path(destination)
         payload = {"source": source, "destination": destination, "overwrite": overwrite}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.move",
-            runtime_id,
-            inputs={"source": source, "destination": destination, "overwrite": overwrite},
-            attributes={"file.path": source},
-        ) as span:
+        with telemetry.runtime_span("file.move", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/move", payload)
             result = response.json()
             moved = FileMoveResponse(
@@ -1172,14 +995,7 @@ class AsyncRuntimeFileResource:
             "recursive": recursive,
             "overwrite": overwrite,
         }
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.copy",
-            runtime_id,
-            inputs={"source": source, "destination": destination, "recursive": recursive},
-            attributes={"file.path": source},
-        ) as span:
+        with telemetry.runtime_span("file.copy", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/copy", payload)
             result = response.json()
             copied = FileCopyResponse(
@@ -1210,14 +1026,7 @@ class AsyncRuntimeFileResource:
             payload["user"] = user
         if group:
             payload["group"] = group
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.chown",
-            runtime_id,
-            inputs={"path": path, "user": user, "group": group, "recursive": recursive},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.chown", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/chown", payload)
             result = response.json()
             owner = ChangeOwnerResponse(
@@ -1245,9 +1054,6 @@ class AsyncRuntimeFileResource:
             >>> async for event in client.runtime.file.watch(rid, "/workspace"):
             ...     print(event.type, event.path)
         """
-        import inspect
-        import json
-
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         payload = {"path": path, "recursive": recursive}
@@ -1256,12 +1062,7 @@ class AsyncRuntimeFileResource:
             "POST", f"runtime/{runtime_id}/files/watch", payload, stream=True
         )
         try:
-            async for line in response.aiter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                raw = line[len("data:"):].strip()
-                if not raw:
-                    continue
+            async for raw in aiter_sse_payloads(response.aiter_lines()):
                 try:
                     evt = json.loads(raw)
                 except json.JSONDecodeError:
@@ -1295,14 +1096,7 @@ class AsyncRuntimeFileResource:
         payload = _find_payload(
             path, pattern, glob, regex, case_sensitive, include_hidden, max_results, max_depth
         )
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.find",
-            runtime_id,
-            inputs={"path": path, "pattern": pattern, "glob": glob, "regex": regex},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.find", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/find", payload)
             found = FileFindResponse.from_api(response.json())
             if span is not None:
@@ -1335,14 +1129,7 @@ class AsyncRuntimeFileResource:
         payload = _replace_payload(
             path, pattern, replacement, glob, regex, case_sensitive, include_hidden, max_depth, dry_run
         )
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.replace",
-            runtime_id,
-            inputs={"path": path, "pattern": pattern, "glob": glob, "dry_run": dry_run},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.replace", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/replace", payload)
             replaced = FileReplaceResponse.from_api(response.json())
             if span is not None:
@@ -1362,14 +1149,7 @@ class AsyncRuntimeFileResource:
         if path:
             data["path"] = path
         files = {"file": file}
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.upload_file",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path or ""},
-        ) as span:
+        with telemetry.runtime_span("file.upload_file", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/upload", data=data, files=files)
             result = response.json()
             uploaded = FileUploadResponse(**result)
@@ -1381,14 +1161,7 @@ class AsyncRuntimeFileResource:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
         endpoint = f"runtime/{runtime_id}/download?{urlencode({'path': path})}"
-        from .. import telemetry
-
-        with telemetry.runtime_span(
-            "file.download",
-            runtime_id,
-            inputs={"path": path},
-            attributes={"file.path": path},
-        ) as span:
+        with telemetry.runtime_span("file.download", runtime_id) as span:
             response = await self._req("GET", endpoint)
             content = response.content
             if span is not None:
