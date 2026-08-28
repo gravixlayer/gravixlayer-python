@@ -330,7 +330,7 @@ class TemplateBuilder:
         Examples::
 
             builder.from_image("python:3.12-slim")
-            builder.from_image("node:20-slim")
+            builder.from_image("node:slim")
             builder.from_image("ubuntu:24.04")
             builder.from_image("nvidia/cuda:12.2.0-base-ubuntu22.04")
         """

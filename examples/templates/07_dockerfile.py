@@ -13,7 +13,6 @@ instead of pip_install/apt_install build steps. You still need start_cmd
 and ready_cmd so the pipeline can launch and verify the app.
 """
 
-import sys
 import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
@@ -69,15 +68,8 @@ builder = (
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
-status = client.templates.build_and_wait(
+client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
     timeout_secs=900,
 )
-
-print(f"Build finished: status={status.status}, phase={status.phase}")
-if status.is_success:
-    print(f"Template ID: {status.template_id}")
-else:
-    print(f"Build failed: {status.error}")
-    sys.exit(1)

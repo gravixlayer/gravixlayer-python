@@ -223,7 +223,7 @@ def _native_autoserve_entrypoint(
     return " ".join(shlex.quote(part) for part in command)
 
 
-from .._cli_progress import AGENT_BUILD_PHASE_LABELS, PhaseSpinner, fmt_duration
+from .._cli_progress import AGENT_BUILD_PHASE_LABELS, PhaseSpinner, fmt_duration, next_display_stage
 from ..types.agents import (
     AgentBuildRequest,
     AgentBuildResponse,
@@ -530,8 +530,10 @@ class Agents:
             if on_status is not None:
                 on_status(status)
 
-            current_label = AGENT_BUILD_PHASE_LABELS.get(status.phase, status.phase.upper())
-            if current_label != last_label:
+            current_label = next_display_stage(
+                last_label, status.phase, AGENT_BUILD_PHASE_LABELS
+            )
+            if current_label is not None:
                 now = time.monotonic()
                 elapsed_s = now - phase_start
                 if spinner:

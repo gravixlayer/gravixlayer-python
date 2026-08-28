@@ -58,15 +58,8 @@ builder = (
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
-status = client.templates.build_and_wait(
+client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
     timeout_secs=900,
 )
-
-print(f"Build finished: status={status.status}, phase={status.phase}")
-if status.is_success:
-    print(f"Template ID: {status.template_id}")
-else:
-    print(f"Build failed: {status.error}")
-    sys.exit(1)

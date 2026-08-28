@@ -6,7 +6,6 @@ Uses: from_image, pip_install, apt_install, copy_file (inline content),
 start_cmd, ready_cmd, build_and_wait
 """
 
-import sys
 import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
@@ -18,7 +17,7 @@ client = GravixLayer()
 template_name = f"sdk-python-image-{int(time.time())}"
 builder = (
     TemplateBuilder(template_name, "python-template-from-docker-image")
-    .from_image("python:3.12-slim")
+    .from_image("python:trixie")
     .vcpu(2)
     .memory(1024)
     .disk(4096)
@@ -42,16 +41,8 @@ def health():
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
-status = client.templates.build_and_wait(
+client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
     timeout_secs=900,
 )
-
-
-print(f"Build finished: status={status.status}, phase={status.phase}")
-if status.is_success:
-    print(f"Template ID: {status.template_id}")
-else:
-    print(f"Build failed: {status.error}")
-    sys.exit(1)

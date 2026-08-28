@@ -12,7 +12,6 @@ git_clone supports:
   depth  -- shallow clone depth (use depth=1 for faster builds)
 """
 
-import sys
 import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
@@ -28,7 +27,8 @@ builder = (
         f"node-git-repo-{_TEMPLATE_SUFFIX}",
         description="Node.js template from public Git repo",
     )
-    .from_image("node:20-slim")
+    # Node images newer than node:20 (use node:slim / current).
+    .from_image("node:slim")
     .vcpu(2)
     .memory(1024)
     .disk(4096)
@@ -46,15 +46,8 @@ builder = (
     .ready_cmd(TemplateBuilder.wait_for_port(8080), timeout_secs=300)
 )
 
-status = client.templates.build_and_wait(
+client.templates.build_and_wait(
     builder,
     poll_interval_secs=10,
     timeout_secs=900,
 )
-
-print(f"Build finished: status={status.status}, phase={status.phase}")
-if status.is_success:
-    print(f"Template ID: {status.template_id}")
-else:
-    print(f"Build failed: {status.error}")
-    sys.exit(1)

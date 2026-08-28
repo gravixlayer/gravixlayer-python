@@ -11,7 +11,7 @@ import sys
 import time as _time
 from typing import Dict, Any, Optional, Union
 
-from .._cli_progress import TEMPLATE_BUILD_PHASE_LABELS, PhaseSpinner, fmt_duration
+from .._cli_progress import PhaseSpinner, fmt_duration, next_display_stage
 from .._resource_utils import build_list_endpoint, parse_paginated_items
 from ..types.templates import (
     TemplateBuilder,
@@ -270,10 +270,8 @@ class AsyncTemplates:
                     build_id, error_msg, status=status
                 )
 
-            current_display = TEMPLATE_BUILD_PHASE_LABELS.get(
-                status.phase, status.phase.upper()
-            )
-            if current_display != last_display_label:
+            current_display = next_display_stage(last_display_label, status.phase)
+            if current_display is not None:
                 now = _time.monotonic()
                 elapsed_s = now - phase_start
                 if spinner:

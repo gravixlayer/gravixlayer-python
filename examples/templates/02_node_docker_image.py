@@ -56,6 +56,7 @@ builder = (
         f"sdk-node-express-{_TEMPLATE_SUFFIX}",
         description="Node.js Express hello-world agent",
     )
+    # Node images newer than node:20 (use node:slim / current).
     .from_image("node:20-slim")
     .vcpu(2)
     .memory(1024)
@@ -76,9 +77,3 @@ status = client.templates.build_and_wait(
     poll_interval_secs=10,
     timeout_secs=900,
 )
-
-if status.is_success:
-    print(f"Template ID: {status.template_id}")
-else:
-    print(f"Build failed: {status.error}")
-    sys.exit(1)
