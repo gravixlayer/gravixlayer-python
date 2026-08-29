@@ -27,7 +27,7 @@ from tests.utils import (
 )
 
 from gravixlayer import GravixLayer, AsyncGravixLayer
-from gravixlayer.resources.runtime_files import _file_read_response
+from gravixlayer.resources.runtime_files import _file_read_response, _write_result_from_upload
 from gravixlayer.types.exceptions import GravixLayerBadRequestError
 from gravixlayer.types.runtime import (
     Runtime,
@@ -453,6 +453,52 @@ class TestSyncRuntimeWrite:
         result = client.runtime.file.upload(VALID_UUID, "/tmp/f.py", "print('hi')")
         assert isinstance(result, WriteResult)
         assert result.path == "/tmp/f.py"
+
+    def test_upload_object_files_shape(self, client, mock_api):
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "files": [
+                        {
+                            "path": "/workspace/project/config.json",
+                            "name": "config.json",
+                            "type": "file",
+                            "size": 21,
+                        }
+                    ],
+                    "partial_failure": False,
+                },
+            )
+        )
+        result = client.runtime.file.upload(
+            VALID_UUID, "/workspace/project/config.json", '{"debug": true}'
+        )
+        assert result.path == "/workspace/project/config.json"
+        assert result.name == "config.json"
+        assert result.size == 21
+
+    def test_write_result_from_upload_shapes(self):
+        listed = _write_result_from_upload(
+            [{"path": "/a", "name": "a", "type": "file", "size": 3}],
+            "/fallback",
+            "fb",
+            9,
+        )
+        assert listed.path == "/a"
+        assert listed.size == 3
+        single = _write_result_from_upload(
+            {"path": "/b", "name": "b", "error": "denied"}, "/fallback", "fb", 4
+        )
+        assert single.path == "/b"
+        assert single.error == "denied"
+        assert single.size == 4
+        empty = _write_result_from_upload({"files": []}, "/c", "c", 2)
+        assert empty.path == "/c"
+        assert empty.size == 2
+        none = _write_result_from_upload(None, "/d", "d", 1)
+        assert none.path == "/d"
+        assert none.name == "d"
 
     def test_write_bytes(self, client, mock_api):
         mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
@@ -1022,6 +1068,31 @@ class TestAsyncRuntimeWrite:
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             result = await client.runtime.file.upload(VALID_UUID, "/tmp/f.py", "code")
             assert result.path == "/tmp/f.py"
+
+    @pytest.mark.asyncio
+    async def test_upload_object_files_shape(self, mock_api):
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "files": [
+                        {
+                            "path": "/workspace/project/run.sh",
+                            "name": "run.sh",
+                            "type": "file",
+                            "size": 12,
+                        }
+                    ],
+                    "partial_failure": False,
+                },
+            )
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            result = await client.runtime.file.upload(
+                VALID_UUID, "/workspace/project/run.sh", "#!/bin/sh\n"
+            )
+            assert result.path == "/workspace/project/run.sh"
+            assert result.size == 12
 
     @pytest.mark.asyncio
     async def test_write_files(self, mock_api):

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Execute Python Code in an Agent Runtime
 
-Shows how to run Python code snippets inside an agent runtime using the
-Jupyter kernel. Supports multi-line scripts, imports, and structured
-output via stdout/stderr.
+Shows how to run Python code snippets inside an agent runtime. Supports
+multi-line scripts, imports, and structured output via stdout/stderr.
+Each ``run_code`` call is one-shot unless you pass a ``context_id``.
 
 Usage:
     export GRAVIXLAYER_API_KEY="your-api-key"

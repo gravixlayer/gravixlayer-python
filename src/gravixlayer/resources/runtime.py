@@ -427,7 +427,7 @@ class Runtimes:
         on_result: Optional[Any] = None,
         on_error: Optional[Any] = None,
     ) -> CodeRunResponse:
-        """Execute code in the runtime using Jupyter kernel.
+        """Execute code in the runtime.
 
         Returns a :class:`~gravixlayer.types.runtime.CodeRunResponse` (not
         :class:`~gravixlayer.types.runtime.Execution`). Use
@@ -567,7 +567,11 @@ class Runtimes:
     def create_context(
         self, runtime_id: str, language: Optional[str] = "python", cwd: Optional[str] = None
     ) -> CodeContext:
-        """Create an isolated execution context (Jupyter kernel session) for persistent state."""
+        """Create an isolated execution context.
+
+        State persists across :meth:`run_code` calls that pass the returned
+        ``context_id``. A call without ``context_id`` is one-shot.
+        """
         _validate_runtime_id(runtime_id)
         data = {}
         if language:

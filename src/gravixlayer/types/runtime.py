@@ -268,6 +268,9 @@ class Runtime:
         self,
         code: str,
         language: str = "python",
+        context_id: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
         on_stdout: Optional[Callable[[str], None]] = None,
         on_stderr: Optional[Callable[[str], None]] = None,
         on_result: Optional[Callable[[Any], None]] = None,
@@ -275,9 +278,16 @@ class Runtime:
     ) -> "Execution":
         """Execute code in the runtime.
 
+        A call without ``context_id`` is one-shot: globals from earlier calls
+        are not reused. Pass a ``context_id`` from :meth:`create_context` to
+        keep interpreter state across calls, including pause and resume.
+
         Args:
             code: Source to execute.
             language: Language of the source (default: "python").
+            context_id: Persistent execution context. Omit for a one-shot run.
+            environment: Extra environment variables for this run.
+            timeout: Maximum execution time in seconds.
             on_stdout: Optional callback invoked with each incremental stdout chunk.
                 Providing any callback streams the execution over SSE.
             on_stderr: Optional callback invoked with each incremental stderr chunk.
@@ -289,12 +299,36 @@ class Runtime:
             self.runtime_id,
             code=code,
             language=language,
+            context_id=context_id,
+            environment=environment,
+            timeout=timeout,
             on_stdout=on_stdout,
             on_stderr=on_stderr,
             on_result=on_result,
             on_error=on_error,
         )
         return Execution(response)
+
+    def create_context(
+        self,
+        language: str = "python",
+        cwd: Optional[str] = None,
+    ) -> "CodeContext":
+        """Create a persistent execution context on this runtime."""
+        self._require_alive()
+        return self._client.runtime.create_context(
+            self.runtime_id, language=language, cwd=cwd
+        )
+
+    def get_context(self, context_id: str) -> "CodeContext":
+        """Return metadata for an execution context on this runtime."""
+        self._require_alive()
+        return self._client.runtime.get_context(self.runtime_id, context_id)
+
+    def delete_context(self, context_id: str) -> "CodeContextDeleteResponse":
+        """Delete an execution context on this runtime."""
+        self._require_alive()
+        return self._client.runtime.delete_context(self.runtime_id, context_id)
 
     def run_cmd(
         self,
@@ -1446,10 +1480,11 @@ class CodeRunResponse:
 
 @dataclass
 class CodeContext:
-    """Persistent execution context (Jupyter kernel session) in a runtime.
+    """Persistent execution context in a runtime.
 
     ``context_id`` is returned from :meth:`~gravixlayer.resources.runtime.Runtimes.create_context`
-    and passed to :meth:`~gravixlayer.resources.runtime.Runtimes.run_code` as ``context_id``.
+    or :meth:`Runtime.create_context` and passed to :meth:`run_code` as
+    ``context_id``. A run without a context is one-shot.
     """
 
     context_id: str

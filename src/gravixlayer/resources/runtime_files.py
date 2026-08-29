@@ -89,6 +89,38 @@ def _validate_write_many(entries: List[WriteEntry], runtime_id: str, concurrency
         raise ValueError("concurrency must be positive")
 
 
+def _write_result_from_upload(
+    result: Any,
+    path: str,
+    filename: str,
+    nbytes: int,
+) -> WriteResult:
+    """Map ``POST .../files`` JSON onto :class:`WriteResult`.
+
+    Accepts the live object ``{ files: [...] }``, a bare list (older mocks),
+    or a single file object.
+    """
+    entry: Dict[str, Any] = {}
+    if isinstance(result, list) and result and isinstance(result[0], dict):
+        entry = result[0]
+    elif isinstance(result, dict):
+        files = result.get("files")
+        if isinstance(files, list) and files and isinstance(files[0], dict):
+            entry = files[0]
+        elif "path" in result or "name" in result:
+            entry = result
+    size = entry.get("size")
+    if size is None:
+        size = nbytes
+    return WriteResult(
+        path=entry.get("path", path),
+        name=entry.get("name", filename),
+        type=entry.get("type", "file"),
+        size=size,
+        error=entry.get("error"),
+    )
+
+
 def _file_info_from_dict(file_info: Dict[str, Any]) -> FileInfo:
     return FileInfo(
         name=file_info.get("name", ""),
@@ -260,17 +292,7 @@ class RuntimeFileResource:
         files = {"file": (filename, content, "application/octet-stream")}
         with telemetry.runtime_span("file.upload", runtime_id) as span:
             response = self._req("POST", endpoint, data=None, files=files)
-            result = response.json()
-            if isinstance(result, list) and len(result) > 0:
-                entry = result[0]
-                written = WriteResult(
-                    path=entry.get("path", path),
-                    name=entry.get("name", filename),
-                    type=entry.get("type", "file"),
-                    size=len(content),
-                )
-            else:
-                written = WriteResult(path=path, name=filename, type="file", size=len(content))
+            written = _write_result_from_upload(response.json(), path, filename, len(content))
             if span is not None:
                 telemetry.record_outputs(
                     span, {"path": written.path, "size": written.size, "name": written.name}
@@ -534,7 +556,7 @@ class RuntimeFileResource:
         recursive: bool = False,
         on_event: Optional[Callable[[WatchEvent], None]] = None,
     ) -> Iterator[WatchEvent]:
-        """Watch a directory for filesystem changes, backed by guest ``inotify``.
+        """Watch a directory for filesystem changes.
 
         Yields :class:`~gravixlayer.types.runtime.WatchEvent` objects as they occur.
         The first event is always ``start``, which confirms the watch is armed; only
@@ -817,17 +839,7 @@ class AsyncRuntimeFileResource:
         files = {"file": (filename, content, "application/octet-stream")}
         with telemetry.runtime_span("file.upload", runtime_id) as span:
             response = await self._req("POST", endpoint, data=None, files=files)
-            result = response.json()
-            if isinstance(result, list) and len(result) > 0:
-                entry = result[0]
-                written = WriteResult(
-                    path=entry.get("path", path),
-                    name=entry.get("name", filename),
-                    type=entry.get("type", "file"),
-                    size=len(content),
-                )
-            else:
-                written = WriteResult(path=path, name=filename, type="file", size=len(content))
+            written = _write_result_from_upload(response.json(), path, filename, len(content))
             if span is not None:
                 telemetry.record_outputs(
                     span, {"path": written.path, "size": written.size, "name": written.name}
@@ -1045,7 +1057,7 @@ class AsyncRuntimeFileResource:
         recursive: bool = False,
         on_event: Optional[Callable[[WatchEvent], Any]] = None,
     ) -> AsyncIterator[WatchEvent]:
-        """Watch a directory for filesystem changes, backed by guest ``inotify``.
+        """Watch a directory for filesystem changes.
 
         Async generator yielding :class:`~gravixlayer.types.runtime.WatchEvent`. The
         first event is always ``start``. ``on_event`` may be a coroutine function.

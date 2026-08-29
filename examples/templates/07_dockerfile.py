@@ -17,7 +17,7 @@ import time
 
 from gravixlayer import GravixLayer, TemplateBuilder
 
-_TEMPLATE_SUFFIX = int(time.time())
+_TEMPLATE_SUFFIX = int(time.time() * 1000)
 
 client = GravixLayer()
 

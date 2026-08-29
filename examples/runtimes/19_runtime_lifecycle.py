@@ -7,9 +7,12 @@ Demonstrates the full state machine for a runtime:
 
 State transitions:
     create()  →  running
-    pause()   →  paused   (VM frozen, billing pauses, state preserved)
-    resume()  →  running  (VM restored from snapshot, <200 ms)
+    pause()   →  paused   (machine frozen, billing pauses, disk and memory stay)
+    resume()  →  running  (restored as it was)
     kill()    →  terminated
+
+Interpreter variables survive pause only when they live in an explicit
+execution context. A default ``run_code`` call is one-shot.
 
     export GRAVIXLAYER_API_KEY=...
     python examples/runtimes/19_runtime_lifecycle.py
@@ -41,11 +44,15 @@ print(f"  runtime_id={sandbox.runtime_id}")
 check_status(sandbox, "running")
 
 # ---------------------------------------------------------------------------
-# 2. Run code while running
+# 2. Put state in an interpreter context and on disk
 # ---------------------------------------------------------------------------
 print("\n=== 2. Run code (running state) ===")
-result = sandbox.run_code("x = 42; print(f'x = {x}')")
+context = sandbox.create_context()
+result = sandbox.run_code("x = 42; print(f'x = {x}')", context_id=context.context_id)
 print(f"  output: {result.stdout.strip()}")
+if result.error:
+    print(f"  error: {result.error}")
+sandbox.file.write("/workspace/state.txt", "written before pausing")
 
 # ---------------------------------------------------------------------------
 # 3. Pause
@@ -64,16 +71,16 @@ time.sleep(1)  # allow state propagation
 check_status(sandbox, "running")
 
 # ---------------------------------------------------------------------------
-# 5. Verify kernel state is preserved across pause/resume
-#    Variables survive because run_code uses a persistent kernel context.
-#    The sandbox freezes the entire VM (including that Python worker process)
-#    on pause and thaws it on resume — state is fully intact.
+# 5. Context and disk both survive because the machine itself was frozen.
 # ---------------------------------------------------------------------------
-print("\n=== 5. Kernel state after resume ===")
-result = sandbox.run_code("print(f'x still = {x}')")
-print(f"  output: {result.stdout.strip()}")
+print("\n=== 5. State after resume ===")
+result = sandbox.run_code("print(f'x still = {x}')", context_id=context.context_id)
+print(f"  memory: {result.stdout.strip()}")
+if result.error:
+    print(f"  error: {result.error}")
 if result.stderr.strip():
     print(f"  stderr: {result.stderr.strip()}")
+print(f"  disk:   {sandbox.file.read('/workspace/state.txt').content}")
 
 # ---------------------------------------------------------------------------
 # 6. Kill

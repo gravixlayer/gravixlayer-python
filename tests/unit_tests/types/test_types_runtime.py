@@ -250,6 +250,9 @@ class TestRuntimeInstanceMethods:
             rt.runtime_id,
             code="print(42)",
             language="python",
+            context_id=None,
+            environment=None,
+            timeout=None,
             on_stdout=None,
             on_stderr=None,
             on_result=None,
@@ -387,6 +390,54 @@ class TestRuntimeInstanceMethods:
         )
         resp = rt.file.write_many(entries)
         assert len(resp.files) == 1
+
+    def test_run_code_forwards_context_id(self):
+        rt, mock_client = self._make_runtime_with_client()
+        mock_client.runtime.run_code.return_value = CodeRunResponse(
+            results=[ExecutionResult(text="42")],
+            logs=ExecutionLogs(),
+        )
+        result = rt.run_code(
+            "print(x)",
+            context_id="ctx-1",
+            environment={"A": "1"},
+            timeout=12,
+        )
+        mock_client.runtime.run_code.assert_called_once_with(
+            rt.runtime_id,
+            code="print(x)",
+            language="python",
+            context_id="ctx-1",
+            environment={"A": "1"},
+            timeout=12,
+            on_stdout=None,
+            on_stderr=None,
+            on_result=None,
+            on_error=None,
+        )
+        assert isinstance(result, Execution)
+
+    def test_create_context_delegates(self):
+        rt, mock_client = self._make_runtime_with_client()
+        mock_client.runtime.create_context.return_value = CodeContext(
+            context_id="ctx-1", language="python", cwd="/workspace"
+        )
+        ctx = rt.create_context(language="javascript", cwd="/app")
+        mock_client.runtime.create_context.assert_called_once_with(
+            rt.runtime_id, language="javascript", cwd="/app"
+        )
+        assert ctx.context_id == "ctx-1"
+
+    def test_get_and_delete_context_delegate(self):
+        rt, mock_client = self._make_runtime_with_client()
+        mock_client.runtime.get_context.return_value = CodeContext(
+            context_id="ctx-1", language="python", cwd="/workspace"
+        )
+        mock_client.runtime.delete_context.return_value = CodeContextDeleteResponse(
+            message="Deleted", context_id="ctx-1"
+        )
+        assert rt.get_context("ctx-1").language == "python"
+        assert rt.delete_context("ctx-1").message == "Deleted"
 
 
 # ===================================================================
