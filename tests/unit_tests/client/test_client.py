@@ -215,10 +215,23 @@ class TestSyncClientRequest:
     def test_403_does_not_retry(self, mock_api):
         c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=3)
         mock_api.post(f"{AGENTS_BASE}/runtime").mock(
-            return_value=httpx.Response(403, text="forbidden")
+            return_value=httpx.Response(
+                403,
+                json={
+                    "error": "Runtime quota exceeded",
+                    "code": "quota_exceeded",
+                    "message": "CPU quota exceeded. Reduce running runtimes or upgrade your tier.",
+                    "exceeded": ["vcpu"],
+                },
+            )
         )
-        with pytest.raises(GravixLayerBadRequestError):
+        with pytest.raises(GravixLayerBadRequestError) as caught:
             c.runtime.create()
+        err = caught.value
+        assert str(err) == "CPU quota exceeded. Reduce running runtimes or upgrade your tier."
+        assert err.status == 403
+        assert err.code == "quota_exceeded"
+        assert err.body["exceeded"] == ["vcpu"]
         assert len(mock_api.calls) == 1
         c.close()
 
@@ -407,10 +420,22 @@ class TestAsyncClientErrors:
     async def test_403_does_not_retry(self, mock_api):
         client = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=3)
         mock_api.post(f"{AGENTS_BASE}/runtime").mock(
-            return_value=httpx.Response(403, text="forbidden")
+            return_value=httpx.Response(
+                403,
+                json={
+                    "error": "Runtime quota exceeded",
+                    "code": "quota_exceeded",
+                    "message": "CPU quota exceeded. Reduce running runtimes or upgrade your tier.",
+                    "exceeded": ["ram_gb"],
+                },
+            )
         )
-        with pytest.raises(GravixLayerBadRequestError):
+        with pytest.raises(GravixLayerBadRequestError) as caught:
             await client.runtime.create()
+        err = caught.value
+        assert str(err) == "CPU quota exceeded. Reduce running runtimes or upgrade your tier."
+        assert err.status == 403
+        assert err.code == "quota_exceeded"
         assert len(mock_api.calls) == 1
         await client.aclose()
 

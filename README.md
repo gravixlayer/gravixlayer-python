@@ -223,10 +223,12 @@ from gravixlayer import GravixLayerError, GravixLayerRateLimitError
 
 try:
     client.runtime.create(template="base-small")
-except GravixLayerRateLimitError:
-    ...
+except GravixLayerRateLimitError as exc:
+    print(exc.retry_after_seconds)
 except GravixLayerError as exc:
-    print(exc)
+    print(exc)          # product line, e.g. "CPU quota exceeded. …"
+    print(exc.status)   # 403
+    print(exc.code)     # quota_exceeded
 ```
 
 Connection failures and 429 / 502 / 503 / 504 are retried automatically. HTTP 403 (quota or permission) is not retried.

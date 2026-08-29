@@ -18,11 +18,8 @@ from .._request_utils import (
 )
 from ..types.exceptions import (
     GravixLayerError,
-    GravixLayerAuthenticationError,
-    GravixLayerRateLimitError,
-    GravixLayerServerError,
-    GravixLayerBadRequestError,
     GravixLayerConnectionError,
+    error_from_response,
 )
 from ..resources.async_runtime import AsyncRuntimeResource
 from ..resources.async_templates import AsyncTemplates
@@ -129,14 +126,10 @@ class AsyncGravixLayer:
         endpoint = build_list_endpoint("runtime", limit=1, offset=0)
         url = build_url(endpoint, "v1/agents", self._service_urls, self.base_url)
         resp = await self._http_client.get(url)
-        if resp.status_code == 401:
-            raise GravixLayerAuthenticationError("Authentication failed.")
         if resp.status_code in SUCCESS_STATUS:
             return
-        if 400 <= resp.status_code < 500:
-            raise GravixLayerBadRequestError(resp.text)
-        if resp.status_code >= 500:
-            raise GravixLayerServerError(resp.text)
+        if resp.status_code >= 400:
+            raise error_from_response(resp.status_code, resp.text, resp.headers)
         resp.raise_for_status()
 
     async def aclose(self) -> None:
@@ -191,24 +184,19 @@ class AsyncGravixLayer:
                 if status in SUCCESS_STATUS:
                     return resp
 
-                if status == 401:
-                    raise GravixLayerAuthenticationError("Authentication failed.")
-
                 if status == 429:
                     if can_retry_local(attempt, max_retries):
                         await sleep(next_retry_delay_local(attempt, rand, resp.headers.get("Retry-After")))
                         continue
-                    raise GravixLayerRateLimitError(resp.text)
+                    raise error_from_response(status, resp.text, resp.headers)
 
                 if status in RETRYABLE_STATUS and can_retry_local(attempt, max_retries):
                     logger_warning("Server error %d. Retrying...", status)
                     await sleep(next_retry_delay_local(attempt, rand))
                     continue
 
-                if 400 <= status < 500:
-                    raise GravixLayerBadRequestError(resp.text)
-                if status >= 500:
-                    raise GravixLayerServerError(resp.text)
+                if status >= 400:
+                    raise error_from_response(status, resp.text, resp.headers)
 
                 resp.raise_for_status()
 

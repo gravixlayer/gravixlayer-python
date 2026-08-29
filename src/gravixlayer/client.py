@@ -26,11 +26,8 @@ from .resources.network_policies import NetworkPolicies
 from . import telemetry
 from .types.exceptions import (
     GravixLayerError,
-    GravixLayerAuthenticationError,
-    GravixLayerRateLimitError,
-    GravixLayerServerError,
-    GravixLayerBadRequestError,
     GravixLayerConnectionError,
+    error_from_response,
 )
 
 class GravixLayer:
@@ -154,14 +151,10 @@ class GravixLayer:
         endpoint = build_list_endpoint("runtime", limit=1, offset=0)
         url = build_url(endpoint, "v1/agents", self._service_urls, self.base_url)
         resp = self._http_client.get(url)
-        if resp.status_code == 401:
-            raise GravixLayerAuthenticationError("Authentication failed.")
         if resp.status_code in SUCCESS_STATUS:
             return
-        if 400 <= resp.status_code < 500:
-            raise GravixLayerBadRequestError(resp.text)
-        if resp.status_code >= 500:
-            raise GravixLayerServerError(resp.text)
+        if resp.status_code >= 400:
+            raise error_from_response(resp.status_code, resp.text, resp.headers)
         resp.raise_for_status()
 
     def close(self) -> None:
@@ -217,9 +210,6 @@ class GravixLayer:
                 if status in SUCCESS_STATUS:
                     return resp
 
-                if status == 401:
-                    raise GravixLayerAuthenticationError("Authentication failed.")
-
                 if status == 429:
                     if can_retry_local(attempt, max_retries):
                         delay = next_retry_delay_local(
@@ -230,7 +220,7 @@ class GravixLayer:
                         logger_warning("Rate limited. Retrying in %.1fs...", delay)
                         sleep(delay)
                         continue
-                    raise GravixLayerRateLimitError(resp.text)
+                    raise error_from_response(status, resp.text, resp.headers)
 
                 if status in RETRYABLE_STATUS and can_retry_local(attempt, max_retries):
                     delay = next_retry_delay_local(attempt, rand)
@@ -238,10 +228,8 @@ class GravixLayer:
                     sleep(delay)
                     continue
 
-                if 400 <= status < 500:
-                    raise GravixLayerBadRequestError(resp.text)
-                if status >= 500:
-                    raise GravixLayerServerError(resp.text)
+                if status >= 400:
+                    raise error_from_response(status, resp.text, resp.headers)
 
                 resp.raise_for_status()
 
