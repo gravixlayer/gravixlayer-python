@@ -6,6 +6,7 @@ from gravixlayer._request_utils import (
     RETRYABLE_STATUS,
     SUCCESS_STATUS,
     JSON_HEADERS,
+    MAX_RETRY_AFTER_SECS,
     build_url,
     prepare_request_kwargs,
     next_retry_delay,
@@ -16,7 +17,11 @@ from gravixlayer._request_utils import (
 class TestConstants:
     def test_retryable_status(self):
         assert 502 in RETRYABLE_STATUS
+        assert 503 in RETRYABLE_STATUS
+        assert 504 in RETRYABLE_STATUS
         assert 200 not in RETRYABLE_STATUS
+        assert 403 not in RETRYABLE_STATUS
+        assert 429 not in RETRYABLE_STATUS
 
     def test_success_status(self):
         assert {200, 201, 202, 204, 207}.issubset(SUCCESS_STATUS)
@@ -113,6 +118,14 @@ class TestNextRetryDelay:
     def test_retry_after_numeric_string(self):
         d = next_retry_delay(0, lambda: 0.0, retry_after="2.5")
         assert d == 2.5
+
+    def test_retry_after_is_capped(self):
+        d = next_retry_delay(0, lambda: 0.0, retry_after="99999")
+        assert d == MAX_RETRY_AFTER_SECS
+
+    def test_retry_after_negative_falls_back_to_exponential(self):
+        d = next_retry_delay(1, lambda: 0.1, retry_after="-1")
+        assert d == 2.1
 
     def test_retry_after_invalid_falls_back_to_exponential(self):
         d = next_retry_delay(2, lambda: 0.25, retry_after="not-a-number")

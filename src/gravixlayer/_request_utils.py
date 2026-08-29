@@ -7,6 +7,7 @@ RETRYABLE_STATUS = frozenset((502, 503, 504))
 SUCCESS_STATUS = frozenset((200, 201, 202, 204, 207))
 JSON_HEADERS = MappingProxyType({"Content-Type": "application/json"})
 _ABSOLUTE_URL_PREFIXES = ("http://", "https://")
+MAX_RETRY_AFTER_SECS = 60.0
 
 # Shared by sync and async clients. Keepalive must cover concurrent create+exec
 # (never a 1-connection pool). Expiry is longer than httpx's 5s default so a
@@ -68,12 +69,19 @@ def next_retry_delay(
     rand: Callable[[], float],
     retry_after: Optional[str] = None,
 ) -> float:
-    """Compute retry delay with optional Retry-After header override."""
+    """Compute retry delay with optional Retry-After header override.
+
+    Numeric Retry-After is honoured and clamped so a bad header cannot stall
+    the client. Non-numeric values fall through to exponential backoff.
+    """
     if retry_after:
         try:
-            return float(retry_after)
+            delay = float(retry_after)
         except ValueError:
-            pass
+            delay = None
+        else:
+            if delay >= 0.0:
+                return min(delay, MAX_RETRY_AFTER_SECS)
 
     return (1 << attempt) + rand()
 

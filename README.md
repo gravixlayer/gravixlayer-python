@@ -229,7 +229,7 @@ except GravixLayerError as exc:
     print(exc)
 ```
 
-Connection failures and 429 / 502 / 503 / 504 are retried automatically.
+Connection failures and 429 / 502 / 503 / 504 are retried automatically. HTTP 403 (quota or permission) is not retried.
 
 ## Examples
 

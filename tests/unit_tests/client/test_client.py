@@ -212,6 +212,42 @@ class TestSyncClientRequest:
             c.runtime.get(VALID_UUID)
         c.close()
 
+    def test_403_does_not_retry(self, mock_api):
+        c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=3)
+        mock_api.post(f"{AGENTS_BASE}/runtime").mock(
+            return_value=httpx.Response(403, text="forbidden")
+        )
+        with pytest.raises(GravixLayerBadRequestError):
+            c.runtime.create()
+        assert len(mock_api.calls) == 1
+        c.close()
+
+    def test_402_does_not_retry(self, mock_api):
+        c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=3)
+        mock_api.post(f"{AGENTS_BASE}/runtime").mock(
+            return_value=httpx.Response(402, text="empty wallet")
+        )
+        with pytest.raises(GravixLayerBadRequestError):
+            c.runtime.create()
+        assert len(mock_api.calls) == 1
+        c.close()
+
+    def test_429_retries_regardless_of_body(self, mock_api):
+        c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=1)
+        mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
+            side_effect=[
+                httpx.Response(
+                    429,
+                    json={"error": "Runtime quota exceeded", "exceeded": ["vcpu"]},
+                    headers={"Retry-After": "0"},
+                ),
+                httpx.Response(200, json=make_runtime_response()),
+            ]
+        )
+        assert c.runtime.get(VALID_UUID).runtime_id == VALID_UUID
+        assert len(mock_api.calls) == 2
+        c.close()
+
     def test_400_raises_bad_request(self, client, mock_api):
         mock_api.post(f"{AGENTS_BASE}/runtime").mock(
             return_value=httpx.Response(400, text="Bad Request")
@@ -365,6 +401,35 @@ class TestAsyncClientErrors:
         )
         with pytest.raises(GravixLayerRateLimitError):
             await client.runtime.get(VALID_UUID)
+        await client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_403_does_not_retry(self, mock_api):
+        client = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=3)
+        mock_api.post(f"{AGENTS_BASE}/runtime").mock(
+            return_value=httpx.Response(403, text="forbidden")
+        )
+        with pytest.raises(GravixLayerBadRequestError):
+            await client.runtime.create()
+        assert len(mock_api.calls) == 1
+        await client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_429_retries_regardless_of_body(self, mock_api):
+        client = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=1)
+        mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
+            side_effect=[
+                httpx.Response(
+                    429,
+                    json={"error": "Runtime quota exceeded", "exceeded": ["vcpu"]},
+                    headers={"Retry-After": "0"},
+                ),
+                httpx.Response(200, json=make_runtime_response()),
+            ]
+        )
+        runtime = await client.runtime.get(VALID_UUID)
+        assert runtime.runtime_id == VALID_UUID
+        assert len(mock_api.calls) == 2
         await client.aclose()
 
     @pytest.mark.asyncio
