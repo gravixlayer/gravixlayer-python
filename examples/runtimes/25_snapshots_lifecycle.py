@@ -2,12 +2,13 @@
 """Named snapshots: cold and hot capture, restore, deactivate, activate, delete.
 
 A named snapshot is a project-scoped checkpoint of a runtime. Cold snapshots
-persist disk and restore by kernel boot. Hot snapshots also persist guest
-memory and restore by UFFD resume. Restore creates a **new** runtime —
-mutually exclusive with ``template``. Kind is chosen at capture, not restore.
+persist disk and restore with a fresh boot. Hot snapshots also persist guest
+memory so the new runtime resumes mid-process. Restore creates a **new**
+runtime — mutually exclusive with ``template``. Kind is chosen at capture,
+not restore.
 
-v1 create-from-snapshot pins to the capture host. If that host has no cache the
-API returns 503 ``capacity_exhausted``.
+Create-from-snapshot runs on the host that holds the snapshot files. If that
+host has no cache the API returns 503 ``capacity_exhausted``.
 
     create → write disk → capture → list/get → restore → verify
     → deactivate (blocks new creates) → activate → delete

@@ -46,6 +46,9 @@ class AsyncSnapshots:
         description: Optional[str] = None,
     ) -> Snapshot:
         """Capture a running or paused runtime into the snapshot catalog."""
+        kind = (kind or "cold").strip().lower()
+        if kind not in ("hot", "cold"):
+            raise ValueError("kind must be 'hot' or 'cold'")
         payload: Dict[str, Any] = {
             "runtime_id": runtime_id,
             "name": name,

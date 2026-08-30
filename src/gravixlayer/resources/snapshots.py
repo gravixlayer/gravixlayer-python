@@ -13,8 +13,7 @@ from ..types.snapshots import (
     _parse_snapshot,
 )
 
-# Capture pauses the guest, packs overlay extents, and (for hot) writes a Full
-# Firecracker snapshot. The control plane uses a 10-minute gRPC deadline.
+# Capture writes disk (and memory for hot). The API allows up to 10 minutes.
 _SNAPSHOT_CREATE_TIMEOUT = httpx.Timeout(600.0)
 
 
@@ -70,6 +69,9 @@ class Snapshots:
             kind: ``hot`` (memory + disk) or ``cold`` (disk only). Defaults to cold.
             description: Optional description.
         """
+        kind = (kind or "cold").strip().lower()
+        if kind not in ("hot", "cold"):
+            raise ValueError("kind must be 'hot' or 'cold'")
         payload: Dict[str, Any] = {
             "runtime_id": runtime_id,
             "name": name,
