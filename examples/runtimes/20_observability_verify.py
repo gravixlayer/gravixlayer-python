@@ -8,7 +8,7 @@ Shows how to:
      ``kill`` emit ``runtime.*`` spans automatically
   3. Optionally wrap your own app logic with ``@traced`` / ``trace()``
 
-After the script finishes, open the Tracing UI and filter by the printed
+After the script finishes, open the Telemetry UI and filter by the printed
 ``RUNTIME_ID``. You should see SDK spans such as ``runtime.create``,
 ``runtime.code.run``, ``runtime.command.run``, ``runtime.file.*``, and
 ``runtime.kill``. Span detail shows run_type plus Inputs/Outputs.
@@ -138,7 +138,7 @@ def main() -> None:
     rid = run_agent(client, template, tag)
 
     print()
-    print("Open Tracing in the dashboard (wait ~30–60s), then filter by:")
+    print("Open Telemetry in the dashboard (wait ~30–60s), then filter by:")
     print(f"  RUNTIME_ID={rid}")
     print("Look for optional root: agent.run  (service: my-app)")
     print("SDK spans: runtime.create / runtime.code.run / runtime.command.run /")

@@ -44,7 +44,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         vim-tiny \
         nano \
         xz-utils \
-    && curl -fsSL https://nodejs.org/dist/v24.18.0/node-v24.18.0-linux-x64.tar.xz \
+    && NODE_ARCH="$(uname -m)" \
+    && case "$NODE_ARCH" in \
+         x86_64|amd64) NODE_DIST=linux-x64 ;; \
+         aarch64|arm64) NODE_DIST=linux-arm64 ;; \
+         *) echo "unsupported Node arch: $NODE_ARCH" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL "https://nodejs.org/dist/v24.18.0/node-v24.18.0-${NODE_DIST}.tar.xz" \
         | tar -xJ -C /usr/local --strip-components=1 \
     && npm install -g npm@12.0.1 \
     && node -v | grep -F 'v24.18.0' \
