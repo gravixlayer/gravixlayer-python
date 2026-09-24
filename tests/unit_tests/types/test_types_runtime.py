@@ -276,9 +276,23 @@ class TestRuntimeInstanceMethods:
             on_stdout=None,
             on_stderr=None,
             on_exit=None,
+            environment=None,
+            background=False,
         )
         assert isinstance(result, Execution)
         assert result.stdout == "output"
+
+    def test_run_cmd_background_returns_handle(self):
+        rt, mock_client = self._make_runtime_with_client()
+        handle = MagicMock()
+        mock_client.runtime.run_cmd.return_value = handle
+        assert rt.run_cmd("sleep", background=True) is handle
+
+    def test_command_list_delegates(self):
+        rt, mock_client = self._make_runtime_with_client()
+        mock_client.runtime.command.list.return_value = []
+        assert rt.command.list() == []
+        mock_client.runtime.command.list.assert_called_once_with(rt.runtime_id)
 
     def test_run_command_is_alias(self):
         rt, mock_client = self._make_runtime_with_client()
@@ -619,7 +633,25 @@ class TestCommandRunResponse:
         )
         assert resp.stdout == "out"
         assert resp.duration_ms == 3
+        assert resp.timed_out is False
         assert not hasattr(resp, "pid")
+
+    def test_from_api_defaults_missing_fields(self):
+        from gravixlayer.types.runtime import CommandInfo
+
+        resp = CommandRunResponse.from_api({"exit_code": 7})
+        assert resp.stdout == ""
+        assert resp.duration_ms == 0
+        assert resp.success is False
+        assert resp.timed_out is False
+        info = CommandInfo.from_api({"pid": 3, "status": "running"})
+        assert info.exit_code is None
+        assert info.args == []
+        assert info.timed_out is False
+        execution = Execution(CommandRunResponse(
+            stdout="", stderr="", exit_code=124, duration_ms=1, success=False, timed_out=True
+        ))
+        assert execution.timed_out is True
 
 
 # ===================================================================

@@ -66,11 +66,11 @@ def main() -> None:
 
         sandbox.run_cmd(
             command=(
-                f"nohup env PYTHONPATH={APP_DIR} "
-                f"python -m uvicorn main:app --host 0.0.0.0 --port {PORT} "
-                f"> /tmp/uvicorn.log 2>&1 &"
+                f"env PYTHONPATH={APP_DIR} "
+                f"python -m uvicorn main:app --host 0.0.0.0 --port {PORT}"
             ),
             working_dir=APP_DIR,
+            background=True,
         )
 
         for _ in range(30):

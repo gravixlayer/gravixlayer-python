@@ -4,6 +4,9 @@ from typing import Any, Callable, Dict, Optional
 import httpx
 
 RETRYABLE_STATUS = frozenset((502, 503, 504))
+# GET, PUT and DELETE are safe to send again. POST and PATCH are not: a lost
+# response may already have created the resource.
+REPLAYABLE_METHODS = frozenset(("GET", "HEAD", "PUT", "DELETE", "OPTIONS"))
 SUCCESS_STATUS = frozenset((200, 201, 202, 204, 207))
 JSON_HEADERS = MappingProxyType({"Content-Type": "application/json"})
 _ABSOLUTE_URL_PREFIXES = ("http://", "https://")

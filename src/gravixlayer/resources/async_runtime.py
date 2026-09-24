@@ -2,9 +2,10 @@
 Runtime API resource for asynchronous client.
 """
 
+import asyncio
 import inspect
 import json
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import httpx
 
@@ -23,6 +24,7 @@ from ..types.runtime import (
     RuntimeTimeoutResponse,
     SSHInfo,
     SSHStatus,
+    CommandInfo,
     CommandRunResponse,
     CodeRunResponse,
     CodeContext,
@@ -39,6 +41,13 @@ from ..types.runtime import (
     _RUNTIME_DEFAULTS,
 )
 
+from .runtime_command import (
+    AsyncCommandHandle,
+    AsyncRuntimeCommandResource,
+    _STREAM_HEADERS,
+    afold_command_sse,
+    command_request_timeout,
+)
 from .runtime_git import AsyncRuntimeGitResource
 from .runtime_files import AsyncRuntimeFileResource
 from .runtime_pty import AsyncRuntimePtyResource
@@ -46,6 +55,11 @@ from .async_runtime_service import AsyncRuntimeServiceResource
 
 # Timeout for restoring a runtime from a snapshot (3 minutes).
 _SNAPSHOT_RESTORE_TIMEOUT = httpx.Timeout(180.0)
+
+
+def _retrieve_task_error(task: "asyncio.Task[Any]") -> None:
+    if not task.cancelled():
+        task.exception()
 
 
 class AsyncRuntimes:
@@ -57,6 +71,7 @@ class AsyncRuntimes:
         self._file_resource: Optional[AsyncRuntimeFileResource] = None
         self._pty_resource: Optional[AsyncRuntimePtyResource] = None
         self._service_resource: Optional[AsyncRuntimeServiceResource] = None
+        self._command_resource: Optional[AsyncRuntimeCommandResource] = None
 
     @property
     def file(self) -> AsyncRuntimeFileResource:
@@ -85,6 +100,13 @@ class AsyncRuntimes:
         if self._service_resource is None:
             self._service_resource = AsyncRuntimeServiceResource(self)
         return self._service_resource
+
+    @property
+    def command(self) -> AsyncRuntimeCommandResource:
+        """Background commands: ``list``, ``get``, ``connect``, ``kill``."""
+        if self._command_resource is None:
+            self._command_resource = AsyncRuntimeCommandResource(self)
+        return self._command_resource
 
     async def _make_agents_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs):
         """Make a request to the agents API (/v1/agents/...)."""
@@ -277,6 +299,7 @@ class AsyncRuntimes:
 
     # Command Execution Methods
 
+    @overload
     async def run_cmd(
         self,
         runtime_id: str,
@@ -285,7 +308,42 @@ class AsyncRuntimes:
         working_dir: Optional[str] = None,
         environment: Optional[Dict[str, str]] = None,
         timeout: Optional[int] = None,
-    ) -> CommandRunResponse:
+        on_stdout: Optional[Any] = None,
+        on_stderr: Optional[Any] = None,
+        on_exit: Optional[Any] = None,
+        *,
+        background: Literal[True],
+    ) -> AsyncCommandHandle: ...
+
+    @overload
+    async def run_cmd(
+        self,
+        runtime_id: str,
+        command: str,
+        args: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
+        on_stdout: Optional[Any] = None,
+        on_stderr: Optional[Any] = None,
+        on_exit: Optional[Any] = None,
+        *,
+        background: Literal[False] = ...,
+    ) -> CommandRunResponse: ...
+
+    async def run_cmd(
+        self,
+        runtime_id: str,
+        command: str,
+        args: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
+        on_stdout: Optional[Any] = None,
+        on_stderr: Optional[Any] = None,
+        on_exit: Optional[Any] = None,
+        background: bool = False,
+    ) -> Union[CommandRunResponse, AsyncCommandHandle]:
         """Execute a shell command in the runtime.
 
         Args:
@@ -295,6 +353,10 @@ class AsyncRuntimes:
             working_dir: Working directory.
             environment: Environment variables.
             timeout: Maximum execution time in **seconds** (converted to ms for the API).
+            on_stdout: Optional callable invoked with each stdout chunk. Enables streaming.
+            on_stderr: Optional callable invoked with each stderr chunk.
+            on_exit: Optional callable invoked with the exit code.
+            background: Start the command and return a handle while it keeps running.
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"command": command}
@@ -306,11 +368,38 @@ class AsyncRuntimes:
             data["environment"] = environment
         if timeout is not None:
             data["timeout"] = timeout * 1000
+        if background:
+            data["background"] = True
 
+        request_timeout = command_request_timeout(timeout)
+        streaming = (
+            not background
+            and (on_stdout is not None or on_stderr is not None or on_exit is not None)
+        )
         with telemetry.runtime_span("command.run", runtime_id) as span:
-            response = await self._make_agents_request("POST", f"runtime/{runtime_id}/commands/run", data)
-            result = CommandRunResponse.from_api(response.json())
-            if span is not None:
+            if background:
+                response = await self._make_agents_request(
+                    "POST", f"runtime/{runtime_id}/commands/run", data, **request_timeout
+                )
+                started = CommandInfo.from_api(response.json())
+                handle = AsyncCommandHandle(self, runtime_id, started.pid)
+                if on_stdout is not None or on_stderr is not None or on_exit is not None:
+                    task = asyncio.create_task(
+                        handle.wait(on_stdout=on_stdout, on_stderr=on_stderr, on_exit=on_exit)
+                    )
+                    task.add_done_callback(_retrieve_task_error)
+                    handle._wait_task = task
+                result: Union[CommandRunResponse, AsyncCommandHandle] = handle
+            elif streaming:
+                result = await self._run_cmd_streaming(
+                    runtime_id, data, on_stdout, on_stderr, on_exit, request_timeout
+                )
+            else:
+                response = await self._make_agents_request(
+                    "POST", f"runtime/{runtime_id}/commands/run", data, **request_timeout
+                )
+                result = CommandRunResponse.from_api(response.json())
+            if span is not None and not background:
                 span.set_attribute("process.exit_code", int(getattr(result, "exit_code", 0) or 0))
                 telemetry.record_outputs(
                     span,
@@ -324,6 +413,26 @@ class AsyncRuntimes:
                 if not getattr(result, "success", True):
                     telemetry.mark_span_error(span, f"exit_code={result.exit_code}")
             return result
+
+    async def _run_cmd_streaming(
+        self,
+        runtime_id: str,
+        data: Dict[str, Any],
+        on_stdout: Optional[Any],
+        on_stderr: Optional[Any],
+        on_exit: Optional[Any],
+        request_timeout: Dict[str, Any],
+    ) -> CommandRunResponse:
+        endpoint = f"runtime/{runtime_id}/commands/run?stream=true"
+        response = await self._make_agents_request(
+            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **request_timeout
+        )
+        try:
+            return await afold_command_sse(
+                aiter_sse_payloads(response.aiter_lines()), on_stdout, on_stderr, on_exit
+            )
+        finally:
+            await response.aclose()
 
     # Code Execution Methods
 

@@ -9,6 +9,7 @@ from .. import __version__
 from .._resource_utils import build_list_endpoint
 from .._request_utils import (
     HTTP_LIMITS,
+    REPLAYABLE_METHODS,
     RETRYABLE_STATUS,
     SUCCESS_STATUS,
     build_url,
@@ -190,7 +191,11 @@ class AsyncGravixLayer:
                         continue
                     raise error_from_response(status, resp.text, resp.headers)
 
-                if status in RETRYABLE_STATUS and can_retry_local(attempt, max_retries):
+                if (
+                    status in RETRYABLE_STATUS
+                    and method in REPLAYABLE_METHODS
+                    and can_retry_local(attempt, max_retries)
+                ):
                     logger_warning("Server error %d. Retrying...", status)
                     await sleep(next_retry_delay_local(attempt, rand))
                     continue
@@ -202,7 +207,7 @@ class AsyncGravixLayer:
 
             except httpx.RequestError as exc:
                 last_exc = exc
-                if can_retry_local(attempt, max_retries):
+                if method in REPLAYABLE_METHODS and can_retry_local(attempt, max_retries):
                     await sleep(next_retry_delay_local(attempt, rand))
                     continue
                 raise GravixLayerConnectionError(str(exc)) from exc

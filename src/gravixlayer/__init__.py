@@ -7,6 +7,7 @@ environments and template management for AI workloads.
 
 __version__ = "0.1.96"
 
+from .resources.runtime_command import AsyncCommandHandle, CommandHandle
 from .client import GravixLayer
 from .types.async_client import AsyncGravixLayer
 from .types.runtime import (
@@ -33,6 +34,7 @@ from .types.runtime import (
     PtyInputResponse,
     SetPermissionsResponse,
     DirectoryCreateResponse,
+    CommandInfo,
     CommandRunResponse,
     CodeRunResponse,
     CodeContext,
@@ -207,6 +209,9 @@ __all__ = [
     "PtyInputResponse",
     "SetPermissionsResponse",
     "DirectoryCreateResponse",
+    "CommandHandle",
+    "AsyncCommandHandle",
+    "CommandInfo",
     "CommandRunResponse",
     "CodeRunResponse",
     "CodeContext",

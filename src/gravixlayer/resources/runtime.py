@@ -3,8 +3,8 @@ Runtime API resource for synchronous client
 """
 
 import json
-import time
-from typing import List, Dict, Any, Optional
+import threading
+from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import httpx
 
@@ -23,6 +23,7 @@ from ..types.runtime import (
     RuntimeTimeoutResponse,
     SSHInfo,
     SSHStatus,
+    CommandInfo,
     CommandRunResponse,
     CodeRunResponse,
     CodeContext,
@@ -38,6 +39,13 @@ from ..types.runtime import (
     _RUNTIME_DEFAULTS,
 )
 
+from .runtime_command import (
+    CommandHandle,
+    RuntimeCommandResource,
+    _STREAM_HEADERS,
+    command_request_timeout,
+    fold_command_sse,
+)
 from .runtime_git import RuntimeGitResource
 from .runtime_files import RuntimeFileResource
 from .runtime_pty import RuntimePtyResource
@@ -56,6 +64,7 @@ class Runtimes:
         self._file_resource: Optional[RuntimeFileResource] = None
         self._pty_resource: Optional[RuntimePtyResource] = None
         self._service_resource: Optional[RuntimeServiceResource] = None
+        self._command_resource: Optional[RuntimeCommandResource] = None
 
     @property
     def file(self) -> RuntimeFileResource:
@@ -84,6 +93,13 @@ class Runtimes:
         if self._service_resource is None:
             self._service_resource = RuntimeServiceResource(self)
         return self._service_resource
+
+    @property
+    def command(self) -> RuntimeCommandResource:
+        """Background commands: ``list``, ``get``, ``connect``, ``kill``."""
+        if self._command_resource is None:
+            self._command_resource = RuntimeCommandResource(self)
+        return self._command_resource
 
     def _make_agents_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs):
         """Make a request to the agents API (/v1/agents/...)"""
@@ -279,6 +295,7 @@ class Runtimes:
 
     # Command Execution Methods
 
+    @overload
     def run_cmd(
         self,
         runtime_id: str,
@@ -290,7 +307,39 @@ class Runtimes:
         on_stdout: Optional[Any] = None,
         on_stderr: Optional[Any] = None,
         on_exit: Optional[Any] = None,
-    ) -> CommandRunResponse:
+        *,
+        background: Literal[True],
+    ) -> CommandHandle: ...
+
+    @overload
+    def run_cmd(
+        self,
+        runtime_id: str,
+        command: str,
+        args: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
+        on_stdout: Optional[Any] = None,
+        on_stderr: Optional[Any] = None,
+        on_exit: Optional[Any] = None,
+        *,
+        background: Literal[False] = ...,
+    ) -> CommandRunResponse: ...
+
+    def run_cmd(
+        self,
+        runtime_id: str,
+        command: str,
+        args: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
+        on_stdout: Optional[Any] = None,
+        on_stderr: Optional[Any] = None,
+        on_exit: Optional[Any] = None,
+        background: bool = False,
+    ) -> Union[CommandRunResponse, CommandHandle]:
         """Execute a shell command in the runtime.
 
         Returns a :class:`~gravixlayer.types.runtime.CommandRunResponse`. The
@@ -308,6 +357,7 @@ class Runtimes:
             on_stderr: Optional callable invoked with each incremental stderr chunk (``str``).
             on_exit: Optional callable invoked with the integer exit code once the
                 command finishes.
+            background: Start the command and return a handle while it keeps running.
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"command": command}
@@ -320,17 +370,38 @@ class Runtimes:
         if timeout is not None:
             # Backend expects milliseconds; SDK interface uses seconds
             data["timeout"] = timeout * 1000
+        if background:
+            data["background"] = True
 
-        streaming = on_stdout is not None or on_stderr is not None or on_exit is not None
+        request_timeout = command_request_timeout(timeout)
+        streaming = (
+            not background
+            and (on_stdout is not None or on_stderr is not None or on_exit is not None)
+        )
         with telemetry.runtime_span("command.run", runtime_id) as span:
-            if streaming:
+            if background:
+                response = self._make_agents_request(
+                    "POST", f"runtime/{runtime_id}/commands/run", data, **request_timeout
+                )
+                started = CommandInfo.from_api(response.json())
+                handle = CommandHandle(self, runtime_id, started.pid)
+                if on_stdout is not None or on_stderr is not None or on_exit is not None:
+                    threading.Thread(
+                        target=handle._follow,
+                        args=(on_stdout, on_stderr, on_exit),
+                        daemon=True,
+                    ).start()
+                result = handle
+            elif streaming:
                 result = self._run_cmd_streaming(
-                    runtime_id, data, on_stdout, on_stderr, on_exit,
+                    runtime_id, data, on_stdout, on_stderr, on_exit, request_timeout,
                 )
             else:
-                response = self._make_agents_request("POST", f"runtime/{runtime_id}/commands/run", data)
+                response = self._make_agents_request(
+                    "POST", f"runtime/{runtime_id}/commands/run", data, **request_timeout
+                )
                 result = CommandRunResponse.from_api(response.json())
-            if span is not None:
+            if span is not None and not background:
                 span.set_attribute("process.exit_code", int(getattr(result, "exit_code", 0) or 0))
                 telemetry.record_outputs(
                     span,
@@ -352,6 +423,7 @@ class Runtimes:
         on_stdout: Optional[Any],
         on_stderr: Optional[Any],
         on_exit: Optional[Any],
+        request_timeout: Dict[str, Any],
     ) -> CommandRunResponse:
         """Stream a run_cmd response as Server-Sent Events.
 
@@ -361,56 +433,15 @@ class Runtimes:
         without changing downstream code.
         """
         endpoint = f"runtime/{runtime_id}/commands/run?stream=true"
-        response = self._make_agents_request("POST", endpoint, data, stream=True)
-
-        stdout_parts: List[str] = []
-        stderr_parts: List[str] = []
-        exit_code: int = 0
-        start = time.monotonic()
-
+        response = self._make_agents_request(
+            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **request_timeout
+        )
         try:
-            for payload in iter_sse_payloads(response.iter_lines()):
-                try:
-                    evt = json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
-                evt_type = evt.get("type")
-                if evt_type == "stdout":
-                    chunk = evt.get("data", "")
-                    stdout_parts.append(chunk)
-                    if on_stdout is not None:
-                        on_stdout(chunk)
-                elif evt_type == "stderr":
-                    chunk = evt.get("data", "")
-                    stderr_parts.append(chunk)
-                    if on_stderr is not None:
-                        on_stderr(chunk)
-                elif evt_type == "end":
-                    exit_code = int(evt.get("exit_code", 0))
-                    if on_exit is not None:
-                        on_exit(exit_code)
-                    break
-                elif evt_type == "error":
-                    # Surface the server-side error via stderr callback/buffer.
-                    msg = str(evt.get("message", ""))
-                    stderr_parts.append(msg)
-                    if on_stderr is not None:
-                        on_stderr(msg)
-                    exit_code = 1
-                    if on_exit is not None:
-                        on_exit(exit_code)
-                    break
+            return fold_command_sse(
+                iter_sse_payloads(response.iter_lines()), on_stdout, on_stderr, on_exit
+            )
         finally:
             response.close()
-
-        duration_ms = int((time.monotonic() - start) * 1000)
-        return CommandRunResponse(
-            stdout="".join(stdout_parts),
-            stderr="".join(stderr_parts),
-            exit_code=exit_code,
-            duration_ms=duration_ms,
-            success=(exit_code == 0),
-        )
 
     # Code Execution Methods
 

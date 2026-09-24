@@ -339,8 +339,13 @@ class Runtime:
         on_stdout: Optional[Callable[[str], None]] = None,
         on_stderr: Optional[Callable[[str], None]] = None,
         on_exit: Optional[Callable[[int], None]] = None,
-    ) -> "Execution":
+        environment: Optional[Dict[str, str]] = None,
+        background: bool = False,
+    ) -> Union["Execution", Any]:
         """Execute a shell command in the runtime.
+
+        ``background=True`` returns a command handle as soon as the process is
+        running. Otherwise the return value is an :class:`Execution`.
 
         Args:
             command: The command string to execute.
@@ -351,6 +356,8 @@ class Runtime:
                 callback is provided the command is streamed over SSE.
             on_stderr: Optional callback invoked with each stderr chunk.
             on_exit: Optional callback invoked with the final exit code.
+            environment: Environment variables for this command only.
+            background: Start the command and return while it keeps running.
         """
         self._require_alive()
         response = self._client.runtime.run_cmd(
@@ -362,7 +369,11 @@ class Runtime:
             on_stdout=on_stdout,
             on_stderr=on_stderr,
             on_exit=on_exit,
+            environment=environment,
+            background=background,
         )
+        if background:
+            return response
         return Execution(response)
 
     def run_command(
@@ -374,7 +385,9 @@ class Runtime:
         on_stdout: Optional[Callable[[str], None]] = None,
         on_stderr: Optional[Callable[[str], None]] = None,
         on_exit: Optional[Callable[[int], None]] = None,
-    ) -> "Execution":
+        environment: Optional[Dict[str, str]] = None,
+        background: bool = False,
+    ) -> Union["Execution", Any]:
         """Execute a shell command in the runtime.
 
         Alias for :meth:`run_cmd`.
@@ -387,6 +400,8 @@ class Runtime:
             on_stdout=on_stdout,
             on_stderr=on_stderr,
             on_exit=on_exit,
+            environment=environment,
+            background=background,
         )
 
     def kill(self) -> None:
@@ -482,6 +497,11 @@ class Runtime:
         """PTY session API for this runtime (same as ``client.runtime.pty``, without ``runtime_id``)."""
         return RuntimePtyBound(self)
 
+    @property
+    def command(self) -> "RuntimeCommandBound":
+        """Background commands on this runtime."""
+        return RuntimeCommandBound(self)
+
     def service(
         self,
         port: int,
@@ -499,6 +519,44 @@ class Runtime:
             is_public=is_public,
             rotate_token=rotate_token,
         )
+
+
+class RuntimeCommandBound:
+    """Bound view of :attr:`Runtime.command`."""
+
+    __slots__ = ("_runtime",)
+
+    def __init__(self, runtime: "Runtime") -> None:
+        object.__setattr__(self, "_runtime", runtime)
+
+    def _rc(self) -> tuple[str, Any]:
+        runtime = object.__getattribute__(self, "_runtime")
+        runtime._require_alive()
+        return runtime.runtime_id, runtime._client
+
+    def list(self) -> List["CommandInfo"]:
+        runtime_id, client = self._rc()
+        return client.runtime.command.list(runtime_id)
+
+    def get(self, pid: int) -> "CommandInfo":
+        runtime_id, client = self._rc()
+        return client.runtime.command.get(runtime_id, pid)
+
+    def connect(
+        self,
+        pid: int,
+        on_stdout: Optional[Callable[[str], None]] = None,
+        on_stderr: Optional[Callable[[str], None]] = None,
+        on_exit: Optional[Callable[[int], None]] = None,
+    ) -> "CommandRunResponse":
+        runtime_id, client = self._rc()
+        return client.runtime.command.connect(
+            runtime_id, pid, on_stdout=on_stdout, on_stderr=on_stderr, on_exit=on_exit
+        )
+
+    def kill(self, pid: int, signal: Optional[str] = None) -> "CommandInfo":
+        runtime_id, client = self._rc()
+        return client.runtime.command.kill(runtime_id, pid, signal)
 
 
 class RuntimeFileBound:
@@ -1337,17 +1395,56 @@ class CommandRunResponse:
     duration_ms: int
     success: bool
     error: Optional[str] = None
+    timed_out: bool = False
 
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> "CommandRunResponse":
         """Build from an API dict, ignoring unknown fields."""
+        exit_code = int(data.get("exit_code", 0))
         return cls(
-            stdout=data["stdout"],
-            stderr=data["stderr"],
-            exit_code=data["exit_code"],
-            duration_ms=data["duration_ms"],
-            success=data["success"],
+            stdout=str(data.get("stdout", "")),
+            stderr=str(data.get("stderr", "")),
+            exit_code=exit_code,
+            duration_ms=int(data.get("duration_ms", 0)),
+            success=bool(data["success"]) if "success" in data else exit_code == 0,
             error=data.get("error"),
+            timed_out=bool(data.get("timed_out", False)),
+        )
+
+
+@dataclass
+class CommandInfo:
+    """A command that is running, or retained after it exited."""
+
+    pid: int
+    command: str = ""
+    args: List[str] = field(default_factory=list)
+    working_dir: str = ""
+    background: bool = False
+    status: str = ""
+    exit_code: Optional[int] = None
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    duration_ms: Optional[int] = None
+    timed_out: bool = False
+
+    @classmethod
+    def from_api(cls, data: Dict[str, Any]) -> "CommandInfo":
+        raw_exit = data.get("exit_code")
+        raw_duration = data.get("duration_ms")
+        args = data.get("args")
+        return cls(
+            pid=int(data.get("pid") or 0),
+            command=str(data.get("command", "")),
+            args=[str(item) for item in args] if isinstance(args, list) else [],
+            working_dir=str(data.get("working_dir", "")),
+            background=bool(data.get("background", False)),
+            status=str(data.get("status", "")),
+            exit_code=None if raw_exit is None else int(raw_exit),
+            started_at=data.get("started_at") if isinstance(data.get("started_at"), str) else None,
+            ended_at=data.get("ended_at") if isinstance(data.get("ended_at"), str) else None,
+            duration_ms=None if raw_duration is None else int(raw_duration),
+            timed_out=bool(data.get("timed_out", False)),
         )
 
 
@@ -1676,6 +1773,13 @@ class Execution:
         if self._is_command:
             return self._response.duration_ms
         return 0
+
+    @property
+    def timed_out(self) -> bool:
+        """True when a command was killed because it reached its deadline."""
+        if self._is_command:
+            return bool(getattr(self._response, "timed_out", False))
+        return False
 
     def __repr__(self) -> str:
         kind = "command" if self._is_command else "code"

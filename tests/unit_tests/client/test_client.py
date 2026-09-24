@@ -212,6 +212,16 @@ class TestSyncClientRequest:
             c.runtime.get(VALID_UUID)
         c.close()
 
+    def test_post_503_is_not_replayed(self, mock_api):
+        c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=3)
+        mock_api.post(f"{AGENTS_BASE}/runtime").mock(
+            return_value=httpx.Response(503, text="unavailable")
+        )
+        with pytest.raises(GravixLayerServerError):
+            c.runtime.create()
+        assert len(mock_api.calls) == 1
+        c.close()
+
     def test_403_does_not_retry(self, mock_api):
         c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=3)
         mock_api.post(f"{AGENTS_BASE}/runtime").mock(
