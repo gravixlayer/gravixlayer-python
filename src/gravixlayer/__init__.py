@@ -5,7 +5,7 @@ Official Python client for the Gravix Layer API. Provides cloud runtime
 environments and template management for AI workloads.
 """
 
-__version__ = "0.1.97"
+__version__ = "0.1.98"
 
 from .resources.runtime_command import AsyncCommandHandle, CommandHandle
 from .client import GravixLayer
