@@ -2,15 +2,22 @@
 
 import pytest
 
+import httpx
+
 from gravixlayer._request_utils import (
     RETRYABLE_STATUS,
     SUCCESS_STATUS,
     JSON_HEADERS,
     MAX_RETRY_AFTER_SECS,
+    ApiKeyAuth,
+    aresponse_text,
     build_url,
     prepare_request_kwargs,
     next_retry_delay,
     can_retry,
+    response_text,
+    split_authorization,
+    url_origin,
 )
 
 
@@ -143,3 +150,99 @@ class TestCanRetry:
 
     def test_cannot_retry_at_max(self):
         assert can_retry(3, 3) is False
+
+
+class TestResponseText:
+    def test_streaming_error_body_is_readable(self):
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(429, json={"code": "rate_limited", "error": "full"})
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as http:
+            response = http.send(http.build_request("GET", "https://api.test/stream"), stream=True)
+            assert response.status_code == 429
+            assert "rate_limited" in response_text(response)
+
+    async def test_async_streaming_error_body_is_readable(self):
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(429, json={"code": "rate_limited", "error": "full"})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            response = await http.send(http.build_request("GET", "https://api.test/stream"), stream=True)
+            assert response.status_code == 429
+            assert "rate_limited" in await aresponse_text(response)
+
+
+class TestUrlOrigin:
+    def test_case_and_default_port_normalize(self):
+        assert url_origin(httpx.URL("HTTPS://API.Example.com:443/v1")) == url_origin(
+            httpx.URL("https://api.example.com")
+        )
+
+    def test_scheme_and_port_distinguish_origins(self):
+        api = url_origin(httpx.URL("https://api.example.com"))
+        assert url_origin(httpx.URL("http://api.example.com")) != api
+        assert url_origin(httpx.URL("https://api.example.com:8443")) != api
+
+
+class TestSplitAuthorization:
+    def test_api_key_becomes_a_bearer_credential(self):
+        assert split_authorization("key", None) == ("Bearer key", {})
+
+    def test_caller_authorization_replaces_the_api_key(self):
+        authorization, rest = split_authorization("key", {"authorization": "Token t", "X-Tenant": "acme"})
+        assert authorization == "Token t"
+        assert rest == {"X-Tenant": "acme"}
+
+
+API = "https://api.example.com"
+
+
+def _sent_authorization(url, headers=None):
+    """The ``Authorization`` header a client using ``ApiKeyAuth`` sends to ``url``."""
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("Authorization"))
+        return httpx.Response(204)
+
+    with httpx.Client(transport=httpx.MockTransport(handler), auth=ApiKeyAuth("Bearer key", API)) as http:
+        http.get(url, headers=headers)
+    return seen[0]
+
+
+class TestApiKeyAuth:
+    @pytest.mark.parametrize("url", [f"{API}/v1/agents/runtime", "https://API.example.com:443/v1"])
+    def test_sends_the_credential_to_the_api(self, url):
+        assert _sent_authorization(url) == "Bearer key"
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://agent.example.com/invoke",
+            "http://api.example.com/v1",
+            "https://api.example.com:8443/v1",
+            "https://api.example.com.attacker.test/v1",
+        ],
+    )
+    def test_keeps_the_credential_off_other_origins(self, url):
+        assert _sent_authorization(url) is None
+
+    def test_a_request_header_wins_on_any_origin(self):
+        assert _sent_authorization(f"{API}/v1", {"Authorization": "Bearer mine"}) == "Bearer mine"
+        assert _sent_authorization("https://agent.example.com/invoke", {"Authorization": "Bearer agent"}) == (
+            "Bearer agent"
+        )
+
+    async def test_async_client_scopes_the_credential(self):
+        seen = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.headers.get("Authorization"))
+            return httpx.Response(204)
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), auth=ApiKeyAuth("Bearer key", API)
+        ) as http:
+            await http.get(f"{API}/v1")
+            await http.get("https://agent.example.com/invoke")
+        assert seen == ["Bearer key", None]

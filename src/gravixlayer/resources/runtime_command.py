@@ -6,10 +6,10 @@ returns. Output is available later through ``wait`` or ``connect``.
 
 from __future__ import annotations
 
-import contextlib
+import inspect
 import json
 import time
-from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Optional
+from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Optional, Set
 
 import httpx
 
@@ -19,6 +19,7 @@ from ..types.runtime import CommandInfo, CommandRunResponse, _validate_runtime_i
 
 _SIGNALS = frozenset({"KILL", "TERM", "INT", "HUP"})
 _DEADLINE_MARGIN_S = 30.0
+_PING_GRACE_S = 45.0
 _STREAM_HEADERS = {"Accept": "text/event-stream"}
 
 
@@ -27,6 +28,12 @@ def command_request_timeout(timeout_seconds: Optional[int]) -> Dict[str, Any]:
     if timeout_seconds is None:
         return {}
     return {"timeout": httpx.Timeout(float(timeout_seconds) + _DEADLINE_MARGIN_S)}
+
+
+def stream_timeout(client_timeout: float) -> Dict[str, Any]:
+    """HTTP budget for a command event stream. A read always outlasts three
+    of the server's 15 s keepalive pings, whatever the client timeout is."""
+    return {"timeout": httpx.Timeout(client_timeout, read=max(client_timeout, _PING_GRACE_S))}
 
 
 def _signal_params(signal: Optional[str]) -> Optional[Dict[str, str]]:
@@ -122,7 +129,6 @@ async def afold_command_sse(
     detached: bool = False,
 ) -> CommandRunResponse:
     """Async counterpart of :func:`fold_command_sse`."""
-    import inspect
 
     async def dispatch(callback: Optional[Any], value: Any) -> None:
         if callback is None:
@@ -200,7 +206,14 @@ class CommandHandle:
         self._runtimes = runtimes
         self.runtime_id = runtime_id
         self.pid = pid
-        self._response: Optional[httpx.Response] = None
+        self._responses: Set[httpx.Response] = set()
+        self._disconnects = 0
+        self._error: Optional[Exception] = None
+
+    @property
+    def error(self) -> Optional[Exception]:
+        """What stopped the output follow ``run_cmd`` started, if it failed."""
+        return self._error
 
     def wait(
         self,
@@ -214,8 +227,9 @@ class CommandHandle:
             f"runtime/{self.runtime_id}/commands/{self.pid}/stream",
             stream=True,
             headers=_STREAM_HEADERS,
+            **stream_timeout(self._runtimes.client.timeout),
         )
-        self._response = response
+        self._responses.add(response)
         try:
             return fold_command_sse(
                 iter_sse_payloads(response.iter_lines()),
@@ -226,18 +240,27 @@ class CommandHandle:
             )
         finally:
             response.close()
-            self._response = None
+            self._responses.discard(response)
 
     def _follow(
         self,
         on_stdout: Optional[Callable[[str], None]],
         on_stderr: Optional[Callable[[str], None]],
         on_exit: Optional[Callable[[int], None]],
-    ) -> None:
-        """Thread target for ``run_cmd`` callbacks. There is no caller to
-        raise to, so a failed follow ends quietly, like the async task."""
-        with contextlib.suppress(Exception):
-            self.wait(on_stdout, on_stderr, on_exit)
+        on_error: Optional[Callable[[Exception], None]],
+    ) -> Optional[CommandRunResponse]:
+        """Thread target for ``run_cmd`` callbacks. A failure is kept on
+        :attr:`error` and passed to ``on_error``; :meth:`disconnect` stops the
+        follow without one."""
+        disconnects = self._disconnects
+        try:
+            return self.wait(on_stdout, on_stderr, on_exit)
+        except Exception as exc:
+            if self._disconnects == disconnects:
+                self._error = exc
+                if on_error is not None:
+                    on_error(exc)
+            return None
 
     def kill(self, signal: Optional[str] = None) -> CommandInfo:
         """Signal the command. The default signal is ``KILL``."""
@@ -248,9 +271,9 @@ class CommandHandle:
         return self._runtimes.command.get(self.runtime_id, self.pid)
 
     def disconnect(self) -> None:
-        """Stop reading output. The command keeps running."""
-        response = self._response
-        if response is not None:
+        """Stop reading output on every open ``wait``. The command keeps running."""
+        self._disconnects += 1
+        for response in list(self._responses):
             response.close()
 
 
@@ -261,8 +284,15 @@ class AsyncCommandHandle:
         self._runtimes = runtimes
         self.runtime_id = runtime_id
         self.pid = pid
-        self._response: Optional[httpx.Response] = None
+        self._responses: Set[httpx.Response] = set()
+        self._disconnects = 0
+        self._error: Optional[Exception] = None
         self._wait_task: Optional[Any] = None
+
+    @property
+    def error(self) -> Optional[Exception]:
+        """What stopped the output follow ``run_cmd`` started, if it failed."""
+        return self._error
 
     async def wait(
         self,
@@ -276,8 +306,9 @@ class AsyncCommandHandle:
             f"runtime/{self.runtime_id}/commands/{self.pid}/stream",
             stream=True,
             headers=_STREAM_HEADERS,
+            **stream_timeout(self._runtimes.client.timeout),
         )
-        self._response = response
+        self._responses.add(response)
         try:
             return await afold_command_sse(
                 aiter_sse_payloads(response.aiter_lines()),
@@ -288,7 +319,29 @@ class AsyncCommandHandle:
             )
         finally:
             await response.aclose()
-            self._response = None
+            self._responses.discard(response)
+
+    async def _follow(
+        self,
+        on_stdout: Optional[Any],
+        on_stderr: Optional[Any],
+        on_exit: Optional[Any],
+        on_error: Optional[Any],
+    ) -> Optional[CommandRunResponse]:
+        """Task body for ``run_cmd`` callbacks. A failure is kept on
+        :attr:`error` and passed to ``on_error``; :meth:`disconnect` stops the
+        follow without one."""
+        disconnects = self._disconnects
+        try:
+            return await self.wait(on_stdout, on_stderr, on_exit)
+        except Exception as exc:
+            if self._disconnects == disconnects:
+                self._error = exc
+                if on_error is not None:
+                    maybe = on_error(exc)
+                    if inspect.isawaitable(maybe):
+                        await maybe
+            return None
 
     async def kill(self, signal: Optional[str] = None) -> CommandInfo:
         """Signal the command. The default signal is ``KILL``."""
@@ -299,9 +352,9 @@ class AsyncCommandHandle:
         return await self._runtimes.command.get(self.runtime_id, self.pid)
 
     async def disconnect(self) -> None:
-        """Stop reading output. The command keeps running."""
-        response = self._response
-        if response is not None:
+        """Stop reading output on every open ``wait``. The command keeps running."""
+        self._disconnects += 1
+        for response in list(self._responses):
             await response.aclose()
 
 

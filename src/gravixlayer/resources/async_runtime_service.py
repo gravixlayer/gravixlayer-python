@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 
 import httpx
 
+from .._request_utils import url_origin
 from ..types.runtime import RuntimeWebService, _validate_runtime_id
 
 
@@ -17,6 +18,7 @@ class AsyncRuntimeServiceHandle:
 
     def __init__(self, info: RuntimeWebService):
         self._info = info
+        self._origin = url_origin(httpx.URL(info.service_url))
         self._client = httpx.AsyncClient(timeout=60.0)
 
     @property
@@ -55,7 +57,12 @@ class AsyncRuntimeServiceHandle:
         base = self._info.service_url
         if not path:
             return base
-        return urljoin(base, path.lstrip("/"))
+        url = urljoin(base, path.lstrip("/"))
+        # The access token is scoped to this service and must not follow a path
+        # that resolves to another origin.
+        if url_origin(httpx.URL(url)) != self._origin:
+            raise ValueError(f"path must stay on the service's origin; received {path!r}.")
+        return url
 
     async def request(self, method: str, path: str = "/", **kwargs: Any) -> httpx.Response:
         headers = self._headers(kwargs.pop("headers", None))

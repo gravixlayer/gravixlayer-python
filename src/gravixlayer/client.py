@@ -13,10 +13,13 @@ from ._request_utils import (
     REPLAYABLE_METHODS,
     RETRYABLE_STATUS,
     SUCCESS_STATUS,
+    ApiKeyAuth,
     build_url,
     can_retry,
     next_retry_delay,
     prepare_request_kwargs,
+    response_text,
+    split_authorization,
 )
 from .resources.runtime import RuntimeResource
 from .resources.templates import Templates
@@ -96,7 +99,7 @@ class GravixLayer:
         self._logger = logging.getLogger("gravixlayer")
 
         user_agent = f"gravixlayer-python/{__version__}"
-        custom_headers = headers or {}
+        authorization, custom_headers = split_authorization(self.api_key, headers)
 
         self._service_urls = {
             svc: f"{self.base_url}/{svc}"
@@ -115,10 +118,10 @@ class GravixLayer:
             http2=http2,
             timeout=self.timeout,
             headers={
-                "Authorization": f"Bearer {self.api_key}",
                 "User-Agent": user_agent,
                 **custom_headers,
             },
+            auth=ApiKeyAuth(authorization, self.base_url),
             limits=HTTP_LIMITS,
         )
 
@@ -211,6 +214,7 @@ class GravixLayer:
                 if status in SUCCESS_STATUS:
                     return resp
 
+                body = response_text(resp)
                 if status == 429:
                     if can_retry_local(attempt, max_retries):
                         delay = next_retry_delay_local(
@@ -221,7 +225,7 @@ class GravixLayer:
                         logger_warning("Rate limited. Retrying in %.1fs...", delay)
                         sleep(delay)
                         continue
-                    raise error_from_response(status, resp.text, resp.headers)
+                    raise error_from_response(status, body, resp.headers)
 
                 if (
                     status in RETRYABLE_STATUS
@@ -234,7 +238,7 @@ class GravixLayer:
                     continue
 
                 if status >= 400:
-                    raise error_from_response(status, resp.text, resp.headers)
+                    raise error_from_response(status, body, resp.headers)
 
                 resp.raise_for_status()
 

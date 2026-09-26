@@ -12,10 +12,13 @@ from .._request_utils import (
     REPLAYABLE_METHODS,
     RETRYABLE_STATUS,
     SUCCESS_STATUS,
+    ApiKeyAuth,
+    aresponse_text,
     build_url,
     can_retry,
     next_retry_delay,
     prepare_request_kwargs,
+    split_authorization,
 )
 from ..types.exceptions import (
     GravixLayerError,
@@ -85,7 +88,7 @@ class AsyncGravixLayer:
         self._logger = logging.getLogger("gravixlayer-async")
 
         user_agent = f"gravixlayer-python/{__version__}"
-        custom_headers = headers or {}
+        authorization, custom_headers = split_authorization(self.api_key, headers)
 
         self._service_urls = {
             svc: f"{self.base_url}/{svc}"
@@ -104,10 +107,10 @@ class AsyncGravixLayer:
             http2=http2,
             timeout=self.timeout,
             headers={
-                "Authorization": f"Bearer {self.api_key}",
                 "User-Agent": user_agent,
                 **custom_headers,
             },
+            auth=ApiKeyAuth(authorization, self.base_url),
             limits=HTTP_LIMITS,
         )
 
@@ -185,11 +188,12 @@ class AsyncGravixLayer:
                 if status in SUCCESS_STATUS:
                     return resp
 
+                body = await aresponse_text(resp)
                 if status == 429:
                     if can_retry_local(attempt, max_retries):
                         await sleep(next_retry_delay_local(attempt, rand, resp.headers.get("Retry-After")))
                         continue
-                    raise error_from_response(status, resp.text, resp.headers)
+                    raise error_from_response(status, body, resp.headers)
 
                 if (
                     status in RETRYABLE_STATUS
@@ -201,7 +205,7 @@ class AsyncGravixLayer:
                     continue
 
                 if status >= 400:
-                    raise error_from_response(status, resp.text, resp.headers)
+                    raise error_from_response(status, body, resp.headers)
 
                 resp.raise_for_status()
 

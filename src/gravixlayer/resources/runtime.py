@@ -45,6 +45,7 @@ from .runtime_command import (
     _STREAM_HEADERS,
     command_request_timeout,
     fold_command_sse,
+    stream_timeout,
 )
 from .runtime_git import RuntimeGitResource
 from .runtime_files import RuntimeFileResource
@@ -309,6 +310,7 @@ class Runtimes:
         on_exit: Optional[Any] = None,
         *,
         background: Literal[True],
+        on_error: Optional[Any] = None,
     ) -> CommandHandle: ...
 
     @overload
@@ -339,6 +341,7 @@ class Runtimes:
         on_stderr: Optional[Any] = None,
         on_exit: Optional[Any] = None,
         background: bool = False,
+        on_error: Optional[Any] = None,
     ) -> Union[CommandRunResponse, CommandHandle]:
         """Execute a shell command in the runtime.
 
@@ -358,6 +361,9 @@ class Runtimes:
             on_exit: Optional callable invoked with the integer exit code once the
                 command finishes.
             background: Start the command and return a handle while it keeps running.
+            on_error: With ``background``, invoked with the exception if following
+                the output fails. The command keeps running, and the exception is
+                also kept on the handle's ``error``.
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"command": command}
@@ -388,7 +394,7 @@ class Runtimes:
                 if on_stdout is not None or on_stderr is not None or on_exit is not None:
                     threading.Thread(
                         target=handle._follow,
-                        args=(on_stdout, on_stderr, on_exit),
+                        args=(on_stdout, on_stderr, on_exit, on_error),
                         daemon=True,
                     ).start()
                 result = handle
@@ -433,8 +439,9 @@ class Runtimes:
         without changing downstream code.
         """
         endpoint = f"runtime/{runtime_id}/commands/run?stream=true"
+        budget = request_timeout or stream_timeout(self.client.timeout)
         response = self._make_agents_request(
-            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **request_timeout
+            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **budget
         )
         try:
             return fold_command_sse(

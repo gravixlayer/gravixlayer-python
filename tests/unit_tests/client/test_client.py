@@ -129,6 +129,23 @@ class TestSyncClientInit:
         assert client._http_client.headers.get("X-Custom") == "value"
         client.close()
 
+    @respx.mock
+    def test_api_key_is_sent_to_the_api_only(self):
+        route = respx.get(f"{AGENTS_BASE}/runtime").mock(return_value=httpx.Response(200, json={}))
+        client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+        client._make_request("GET", "runtime", _service="v1/agents")
+        assert route.calls.last.request.headers["Authorization"] == f"Bearer {TEST_API_KEY}"
+        assert "Authorization" not in client._http_client.headers
+        client.close()
+
+    @respx.mock
+    def test_custom_authorization_replaces_the_api_key(self):
+        route = respx.get(f"{AGENTS_BASE}/runtime").mock(return_value=httpx.Response(200, json={}))
+        client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, headers={"authorization": "Token t"})
+        client._make_request("GET", "runtime", _service="v1/agents")
+        assert route.calls.last.request.headers["Authorization"] == "Token t"
+        client.close()
+
     def test_http2_defaults_to_http11(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
         pool = client._http_client._transport._pool
@@ -355,6 +372,19 @@ class TestAsyncClientInit:
         c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
         ua = c._http_client.headers.get("User-Agent", "")
         assert "gravixlayer-python/" in ua
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_api_key_is_sent_to_the_api_only(self):
+        route = respx.get(f"{AGENTS_BASE}/runtime").mock(return_value=httpx.Response(200, json={}))
+        async with AsyncGravixLayer(
+            api_key=TEST_API_KEY, base_url=TEST_BASE_URL, headers={"X-Custom": "value"}
+        ) as client:
+            await client._make_request("GET", "runtime", _service="v1/agents")
+            assert "Authorization" not in client._http_client.headers
+        request = route.calls.last.request
+        assert request.headers["Authorization"] == f"Bearer {TEST_API_KEY}"
+        assert request.headers["X-Custom"] == "value"
 
     @pytest.mark.asyncio
     async def test_http2_defaults_to_http11(self):

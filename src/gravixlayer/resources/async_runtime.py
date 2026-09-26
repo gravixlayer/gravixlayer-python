@@ -47,6 +47,7 @@ from .runtime_command import (
     _STREAM_HEADERS,
     afold_command_sse,
     command_request_timeout,
+    stream_timeout,
 )
 from .runtime_git import AsyncRuntimeGitResource
 from .runtime_files import AsyncRuntimeFileResource
@@ -57,9 +58,16 @@ from .async_runtime_service import AsyncRuntimeServiceResource
 _SNAPSHOT_RESTORE_TIMEOUT = httpx.Timeout(180.0)
 
 
-def _retrieve_task_error(task: "asyncio.Task[Any]") -> None:
-    if not task.cancelled():
-        task.exception()
+def _report_task_error(task: "asyncio.Task[Any]") -> None:
+    """A background follow fails only when its ``on_error`` callback raises.
+    That goes to the loop's exception handler instead of being dropped."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        task.get_loop().call_exception_handler(
+            {"message": "command on_error callback raised", "exception": exc, "task": task}
+        )
 
 
 class AsyncRuntimes:
@@ -313,6 +321,7 @@ class AsyncRuntimes:
         on_exit: Optional[Any] = None,
         *,
         background: Literal[True],
+        on_error: Optional[Any] = None,
     ) -> AsyncCommandHandle: ...
 
     @overload
@@ -343,6 +352,7 @@ class AsyncRuntimes:
         on_stderr: Optional[Any] = None,
         on_exit: Optional[Any] = None,
         background: bool = False,
+        on_error: Optional[Any] = None,
     ) -> Union[CommandRunResponse, AsyncCommandHandle]:
         """Execute a shell command in the runtime.
 
@@ -357,6 +367,9 @@ class AsyncRuntimes:
             on_stderr: Optional callable invoked with each stderr chunk.
             on_exit: Optional callable invoked with the exit code.
             background: Start the command and return a handle while it keeps running.
+            on_error: With ``background``, invoked with the exception if following
+                the output fails. The command keeps running, and the exception is
+                also kept on the handle's ``error``.
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"command": command}
@@ -385,9 +398,9 @@ class AsyncRuntimes:
                 handle = AsyncCommandHandle(self, runtime_id, started.pid)
                 if on_stdout is not None or on_stderr is not None or on_exit is not None:
                     task = asyncio.create_task(
-                        handle.wait(on_stdout=on_stdout, on_stderr=on_stderr, on_exit=on_exit)
+                        handle._follow(on_stdout, on_stderr, on_exit, on_error)
                     )
-                    task.add_done_callback(_retrieve_task_error)
+                    task.add_done_callback(_report_task_error)
                     handle._wait_task = task
                 result: Union[CommandRunResponse, AsyncCommandHandle] = handle
             elif streaming:
@@ -424,8 +437,9 @@ class AsyncRuntimes:
         request_timeout: Dict[str, Any],
     ) -> CommandRunResponse:
         endpoint = f"runtime/{runtime_id}/commands/run?stream=true"
+        budget = request_timeout or stream_timeout(self.client.timeout)
         response = await self._make_agents_request(
-            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **request_timeout
+            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **budget
         )
         try:
             return await afold_command_sse(

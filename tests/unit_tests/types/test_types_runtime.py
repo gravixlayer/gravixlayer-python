@@ -278,6 +278,7 @@ class TestRuntimeInstanceMethods:
             on_exit=None,
             environment=None,
             background=False,
+            on_error=None,
         )
         assert isinstance(result, Execution)
         assert result.stdout == "output"
@@ -287,6 +288,9 @@ class TestRuntimeInstanceMethods:
         handle = MagicMock()
         mock_client.runtime.run_cmd.return_value = handle
         assert rt.run_cmd("sleep", background=True) is handle
+        on_error = MagicMock()
+        assert rt.run_command("sleep", background=True, on_error=on_error) is handle
+        assert mock_client.runtime.run_cmd.call_args.kwargs["on_error"] is on_error
 
     def test_command_list_delegates(self):
         rt, mock_client = self._make_runtime_with_client()

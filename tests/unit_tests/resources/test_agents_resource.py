@@ -389,6 +389,30 @@ class TestSyncAgentsAPI:
             {"type": "more"},
         ]
 
+    def test_invoke_and_stream_keep_the_api_key_on_the_api(self, client, mock_api):
+        mock_api.get(f"{AGENTS_BASE}/ag-1/endpoint").mock(
+            return_value=httpx.Response(200, json=_sample_endpoint_json())
+        )
+        mock_api.post("https://agent.example.com/invoke").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
+        mock_api.post("https://agent.example.com/stream").mock(
+            return_value=httpx.Response(
+                200, text='data: {"ok": true}\n\n', headers={"content-type": "text/event-stream"}
+            )
+        )
+        client.agents.invoke("ag-1", input={})
+        assert list(client.agents.stream("ag-1", input={})) == [{"ok": True}]
+        sent = [
+            (call.request.url.host, call.request.headers.get("Authorization")) for call in mock_api.calls
+        ]
+        assert sent == [
+            ("api.gravixlayer.ai", f"Bearer {TEST_API_KEY}"),
+            ("agent.example.com", None),
+            ("api.gravixlayer.ai", f"Bearer {TEST_API_KEY}"),
+            ("agent.example.com", None),
+        ]
+
 
 # ===================================================================
 # Async Agents — API
@@ -566,6 +590,32 @@ class TestAsyncAgentsAPI:
             "metadata": {"k": "v"},
             "resume": "continue",
         }
+
+    @pytest.mark.asyncio
+    async def test_invoke_and_stream_keep_the_api_key_on_the_api(self, mock_api):
+        mock_api.get(f"{AGENTS_BASE}/ag-1/endpoint").mock(
+            return_value=httpx.Response(200, json=_sample_endpoint_json())
+        )
+        mock_api.post("https://agent.example.com/invoke").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
+        mock_api.post("https://agent.example.com/stream").mock(
+            return_value=httpx.Response(
+                200, text='data: {"ok": true}\n\n', headers={"content-type": "text/event-stream"}
+            )
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            await client.agents.invoke("ag-1", input={})
+            assert [event async for event in client.agents.stream("ag-1", input={})] == [{"ok": True}]
+        sent = [
+            (call.request.url.host, call.request.headers.get("Authorization")) for call in mock_api.calls
+        ]
+        assert sent == [
+            ("api.gravixlayer.ai", f"Bearer {TEST_API_KEY}"),
+            ("agent.example.com", None),
+            ("api.gravixlayer.ai", f"Bearer {TEST_API_KEY}"),
+            ("agent.example.com", None),
+        ]
 
 
 # ===================================================================

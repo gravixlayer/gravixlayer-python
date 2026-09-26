@@ -6,6 +6,7 @@ Covers: create, list, get, kill, connect, set_timeout, get_metrics,
 SSH, pause/resume, code contexts.
 """
 
+import asyncio
 import io
 import json
 import threading
@@ -29,7 +30,12 @@ from tests.utils import (
 
 from gravixlayer import GravixLayer, AsyncGravixLayer
 from gravixlayer.resources.runtime_files import _file_read_response, _write_result_from_upload
-from gravixlayer.resources.runtime_command import AsyncCommandHandle, CommandHandle, _parse_list
+from gravixlayer.resources.runtime_command import (
+    AsyncCommandHandle,
+    CommandHandle,
+    _parse_list,
+    stream_timeout,
+)
 from gravixlayer.types.exceptions import GravixLayerBadRequestError, GravixLayerConnectionError
 from gravixlayer.types.runtime import (
     Runtime,
@@ -819,7 +825,10 @@ class TestSyncRuntimeExecution:
         handle.disconnect()
         assert _parse_list({"commands": "nope"}) == []
 
-    def test_background_callbacks_follow_quietly(self, client, mock_api):
+    def test_background_follow_reports_a_broken_stream(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(201, json={"pid": 6, "status": "running"})
+        )
         mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/commands/6/stream").mock(
             return_value=httpx.Response(
                 200,
@@ -827,9 +836,84 @@ class TestSyncRuntimeExecution:
                 headers={"content-type": "text/event-stream"},
             )
         )
+        failed = threading.Event()
+        errors: list[Exception] = []
         exits: list[int] = []
-        CommandHandle(client.runtime, VALID_UUID, 6)._follow(None, None, exits.append)
+
+        def on_error(exc: Exception) -> None:
+            errors.append(exc)
+            failed.set()
+
+        handle = client.runtime.run_cmd(
+            VALID_UUID, "server", background=True, on_exit=exits.append, on_error=on_error
+        )
+        assert failed.wait(5)
+        assert isinstance(errors[0], GravixLayerConnectionError)
+        assert handle.error is errors[0]
         assert exits == []
+
+        quiet = CommandHandle(client.runtime, VALID_UUID, 6)
+        assert quiet._follow(None, None, exits.append, None) is None
+        assert isinstance(quiet.error, GravixLayerConnectionError)
+
+    def test_disconnect_stops_a_background_follow_without_an_error(self, client, mock_api):
+        mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/commands/6/stream").mock(
+            return_value=httpx.Response(
+                200,
+                text=(
+                    'data: {"type": "stdout", "data": "tick"}\n\n'
+                    'data: {"type": "error", "message": "stream interrupted"}\n\n'
+                ),
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        handle = CommandHandle(client.runtime, VALID_UUID, 6)
+        errors: list[Exception] = []
+        assert handle._follow(lambda _chunk: handle.disconnect(), None, None, errors.append) is None
+        assert errors == []
+        assert handle.error is None
+
+    def test_stream_reads_outlast_the_keepalive_ping(self):
+        short = stream_timeout(5.0)["timeout"]
+        assert short.read == 45.0
+        assert short.connect == 5.0
+        assert stream_timeout(120.0)["timeout"].read == 120.0
+
+    def test_wait_and_stream_use_the_keepalive_read_window(self, mock_api):
+        reads: list[float] = []
+
+        def sse(request: httpx.Request) -> httpx.Response:
+            reads.append(request.extensions["timeout"]["read"])
+            return httpx.Response(
+                200,
+                text='data: {"type": "end", "exit_code": 0}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+
+        mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/commands/5/stream").mock(side_effect=sse)
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/commands/run\?stream=true").mock(
+            side_effect=sse
+        )
+        with GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, timeout=5.0) as client:
+            handle = CommandHandle(client.runtime, VALID_UUID, 5)
+            assert handle.wait().exit_code == 0
+            assert handle._responses == set()
+            client.runtime.run_cmd(VALID_UUID, "echo", on_stdout=lambda _chunk: None)
+            client.runtime.run_cmd(VALID_UUID, "echo", timeout=1, on_stdout=lambda _chunk: None)
+        assert reads == [45.0, 45.0, 31.0]
+
+    def test_disconnect_closes_every_open_wait(self, client):
+        class Open:
+            closed = False
+
+            def close(self) -> None:
+                self.closed = True
+
+        handle = CommandHandle(client.runtime, VALID_UUID, 5)
+        first, second = Open(), Open()
+        handle._responses.update({first, second})
+        handle.disconnect()
+        assert first.closed and second.closed
 
     def test_run_code(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/code/run").mock(
@@ -1151,6 +1235,42 @@ class TestAsyncRuntimeFiles:
             assert handle.pid == 9
 
     @pytest.mark.asyncio
+    async def test_async_wait_uses_the_keepalive_read_window(self, mock_api):
+        reads: list[float] = []
+
+        def sse(request: httpx.Request) -> httpx.Response:
+            reads.append(request.extensions["timeout"]["read"])
+            return httpx.Response(
+                200,
+                text='data: {"type": "end", "exit_code": 0}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+
+        mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/commands/9/stream").mock(side_effect=sse)
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/commands/run\?stream=true").mock(
+            side_effect=sse
+        )
+        async with AsyncGravixLayer(
+            api_key=TEST_API_KEY, base_url=TEST_BASE_URL, timeout=5.0
+        ) as client:
+            handle = AsyncCommandHandle(client.runtime, VALID_UUID, 9)
+            assert (await handle.wait()).exit_code == 0
+            assert handle._responses == set()
+            await client.runtime.run_cmd(VALID_UUID, "echo", on_stdout=lambda _chunk: None)
+        assert reads == [45.0, 45.0]
+
+        class Open:
+            closed = False
+
+            async def aclose(self) -> None:
+                self.closed = True
+
+        first, second = Open(), Open()
+        handle._responses.update({first, second})
+        await handle.disconnect()
+        assert first.closed and second.closed
+
+    @pytest.mark.asyncio
     async def test_run_cmd_background_callbacks_and_handle(self, mock_api):
         started = {"pid": 9, "command": "sleep", "status": "running", "background": True}
         mock_api.post(f"{SB}/{VALID_UUID}/commands/run").mock(
@@ -1186,10 +1306,65 @@ class TestAsyncRuntimeFiles:
             )
             result = await handle._wait_task
             assert (out, err, result.exit_code) == (["out"], ["err"], 3)
+            assert handle.error is None
             assert (await handle.refresh()).status == "running"
             assert (await handle.kill("TERM")).exit_code == 143
             assert "signal=TERM" in str(mock_api.calls[-1].request.url)
             await handle.disconnect()
+
+    @pytest.mark.asyncio
+    async def test_async_background_follow_reports_failures(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(201, json={"pid": 9, "status": "running"})
+        )
+        mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/commands/9/stream").mock(
+            return_value=httpx.Response(
+                200,
+                text=(
+                    'data: {"type": "stdout", "data": "tick"}\n\n'
+                    'data: {"type": "error", "message": "stream interrupted"}\n\n'
+                ),
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        errors: list[Exception] = []
+
+        async def on_error(exc: Exception) -> None:
+            errors.append(exc)
+
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            handle = await client.runtime.run_cmd(
+                VALID_UUID, "server", background=True, on_exit=lambda _code: None, on_error=on_error
+            )
+            assert await handle._wait_task is None
+            assert isinstance(errors[0], GravixLayerConnectionError)
+            assert handle.error is errors[0]
+
+            async def stop(_chunk: str) -> None:
+                await stopped.disconnect()
+
+            stopped = AsyncCommandHandle(client.runtime, VALID_UUID, 9)
+            assert await stopped._follow(stop, None, None, errors.append) is None
+            assert stopped.error is None and len(errors) == 1
+
+            loop = asyncio.get_running_loop()
+            reported: list[dict] = []
+            loop.set_exception_handler(lambda _loop, context: reported.append(context))
+            try:
+
+                def broken(_exc: Exception) -> None:
+                    raise RuntimeError("callback bug")
+
+                handle = await client.runtime.run_cmd(
+                    VALID_UUID, "server", background=True, on_exit=lambda _code: None, on_error=broken
+                )
+                with pytest.raises(RuntimeError):
+                    await handle._wait_task
+                await asyncio.sleep(0)
+            finally:
+                loop.set_exception_handler(None)
+            assert isinstance(reported[0]["exception"], RuntimeError)
+            assert reported[0]["task"] is handle._wait_task
 
     @pytest.mark.asyncio
     async def test_run_cmd_stream(self, mock_api):

@@ -341,6 +341,7 @@ class Runtime:
         on_exit: Optional[Callable[[int], None]] = None,
         environment: Optional[Dict[str, str]] = None,
         background: bool = False,
+        on_error: Optional[Callable[[Exception], None]] = None,
     ) -> Union["Execution", Any]:
         """Execute a shell command in the runtime.
 
@@ -358,6 +359,8 @@ class Runtime:
             on_exit: Optional callback invoked with the final exit code.
             environment: Environment variables for this command only.
             background: Start the command and return while it keeps running.
+            on_error: With ``background``, invoked with the exception if following
+                the output fails. The command keeps running.
         """
         self._require_alive()
         response = self._client.runtime.run_cmd(
@@ -371,6 +374,7 @@ class Runtime:
             on_exit=on_exit,
             environment=environment,
             background=background,
+            on_error=on_error,
         )
         if background:
             return response
@@ -387,6 +391,7 @@ class Runtime:
         on_exit: Optional[Callable[[int], None]] = None,
         environment: Optional[Dict[str, str]] = None,
         background: bool = False,
+        on_error: Optional[Callable[[Exception], None]] = None,
     ) -> Union["Execution", Any]:
         """Execute a shell command in the runtime.
 
@@ -402,6 +407,7 @@ class Runtime:
             on_exit=on_exit,
             environment=environment,
             background=background,
+            on_error=on_error,
         )
 
     def kill(self) -> None:
