@@ -11,6 +11,7 @@ from .resources.runtime_command import AsyncCommandHandle, CommandHandle
 from .client import GravixLayer
 from .types.async_client import AsyncGravixLayer
 from .types.runtime import (
+    AsyncClientBoundError,
     Runtime,
     RuntimeFileBound,
     RuntimePtyBound,
@@ -176,6 +177,7 @@ from .types.exceptions import (
 __all__ = [
     "GravixLayer",
     "AsyncGravixLayer",
+    "AsyncClientBoundError",
     "Runtime",
     "RuntimeFileBound",
     "RuntimePtyBound",

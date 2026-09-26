@@ -43,6 +43,64 @@ def _validate_template_id(template_id: str) -> None:
         raise ValueError("Template ID must not be empty")
 
 
+_ASYNC_BOUND = (
+    "This runtime is bound to AsyncGravixLayer. "
+    "await client.runtime.<method>(runtime_id, ...) instead of the bound method, "
+    "or use `async with runtime` to terminate it."
+)
+
+
+class AsyncClientBoundError(TypeError):
+    """A synchronous bound call was made on a runtime from ``AsyncGravixLayer``."""
+
+
+class _AsyncClientFacade:
+    """Presents an async client to synchronous bound methods.
+
+    Calling one closes the unused coroutine and raises, so ``kill()`` cannot
+    report success without sending the request.
+    """
+
+    def __init__(self, inner: Any) -> None:
+        object.__setattr__(self, "_inner", inner)
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(object.__getattribute__(self, "_inner"), name)
+        if inspect.isroutine(attr):
+
+            def call(*args: Any, **kwargs: Any) -> Any:
+                result = attr(*args, **kwargs)
+                if inspect.isasyncgen(result):
+                    closer = result.aclose()
+                    closer.close()
+                    raise AsyncClientBoundError(_ASYNC_BOUND)
+                if inspect.isawaitable(result):
+                    close = getattr(result, "close", None)
+                    if callable(close):
+                        close()
+                    raise AsyncClientBoundError(_ASYNC_BOUND)
+                return result
+
+            return call
+        if attr is None or isinstance(attr, (str, int, float, bool, bytes)):
+            return attr
+        if hasattr(attr, "__dict__"):
+            return _AsyncClientFacade(attr)
+        return attr
+
+
+def bind_async_client(client: Any) -> Any:
+    """Wrap ``client`` so bound runtime methods cannot drop an unawaited call."""
+    return client if isinstance(client, _AsyncClientFacade) else _AsyncClientFacade(client)
+
+
+def unwrap_client(client: Any) -> Any:
+    """The client behind :func:`bind_async_client`, or ``client`` itself."""
+    if isinstance(client, _AsyncClientFacade):
+        return object.__getattribute__(client, "_inner")
+    return client
+
+
 @dataclass
 class Runtime:
     """Runtime object returned by the API.
@@ -380,6 +438,25 @@ class Runtime:
             return response
         return Execution(response)
 
+    def stream_cmd(
+        self,
+        command: str,
+        args: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
+        timeout: Optional[int] = None,
+        environment: Optional[Dict[str, str]] = None,
+    ) -> Any:
+        """Yield command output events until the command finishes."""
+        self._require_alive()
+        return self._client.runtime.stream_cmd(
+            self.runtime_id,
+            command=command,
+            args=args,
+            working_dir=working_dir,
+            timeout=timeout,
+            environment=environment,
+        )
+
     def run_command(
         self,
         command: str,
@@ -411,13 +488,21 @@ class Runtime:
         )
 
     def kill(self) -> None:
-        """Terminate the runtime and clean up resources."""
-        if self._alive and self._client is not None:
-            try:
-                self._client.runtime.kill(self.runtime_id)
-            except Exception:
-                pass
-            self._alive = False
+        """Terminate the runtime and clean up resources.
+
+        On a runtime from :class:`gravixlayer.AsyncGravixLayer` this raises
+        :class:`AsyncClientBoundError`. Use ``async with runtime`` or
+        ``await client.runtime.kill(runtime_id)`` so the request is sent.
+        """
+        if not self._alive or self._client is None:
+            return
+        try:
+            self._client.runtime.kill(self.runtime_id)
+        except AsyncClientBoundError:
+            raise
+        except Exception:
+            pass
+        self._alive = False
 
     def is_alive(self) -> bool:
         """Check if the runtime is still running."""
@@ -426,6 +511,8 @@ class Runtime:
         try:
             info = self._client.runtime.get(self.runtime_id)
             return info.status == "running"
+        except AsyncClientBoundError:
+            raise
         except Exception:
             self._alive = False
             return False
@@ -492,6 +579,23 @@ class Runtime:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - automatically terminate runtime"""
         self.kill()
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Terminate the runtime, awaiting the request when the client is async."""
+        client = unwrap_client(self._client)
+        if not self._alive or client is None:
+            return
+        result = client.runtime.kill(self.runtime_id)
+        self._alive = False
+        if inspect.isawaitable(result):
+            try:
+                await result
+            except Exception:
+                pass
 
     @property
     def file(self) -> "RuntimeFileBound":
@@ -1420,9 +1524,12 @@ class CommandRunResponse:
 
 @dataclass
 class CommandInfo:
-    """A command that is running, or retained after it exited."""
+    """A command that is running, or retained after it exited.
 
-    pid: int
+    ``pid`` is ``None`` when the command exited before it had a process id.
+    """
+
+    pid: Optional[int] = None
     command: str = ""
     args: List[str] = field(default_factory=list)
     working_dir: str = ""
@@ -1436,11 +1543,25 @@ class CommandInfo:
 
     @classmethod
     def from_api(cls, data: Dict[str, Any]) -> "CommandInfo":
+        raw_pid = data.get("pid")
+        if isinstance(raw_pid, bool):
+            pid = None
+        elif isinstance(raw_pid, int):
+            pid = raw_pid if raw_pid > 0 else None
+        elif isinstance(raw_pid, str) and raw_pid.strip():
+            try:
+                parsed = int(raw_pid)
+            except ValueError:
+                pid = None
+            else:
+                pid = parsed if parsed > 0 else None
+        else:
+            pid = None
         raw_exit = data.get("exit_code")
         raw_duration = data.get("duration_ms")
         args = data.get("args")
         return cls(
-            pid=int(data.get("pid") or 0),
+            pid=pid,
             command=str(data.get("command", "")),
             args=[str(item) for item in args] if isinstance(args, list) else [],
             working_dir=str(data.get("working_dir", "")),

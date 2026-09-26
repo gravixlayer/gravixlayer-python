@@ -24,8 +24,12 @@ _STREAM_HEADERS = {"Accept": "text/event-stream"}
 
 
 def command_request_timeout(timeout_seconds: Optional[int]) -> Dict[str, Any]:
-    """HTTP budget that outlasts a guest command deadline."""
-    if timeout_seconds is None:
+    """HTTP budget that outlasts a guest command deadline.
+
+    ``None`` and ``0`` mean the server default, so the call keeps the client
+    timeout. A positive deadline is seconds plus the round-trip margin.
+    """
+    if not timeout_seconds:
         return {}
     return {"timeout": httpx.Timeout(float(timeout_seconds) + _DEADLINE_MARGIN_S)}
 
@@ -42,6 +46,104 @@ def _signal_params(signal: Optional[str]) -> Optional[Dict[str, str]]:
     if signal not in _SIGNALS:
         raise ValueError("signal must be KILL, TERM, INT, or HUP")
     return {"signal": signal}
+
+
+def _positive_pid(value: Any) -> Optional[int]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = int(value)
+        except ValueError:
+            return None
+        return parsed if parsed > 0 else None
+    return None
+
+
+def _end_fields(evt: Dict[str, Any]) -> tuple[int, Optional[int], bool, Optional[str]]:
+    exit_code = int(evt.get("exit_code", 0))
+    raw_duration = evt.get("duration_ms")
+    duration_ms = None if raw_duration is None else int(raw_duration)
+    raw_error = evt.get("error")
+    error = raw_error if isinstance(raw_error, str) and raw_error else None
+    return exit_code, duration_ms, bool(evt.get("timed_out", False)), error
+
+
+def _command_result(
+    stdout_parts: List[str],
+    stderr_parts: List[str],
+    exit_code: int,
+    duration_ms: Optional[int],
+    timed_out: bool,
+    error: Optional[str],
+    started: float,
+) -> CommandRunResponse:
+    if duration_ms is None:
+        duration_ms = int((time.monotonic() - started) * 1000)
+    return CommandRunResponse(
+        stdout="".join(stdout_parts),
+        stderr="".join(stderr_parts),
+        exit_code=exit_code,
+        duration_ms=duration_ms,
+        success=exit_code == 0,
+        timed_out=timed_out,
+        error=error,
+    )
+
+
+def _deliver_finished(
+    result: CommandRunResponse,
+    on_stdout: Optional[Callable[[str], None]],
+    on_stderr: Optional[Callable[[str], None]],
+    on_exit: Optional[Callable[[int], None]],
+) -> None:
+    if result.stdout and on_stdout is not None:
+        on_stdout(result.stdout)
+    if result.stderr and on_stderr is not None:
+        on_stderr(result.stderr)
+    if on_exit is not None:
+        on_exit(result.exit_code)
+
+
+async def _deliver_finished_async(
+    result: CommandRunResponse,
+    on_stdout: Optional[Any],
+    on_stderr: Optional[Any],
+    on_exit: Optional[Any],
+) -> None:
+    async def dispatch(callback: Optional[Any], value: Any) -> None:
+        if callback is None:
+            return
+        maybe = callback(value)
+        if inspect.isawaitable(maybe):
+            await maybe
+
+    if result.stdout:
+        await dispatch(on_stdout, result.stdout)
+    if result.stderr:
+        await dispatch(on_stderr, result.stderr)
+    await dispatch(on_exit, result.exit_code)
+
+
+def _finished_info(
+    result: CommandRunResponse,
+    command: str,
+    args: List[str],
+    working_dir: str,
+) -> CommandInfo:
+    return CommandInfo(
+        pid=None,
+        command=command,
+        args=list(args),
+        working_dir=working_dir,
+        background=True,
+        status="timed_out" if result.timed_out else "exited",
+        exit_code=result.exit_code,
+        duration_ms=result.duration_ms,
+        timed_out=result.timed_out,
+    )
 
 
 def _chunk(value: Any) -> str:
@@ -67,6 +169,7 @@ def fold_command_sse(
     exit_code = 0
     duration_ms: Optional[int] = None
     timed_out = False
+    error: Optional[str] = None
     finished = False
     start = time.monotonic()
 
@@ -86,10 +189,7 @@ def fold_command_sse(
             if on_stderr is not None:
                 on_stderr(chunk)
         elif kind == "end":
-            exit_code = int(evt.get("exit_code", 0))
-            if evt.get("duration_ms") is not None:
-                duration_ms = int(evt["duration_ms"])
-            timed_out = bool(evt.get("timed_out", False))
+            exit_code, duration_ms, timed_out, error = _end_fields(evt)
             finished = True
             if on_exit is not None:
                 on_exit(exit_code)
@@ -109,15 +209,8 @@ def fold_command_sse(
 
     if not finished:
         raise GravixLayerConnectionError("command stream ended before the command finished")
-    if duration_ms is None:
-        duration_ms = int((time.monotonic() - start) * 1000)
-    return CommandRunResponse(
-        stdout="".join(stdout_parts),
-        stderr="".join(stderr_parts),
-        exit_code=exit_code,
-        duration_ms=duration_ms,
-        success=exit_code == 0,
-        timed_out=timed_out,
+    return _command_result(
+        stdout_parts, stderr_parts, exit_code, duration_ms, timed_out, error, start
     )
 
 
@@ -142,6 +235,7 @@ async def afold_command_sse(
     exit_code = 0
     duration_ms: Optional[int] = None
     timed_out = False
+    error: Optional[str] = None
     finished = False
     start = time.monotonic()
 
@@ -159,10 +253,7 @@ async def afold_command_sse(
             stderr_parts.append(chunk)
             await dispatch(on_stderr, chunk)
         elif kind == "end":
-            exit_code = int(evt.get("exit_code", 0))
-            if evt.get("duration_ms") is not None:
-                duration_ms = int(evt["duration_ms"])
-            timed_out = bool(evt.get("timed_out", False))
+            exit_code, duration_ms, timed_out, error = _end_fields(evt)
             finished = True
             await dispatch(on_exit, exit_code)
             break
@@ -179,16 +270,65 @@ async def afold_command_sse(
 
     if not finished:
         raise GravixLayerConnectionError("command stream ended before the command finished")
-    if duration_ms is None:
-        duration_ms = int((time.monotonic() - start) * 1000)
-    return CommandRunResponse(
-        stdout="".join(stdout_parts),
-        stderr="".join(stderr_parts),
-        exit_code=exit_code,
-        duration_ms=duration_ms,
-        success=exit_code == 0,
-        timed_out=timed_out,
+    return _command_result(
+        stdout_parts, stderr_parts, exit_code, duration_ms, timed_out, error, start
     )
+
+
+def iter_command_events(payloads: Iterator[str]) -> Iterator[Dict[str, Any]]:
+    """Yield command stream events. A stream that closes first raises."""
+    finished = False
+    for payload in payloads:
+        event = _command_event(payload)
+        if event is None:
+            continue
+        finished = event.get("type") in ("end", "error")
+        yield event
+        if finished:
+            return
+    if not finished:
+        raise GravixLayerConnectionError("command stream ended before the command finished")
+
+
+async def aiter_command_events(payloads: AsyncIterator[str]) -> AsyncIterator[Dict[str, Any]]:
+    """Async counterpart of :func:`iter_command_events`."""
+    finished = False
+    async for payload in payloads:
+        event = _command_event(payload)
+        if event is None:
+            continue
+        finished = event.get("type") in ("end", "error")
+        yield event
+        if finished:
+            return
+    if not finished:
+        raise GravixLayerConnectionError("command stream ended before the command finished")
+
+
+def _command_event(payload: str) -> Optional[Dict[str, Any]]:
+    evt = _load_event(payload)
+    if evt is None:
+        return None
+    kind = evt.get("type")
+    if kind == "stdout":
+        return {"type": "stdout", "data": _chunk(evt.get("data", ""))}
+    if kind == "stderr":
+        return {"type": "stderr", "data": _chunk(evt.get("data", ""))}
+    if kind == "end":
+        exit_code, duration_ms, timed_out, error = _end_fields(evt)
+        event: Dict[str, Any] = {
+            "type": "end",
+            "exit_code": exit_code,
+            "timed_out": timed_out,
+        }
+        if duration_ms is not None:
+            event["duration_ms"] = duration_ms
+        if error is not None:
+            event["error"] = error
+        return event
+    if kind == "error":
+        return {"type": "error", "message": str(evt.get("message", ""))}
+    return None
 
 
 def _load_event(payload: str) -> Optional[Dict[str, Any]]:
@@ -199,13 +339,65 @@ def _load_event(payload: str) -> Optional[Dict[str, Any]]:
     return evt if isinstance(evt, dict) else None
 
 
-class CommandHandle:
-    """A command that was started in the background."""
+def open_background_handle(
+    runtimes: Any,
+    runtime_id: str,
+    payload: Dict[str, Any],
+    *,
+    command: str,
+    args: Optional[List[str]],
+    working_dir: Optional[str],
+    asynchronous: bool,
+) -> Any:
+    """A handle for a background start.
 
-    def __init__(self, runtimes: Any, runtime_id: str, pid: int) -> None:
+    A body with no positive pid and an ``exit_code`` already finished. The
+    handle keeps that result. A positive pid is a command that is still running.
+    """
+    pid = _positive_pid(payload.get("pid"))
+    result: Optional[CommandRunResponse] = None
+    if pid is None:
+        if "exit_code" not in payload:
+            raise GravixLayerConnectionError("background command finished without an exit code")
+        result = CommandRunResponse.from_api(payload)
+    handle_cls = AsyncCommandHandle if asynchronous else CommandHandle
+    return handle_cls(
+        runtimes,
+        runtime_id,
+        pid,
+        result=result,
+        command=command,
+        args=list(args or []),
+        working_dir=working_dir or "/workspace",
+    )
+
+
+class CommandHandle:
+    """A command that was started in the background.
+
+    ``pid`` is ``None`` when the command exited before it had a process id.
+    ``wait``, ``refresh``, and ``kill`` then return that result and do not
+    call the API.
+    """
+
+    def __init__(
+        self,
+        runtimes: Any,
+        runtime_id: str,
+        pid: Optional[int],
+        *,
+        result: Optional[CommandRunResponse] = None,
+        command: str = "",
+        args: Optional[List[str]] = None,
+        working_dir: str = "",
+    ) -> None:
         self._runtimes = runtimes
         self.runtime_id = runtime_id
-        self.pid = pid
+        self._result = result
+        self._command = command
+        self._args = list(args or [])
+        self._working_dir = working_dir
+        self.pid = None if result is not None else pid
         self._responses: Set[httpx.Response] = set()
         self._disconnects = 0
         self._error: Optional[Exception] = None
@@ -222,6 +414,12 @@ class CommandHandle:
         on_exit: Optional[Callable[[int], None]] = None,
     ) -> CommandRunResponse:
         """Read the command's output until it exits."""
+        if self._result is not None:
+            _deliver_finished(self._result, on_stdout, on_stderr, on_exit)
+            return self._result
+        if self.pid is None:
+            raise GravixLayerConnectionError("background command finished without an exit code")
+        generation = self._disconnects
         response = self._runtimes._make_agents_request(
             "GET",
             f"runtime/{self.runtime_id}/commands/{self.pid}/stream",
@@ -230,6 +428,10 @@ class CommandHandle:
             **stream_timeout(self._runtimes.client.timeout),
         )
         self._responses.add(response)
+        if self._disconnects != generation:
+            self._responses.discard(response)
+            response.close()
+            raise GravixLayerConnectionError("command stream closed")
         try:
             return fold_command_sse(
                 iter_sse_payloads(response.iter_lines()),
@@ -264,10 +466,18 @@ class CommandHandle:
 
     def kill(self, signal: Optional[str] = None) -> CommandInfo:
         """Signal the command. The default signal is ``KILL``."""
+        if self._result is not None:
+            return _finished_info(self._result, self._command, self._args, self._working_dir)
+        if self.pid is None:
+            raise GravixLayerConnectionError("background command finished without an exit code")
         return self._runtimes.command.kill(self.runtime_id, self.pid, signal)
 
     def refresh(self) -> CommandInfo:
         """Read the command's current state."""
+        if self._result is not None:
+            return _finished_info(self._result, self._command, self._args, self._working_dir)
+        if self.pid is None:
+            raise GravixLayerConnectionError("background command finished without an exit code")
         return self._runtimes.command.get(self.runtime_id, self.pid)
 
     def disconnect(self) -> None:
@@ -278,12 +488,31 @@ class CommandHandle:
 
 
 class AsyncCommandHandle:
-    """Async handle for a background command."""
+    """Async handle for a background command.
 
-    def __init__(self, runtimes: Any, runtime_id: str, pid: int) -> None:
+    ``pid`` is ``None`` when the command exited before it had a process id.
+    ``wait``, ``refresh``, and ``kill`` then return that result and do not
+    call the API.
+    """
+
+    def __init__(
+        self,
+        runtimes: Any,
+        runtime_id: str,
+        pid: Optional[int],
+        *,
+        result: Optional[CommandRunResponse] = None,
+        command: str = "",
+        args: Optional[List[str]] = None,
+        working_dir: str = "",
+    ) -> None:
         self._runtimes = runtimes
         self.runtime_id = runtime_id
-        self.pid = pid
+        self._result = result
+        self._command = command
+        self._args = list(args or [])
+        self._working_dir = working_dir
+        self.pid = None if result is not None else pid
         self._responses: Set[httpx.Response] = set()
         self._disconnects = 0
         self._error: Optional[Exception] = None
@@ -301,6 +530,12 @@ class AsyncCommandHandle:
         on_exit: Optional[Any] = None,
     ) -> CommandRunResponse:
         """Read the command's output until it exits."""
+        if self._result is not None:
+            await _deliver_finished_async(self._result, on_stdout, on_stderr, on_exit)
+            return self._result
+        if self.pid is None:
+            raise GravixLayerConnectionError("background command finished without an exit code")
+        generation = self._disconnects
         response = await self._runtimes._make_agents_request(
             "GET",
             f"runtime/{self.runtime_id}/commands/{self.pid}/stream",
@@ -309,6 +544,10 @@ class AsyncCommandHandle:
             **stream_timeout(self._runtimes.client.timeout),
         )
         self._responses.add(response)
+        if self._disconnects != generation:
+            self._responses.discard(response)
+            await response.aclose()
+            raise GravixLayerConnectionError("command stream closed")
         try:
             return await afold_command_sse(
                 aiter_sse_payloads(response.aiter_lines()),
@@ -345,10 +584,18 @@ class AsyncCommandHandle:
 
     async def kill(self, signal: Optional[str] = None) -> CommandInfo:
         """Signal the command. The default signal is ``KILL``."""
+        if self._result is not None:
+            return _finished_info(self._result, self._command, self._args, self._working_dir)
+        if self.pid is None:
+            raise GravixLayerConnectionError("background command finished without an exit code")
         return await self._runtimes.command.kill(self.runtime_id, self.pid, signal)
 
     async def refresh(self) -> CommandInfo:
         """Read the command's current state."""
+        if self._result is not None:
+            return _finished_info(self._result, self._command, self._args, self._working_dir)
+        if self.pid is None:
+            raise GravixLayerConnectionError("background command finished without an exit code")
         return await self._runtimes.command.get(self.runtime_id, self.pid)
 
     async def disconnect(self) -> None:

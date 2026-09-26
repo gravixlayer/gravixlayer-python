@@ -34,10 +34,18 @@ from gravixlayer.resources.runtime_command import (
     AsyncCommandHandle,
     CommandHandle,
     _parse_list,
+    afold_command_sse,
+    command_request_timeout,
+    fold_command_sse,
     stream_timeout,
 )
-from gravixlayer.types.exceptions import GravixLayerBadRequestError, GravixLayerConnectionError
+from gravixlayer.types.exceptions import (
+    GravixLayerBadRequestError,
+    GravixLayerConnectionError,
+    GravixLayerError,
+)
 from gravixlayer.types.runtime import (
+    AsyncClientBoundError,
     Runtime,
     RuntimeList,
     RuntimeMetrics,
@@ -365,6 +373,18 @@ class TestSyncRuntimeFiles:
         assert result.content == "hello world"
         assert result.size == 11
 
+    def test_watch_error_is_sdk_error(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/files/watch").mock(
+            return_value=httpx.Response(
+                200,
+                text='data: {"type": "error", "message": "boom"}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        with pytest.raises(GravixLayerError, match="boom") as raised:
+            list(client.runtime.file.watch(VALID_UUID, "/workspace"))
+        assert type(raised.value) is GravixLayerError
+
     def test_read_file_utf8_size_without_server_size(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/files/read").mock(
             return_value=httpx.Response(200, json={"content": "é", "path": "/tmp/e.txt"})
@@ -676,6 +696,107 @@ class TestSyncRuntimeExecution:
         assert body["environment"] == {"A": "1"}
         assert "stream=true" in str(mock_api.calls[-1].request.url)
 
+    def test_stream_cmd_yields_events(self, client, mock_api):
+        sse = (
+            'data: {"type": "stdout", "data": "hi"}\n\n'
+            'data: {"type": "ping"}\n\n'
+            'data: {"type": "end", "exit_code": 0, "duration_ms": 5, "timed_out": false}\n\n'
+        )
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(
+                200, text=sse, headers={"content-type": "text/event-stream"}
+            )
+        )
+        events = list(client.runtime.stream_cmd(VALID_UUID, "echo hi"))
+        assert events[0] == {"type": "stdout", "data": "hi"}
+        assert events[1]["exit_code"] == 0
+        assert events[1]["timed_out"] is False
+
+    def test_stream_cmd_keeps_the_end_error(self, client, mock_api):
+        sse = (
+            'data: {"type": "stderr", "data": "/tmp/gl-not-exec: permission denied\\n"}\n\n'
+            'data: {"type": "end", "exit_code": 126, "duration_ms": 2, '
+            '"timed_out": false, "error": "permission denied"}\n\n'
+        )
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(
+                200, text=sse, headers={"content-type": "text/event-stream"}
+            )
+        )
+        result = client.runtime.run_cmd(VALID_UUID, "/tmp/gl-not-exec", on_stderr=lambda _chunk: None)
+        assert result.exit_code == 126
+        assert result.success is False
+        assert result.error == "permission denied"
+        assert result.stderr == "/tmp/gl-not-exec: permission denied\n"
+        assert result.duration_ms == 2
+        events = list(client.runtime.stream_cmd(VALID_UUID, "/tmp/gl-not-exec"))
+        assert events[-1]["error"] == "permission denied"
+        assert events[-1]["exit_code"] == 126
+
+    def test_background_start_without_a_pid_is_finished(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "stdout": "",
+                    "stderr": "/no/such: command not found\n",
+                    "exit_code": 127,
+                    "duration_ms": 4,
+                    "success": False,
+                    "timed_out": False,
+                    "error": "command not found",
+                },
+            )
+        )
+        stderr: list[str] = []
+        exits: list[int] = []
+        followed = threading.Event()
+
+        def on_exit(code: int) -> None:
+            exits.append(code)
+            followed.set()
+
+        handle = client.runtime.run_cmd(
+            VALID_UUID,
+            "/no/such",
+            working_dir="/workspace",
+            background=True,
+            on_stderr=stderr.append,
+            on_exit=on_exit,
+        )
+        assert handle.pid is None
+        assert followed.wait(2)
+        assert exits == [127]
+        assert stderr == ["/no/such: command not found\n"]
+        waited: list[int] = []
+        again = handle.wait(on_exit=waited.append)
+        assert waited == [127]
+        assert again.exit_code == 127
+        assert again.error == "command not found"
+        assert again.stderr == "/no/such: command not found\n"
+        assert again.success is False
+        info = handle.refresh()
+        assert info.pid is None
+        assert info.command == "/no/such"
+        assert info.working_dir == "/workspace"
+        assert info.status == "exited"
+        assert info.exit_code == 127
+        killed = handle.kill("KILL")
+        assert killed.exit_code == 127
+        assert killed.status == "exited"
+        assert len(mock_api.calls) == 1
+
+    def test_stream_cmd_without_end_raises(self, client, mock_api):
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(
+                200,
+                text='data: {"type": "stdout", "data": "partial"}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        with pytest.raises(GravixLayerConnectionError, match="command stream ended"):
+            list(client.runtime.stream_cmd(VALID_UUID, "echo hi"))
+
     def test_run_cmd_streaming_error_event(self, client, mock_api):
         sse = 'data: {"type": "error", "message": "boom"}\n\n'
         mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/commands/run").mock(
@@ -879,6 +1000,11 @@ class TestSyncRuntimeExecution:
         assert short.connect == 5.0
         assert stream_timeout(120.0)["timeout"].read == 120.0
 
+    def test_zero_command_timeout_keeps_the_client_budget(self):
+        assert command_request_timeout(None) == {}
+        assert command_request_timeout(0) == {}
+        assert command_request_timeout(10)["timeout"].read == 40.0
+
     def test_wait_and_stream_use_the_keepalive_read_window(self, mock_api):
         reads: list[float] = []
 
@@ -915,6 +1041,31 @@ class TestSyncRuntimeExecution:
         handle.disconnect()
         assert first.closed and second.closed
 
+    def test_wait_closes_a_stream_opened_after_disconnect(self):
+        opened: list[object] = []
+
+        class Open:
+            def __init__(self) -> None:
+                self.closed = False
+
+            def close(self) -> None:
+                self.closed = True
+
+        class Runtimes:
+            client = type("Client", (), {"timeout": 60.0})()
+
+            def _make_agents_request(self, *_args: object, **_kwargs: object) -> Open:
+                handle.disconnect()
+                response = Open()
+                opened.append(response)
+                return response
+
+        handle = CommandHandle(Runtimes(), VALID_UUID, 5)
+        with pytest.raises(GravixLayerConnectionError, match="command stream closed"):
+            handle.wait()
+        assert opened[0].closed is True
+        assert handle._responses == set()
+
     def test_run_code(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/code/run").mock(
             return_value=httpx.Response(200, json=make_code_run_response())
@@ -932,6 +1083,28 @@ class TestSyncRuntimeExecution:
         import json
         body = json.loads(mock_api.calls[-1].request.content)
         assert body["context_id"] == "ctx-1"
+
+    def test_run_code_stream_without_end_raises(self, client, mock_api):
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/code/run").mock(
+            return_value=httpx.Response(
+                200,
+                text='data: {"type": "stdout", "text": "partial"}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        with pytest.raises(GravixLayerConnectionError, match="code stream ended"):
+            client.runtime.run_code(VALID_UUID, "print(1)", on_stdout=lambda _chunk: None)
+
+    def test_run_code_timeout_extends_the_http_budget(self, client, mock_api):
+        seen: list[float] = []
+
+        def respond(request: httpx.Request) -> httpx.Response:
+            seen.append(request.extensions["timeout"]["read"])
+            return httpx.Response(200, json=make_code_run_response())
+
+        mock_api.post(f"{SB}/{VALID_UUID}/code/run").mock(side_effect=respond)
+        client.runtime.run_code(VALID_UUID, "print(1)", timeout=120)
+        assert seen == [150.0]
 
 
 # ===================================================================
@@ -1105,6 +1278,26 @@ class TestAsyncRuntimeLifecycle:
             assert result.message == "Terminated"
 
     @pytest.mark.asyncio
+    async def test_bound_kill_does_not_drop_the_request(self, mock_api):
+        mock_api.post(f"{SB}").mock(return_value=httpx.Response(200, json=make_runtime_response()))
+        mock_api.delete(f"{SB}/{VALID_UUID}").mock(
+            return_value=httpx.Response(200, json={"message": "Terminated", "runtime_id": VALID_UUID})
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            rt = await client.runtime.create(template="base-small")
+            with pytest.raises(AsyncClientBoundError):
+                rt.kill()
+            assert rt._alive is True
+            assert not any(call.request.method == "DELETE" for call in mock_api.calls)
+            with pytest.raises(AsyncClientBoundError):
+                rt.is_alive()
+            assert rt._alive is True
+            async with rt:
+                pass
+            assert rt._alive is False
+        assert any(call.request.method == "DELETE" for call in mock_api.calls)
+
+    @pytest.mark.asyncio
     async def test_connect(self, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/connect").mock(
             return_value=httpx.Response(200, json={"status": "connected"})
@@ -1194,6 +1387,19 @@ class TestAsyncRuntimeFiles:
             assert result.success is True
 
     @pytest.mark.asyncio
+    async def test_run_code_stream_without_end_raises(self, mock_api):
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/code/run").mock(
+            return_value=httpx.Response(
+                200,
+                text='data: {"type": "stdout", "text": "partial"}\n\n',
+                headers={"content-type": "text/event-stream"},
+            )
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            with pytest.raises(GravixLayerConnectionError, match="code stream ended"):
+                await client.runtime.run_code(VALID_UUID, "print(1)", on_stdout=lambda _chunk: None)
+
+    @pytest.mark.asyncio
     async def test_run_cmd(self, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/commands/run").mock(
             return_value=httpx.Response(200, json=make_cmd_run_response())
@@ -1201,6 +1407,81 @@ class TestAsyncRuntimeFiles:
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             result = await client.runtime.run_cmd(VALID_UUID, "echo hi")
             assert result.success is True
+
+    @pytest.mark.asyncio
+    async def test_background_start_without_a_pid_is_finished(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/commands/run").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "stdout": "",
+                    "stderr": "/no/such: command not found\n",
+                    "exit_code": 127,
+                    "duration_ms": 4,
+                    "success": False,
+                    "error": "command not found",
+                },
+            )
+        )
+        stderr: list[str] = []
+        exits: list[int] = []
+
+        async def on_stderr(chunk: str) -> None:
+            stderr.append(chunk)
+
+        async def on_exit(code: int) -> None:
+            exits.append(code)
+
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            handle = await client.runtime.run_cmd(
+                VALID_UUID,
+                "/no/such",
+                working_dir="/workspace",
+                background=True,
+                on_stderr=on_stderr,
+                on_exit=on_exit,
+            )
+            assert handle.pid is None
+            for _ in range(50):
+                if exits:
+                    break
+                await asyncio.sleep(0.01)
+            assert exits == [127]
+            assert stderr == ["/no/such: command not found\n"]
+            again = await handle.wait()
+            assert again.exit_code == 127
+            assert again.error == "command not found"
+            info = await handle.refresh()
+            assert info.pid is None
+            assert info.status == "exited"
+            assert info.exit_code == 127
+            killed = await handle.kill()
+            assert killed.exit_code == 127
+        assert len(mock_api.calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_afold_keeps_the_end_error(self):
+        async def payloads():
+            yield '{"type": "stderr", "data": "denied\\n"}'
+            yield (
+                '{"type": "end", "exit_code": 126, "duration_ms": 2, '
+                '"error": "permission denied"}'
+            )
+
+        result = await afold_command_sse(payloads(), None, None, None)
+        assert result.exit_code == 126
+        assert result.error == "permission denied"
+        assert result.stderr == "denied\n"
+        assert result.duration_ms == 2
+
+        blank = fold_command_sse(
+            iter(['{"type": "end", "exit_code": 1, "error": ""}']),
+            None,
+            None,
+            None,
+        )
+        assert blank.error is None
+        assert blank.exit_code == 1
 
     @pytest.mark.asyncio
     async def test_run_cmd_optional_fields(self, mock_api):

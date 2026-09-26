@@ -596,7 +596,7 @@ class RuntimeFileResource:
                 except json.JSONDecodeError:
                     continue
                 if evt.get("type") == "error":
-                    raise RuntimeError(str(evt.get("message") or "filesystem watch failed"))
+                    raise GravixLayerError(str(evt.get("message") or "filesystem watch failed"))
                 event = WatchEvent.from_api(evt)
                 if on_event is not None:
                     on_event(event)
@@ -1080,7 +1080,7 @@ class AsyncRuntimeFileResource:
                 except json.JSONDecodeError:
                     continue
                 if evt.get("type") == "error":
-                    raise RuntimeError(str(evt.get("message") or "filesystem watch failed"))
+                    raise GravixLayerError(str(evt.get("message") or "filesystem watch failed"))
                 event = WatchEvent.from_api(evt)
                 if on_event is not None:
                     maybe = on_event(event)

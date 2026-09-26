@@ -274,8 +274,18 @@ class PtyHandle:
             self._connected.set()
             return
         with self._lock:
-            self._response = response
-            self._opened = True
+            if self._stopping:
+                self._connected.set()
+            else:
+                self._response = response
+                self._opened = True
+        if self._response is not response:
+            self._connected.set()
+            try:
+                response.close()
+            except Exception:
+                pass
+            return
         self._connected.set()
         try:
             for body in iter_sse_payloads(response.iter_lines()):
@@ -559,7 +569,17 @@ class AsyncPtyHandle:
             self._error = str(exc)
             self._connected.set()
             return
+        # Publish before the stopping check so a disconnect that landed during
+        # the open can close this response. No await sits between the two.
         self._response = response
+        if self._stopping:
+            self._response = None
+            self._connected.set()
+            try:
+                await response.aclose()
+            except Exception:
+                pass
+            return
         self._opened = True
         self._connected.set()
         try:

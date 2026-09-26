@@ -5,6 +5,31 @@ from __future__ import annotations
 import gravixlayer.telemetry as telemetry
 
 
+def test_resolve_runtime_id_reads_the_file_once(monkeypatch, tmp_path):
+    monkeypatch.delenv("GRAVIXLAYER_RUNTIME_ID", raising=False)
+    monkeypatch.delenv("GRAVIXLAYER_AGENT_ID", raising=False)
+    runtime_file = tmp_path / "runtime_id"
+    runtime_file.write_text("runtime-from-file\n")
+    opens = {"n": 0}
+    real_open = open
+
+    def tracking(file, *args, **kwargs):
+        if file == "/run/gravixlayer/runtime_id":
+            opens["n"] += 1
+            return real_open(runtime_file, *args, **kwargs)
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", tracking)
+    telemetry._RUNTIME_FILE_READ = False
+    telemetry._RUNTIME_FILE_ID = None
+    assert telemetry.resolve_runtime_id() == "runtime-from-file"
+    assert telemetry.resolve_runtime_id() == "runtime-from-file"
+    assert opens["n"] == 1
+    monkeypatch.setenv("GRAVIXLAYER_RUNTIME_ID", "runtime-from-env")
+    assert telemetry.resolve_runtime_id() == "runtime-from-env"
+    assert opens["n"] == 1
+
+
 def test_telemetry_disabled_via_flag(monkeypatch):
     monkeypatch.setenv("GRAVIXLAYER_ENABLE_TELEMETRY", "false")
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
@@ -16,7 +41,7 @@ def test_resolve_endpoint_static_default(monkeypatch):
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     # Zero config → managed platform collector default.
     assert telemetry.resolve_endpoint() == telemetry.DEFAULT_OTLP_ENDPOINT
-    assert telemetry.DEFAULT_OTLP_ENDPOINT == "http://otel.gravixlayer.ai:4318"
+    assert telemetry.DEFAULT_OTLP_ENDPOINT == "https://otel.gravixlayer.ai:4318"
 
     # Explicit arg wins over everything.
     assert telemetry.resolve_endpoint("http://x:4318") == "http://x:4318"

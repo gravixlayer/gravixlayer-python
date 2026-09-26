@@ -1,6 +1,25 @@
 # Changelog
 
 ## [Unreleased]
+## [0.1.99] - 2026-09-24
+### Changed
+- The default telemetry endpoint is `https://otel.gravixlayer.ai:4318`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to point at a different collector.
+- A command `timeout` of `0` keeps the client HTTP timeout. It is the server default, not a 30-second budget.
+
+### Added
+- `stream_cmd` yields command output as it arrives, on the sync client, the async client, and a bound runtime. The iterator stops at the `end` or `error` event.
+
+### Fixed
+- A streamed command keeps `error` from the `end` event, on `run_cmd`, `stream_cmd`, and the async client. A unary command already did.
+- A background command that exits before it has a pid returns a handle with `pid` `None`. `wait()`, `refresh()`, and `kill()` return that result and do not call the command routes. Before, the handle stored pid `0` and those calls were rejected before the exit code could be read.
+- A runtime returned by `AsyncGravixLayer` no longer treats `kill()`, `is_alive()`, or `with runtime` as success when the terminate request was never sent. Those calls raise `AsyncClientBoundError`. `async with runtime` sends the terminate request. `await client.runtime.kill(runtime_id)` is unchanged.
+- A code stream that closes before its `end` event raises `GravixLayerConnectionError` instead of returning a successful result. A code `timeout` keeps the HTTP request open for that many seconds plus 30, including a streaming run.
+- An HTTP redirect is reported as `GravixLayerError`. It was an `httpx.HTTPStatusError`.
+- `disconnect()` during `wait()` or `connect()` closes the stream that opens in that window, for commands and PTY sessions.
+- Configuring telemetry from more than one thread installs one trace provider and one log provider. Log records read `/run/gravixlayer/runtime_id` once; `GRAVIXLAYER_RUNTIME_ID` and `GRAVIXLAYER_AGENT_ID` are still read on every record.
+- An agent source archive leaves out `.env`, `.env.*`, and `.envrc`. Those files were packed into the upload. `.env` and `gravixlayer/.env.local` are still loaded into the build environment.
+- An error event from `file.watch` raises `GravixLayerError`.
+
 ## [0.1.98] - 2026-09-24
 ### Fixed
 - A streaming response with an error status is read before the SDK raises, so a 429 or 400 on a command stream is reported instead of failing inside the HTTP client.

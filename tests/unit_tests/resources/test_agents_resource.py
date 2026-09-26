@@ -125,6 +125,23 @@ class TestCreateSourceArchive:
             names = tar.getnames()
         assert any(n.endswith("main.py") for n in names)
 
+    def test_leaves_dotenv_variants_out_of_the_archive(self, tmp_path):
+        (tmp_path / "main.py").write_text("print(1)\n")
+        (tmp_path / ".env").write_text("SECRET=1\n")
+        (tmp_path / ".envrc").write_text("export SECRET=2\n")
+        (tmp_path / ".env.production").write_text("SECRET=3\n")
+        local = tmp_path / "gravixlayer"
+        local.mkdir()
+        (local / ".env.local").write_text("SECRET=4\n")
+        raw = _create_source_archive(tmp_path)
+        with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar:
+            names = tar.getnames()
+        assert "main.py" in names
+        bases = [name.replace("\\", "/").rsplit("/", 1)[-1] for name in names]
+        assert ".env" not in bases
+        assert ".envrc" not in bases
+        assert not any(name.startswith(".env.") for name in bases)
+
     def test_raises_if_not_directory(self, tmp_path):
         f = tmp_path / "file.txt"
         f.write_text("x")

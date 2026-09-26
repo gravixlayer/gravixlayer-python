@@ -294,6 +294,14 @@ class AgentBuildTimeoutError(AgentBuildError):
         )
 
 
+def _excluded_archive_name(name: str) -> bool:
+    """Secret env files stay out of the archive.
+
+    ``.env`` and ``gravixlayer/.env.local`` are still loaded into the build environment.
+    """
+    return name == ".env" or name.startswith(".env.") or name == ".envrc"
+
+
 def _create_source_archive(source: Union[str, Path]) -> bytes:
     """Create a tar.gz archive from a local directory.
 
@@ -318,7 +326,9 @@ def _create_source_archive(source: Union[str, Path]) -> bytes:
         for entry in sorted(source_path.rglob("*")):
             rel = entry.relative_to(source_path)
             # Skip excluded patterns
-            if any(part in _ARCHIVE_EXCLUDE_PATTERNS for part in rel.parts):
+            if any(
+                part in _ARCHIVE_EXCLUDE_PATTERNS or _excluded_archive_name(part) for part in rel.parts
+            ):
                 continue
             if any(entry.name.endswith(p.lstrip("*")) for p in _ARCHIVE_EXCLUDE_PATTERNS if p.startswith("*")):
                 continue

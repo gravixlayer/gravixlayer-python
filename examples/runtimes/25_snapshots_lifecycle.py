@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 """Named snapshots: cold and hot capture, restore, deactivate, activate, delete.
 
-A named snapshot is a project-scoped checkpoint of a runtime. Cold snapshots
-persist disk and restore with a fresh boot. Hot snapshots also persist guest
-memory so the new runtime resumes mid-process. Restore creates a **new**
-runtime — mutually exclusive with ``template``. Kind is chosen at capture,
-not restore.
-
-Create-from-snapshot runs on the host that holds the snapshot files. If that
-host has no cache the API returns 503 ``capacity_exhausted``.
+A named snapshot is a checkpoint of a runtime. Cold snapshots keep the
+filesystem and the new runtime boots fresh. Hot snapshots also keep memory,
+so the new runtime resumes mid-process. Restore creates a new runtime.
+The kind is chosen at capture, not restore.
 
     create → write disk → capture → list/get → restore → verify
     → deactivate (blocks new creates) → activate → delete
@@ -68,10 +64,12 @@ def run_kind(kind: str) -> None:
     print(f"--- {kind} ---")
     print(f"Snapshot   : {snap_name}  kind={kind}")
 
+    # 1. Put the sandbox into the state worth keeping.
     t0 = perf_counter()
     sandbox.file.write(MARKER, captured)
     print(f"Wrote      : {MARKER!r} → {captured.strip()!r}  {ms(t0)}")
 
+    # 2. Capture it. The kind is chosen here, not when you restore.
     t0 = perf_counter()
     snap = client.snapshots.create(
         runtime_id=sandbox.runtime_id,
@@ -82,11 +80,13 @@ def run_kind(kind: str) -> None:
     snaps.append(snap)
     show("Captured", snap, t0)
 
+    # 3. Change the source so the restore is not a copy of the live sandbox.
     t0 = perf_counter()
     sandbox.file.write(MARKER, f"mutated after {kind} capture\n")
     live = sandbox.file.read(MARKER).content
     print(f"Source now : {MARKER!r} → {live.strip()!r}  {ms(t0)}")
 
+    # 4. List and fetch the snapshot.
     t0 = perf_counter()
     listed = client.snapshots.list(kind=kind, runtime_id=sandbox.runtime_id)
     names = [s.name for s in listed.snapshots]
@@ -96,6 +96,7 @@ def run_kind(kind: str) -> None:
     by_name = client.snapshots.get(snap_name)
     show("Get(name)", by_name, t0)
 
+    # 5. Restore into a new sandbox and read the file back.
     t0 = perf_counter()
     child = client.runtime.create(snapshot=snap_name)
     restored.append(child)
@@ -112,6 +113,7 @@ def run_kind(kind: str) -> None:
     after = client.snapshots.get(snap_name)
     print(f"Last used  : {after.last_used_at}  {ms(t0)}")
 
+    # 6. Deactivate. New sandboxes are refused. Then turn it back on.
     print()
     t0 = perf_counter()
     snap = client.snapshots.deactivate(snap_name)
@@ -131,6 +133,7 @@ def run_kind(kind: str) -> None:
     show("Active", snap, t0)
     print(f"Re-enabled : state={snap.state} active={snap.is_active}")
 
+    # 7. Delete the snapshot and stop the restored sandbox.
     t0 = perf_counter()
     deleted = client.snapshots.delete(snap_name)
     print(f"\nDeleted    : {deleted.snapshot_id}  deleted={deleted.deleted}  {ms(t0)}")

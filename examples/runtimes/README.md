@@ -1,13 +1,8 @@
 # Runtime examples
 
-Set `GRAVIXLAYER_API_KEY`. Optional: `GRAVIXLAYER_TEMPLATE` (defaults to `base-small`; also `base-medium` / `base-large`).
+Set `GRAVIXLAYER_API_KEY`. Optional: `GRAVIXLAYER_TEMPLATE` (defaults to `base-small`).
 
-Guest egress is deny-by-default. Examples that need PyPI/GitHub attach a temporary
-`allow_all` network policy (`06`, `17`, `22`, `23`).
-
-On current base templates, `python`, `pip`, `node`, and `npm` are on `PATH`
-(workspace venv first). Rebuild `base-small|medium|large` after the platform
-PATH change to pick this up.
+Some examples install a package or clone a repository. Those attach a network policy that allows outbound traffic and remove it when they finish.
 
 ## Running commands
 
@@ -42,7 +37,7 @@ sandbox.run_cmd(command="ls", args=["-la", "/workspace"])
 | 15 | [15_revoke_and_reenable_ssh.py](15_revoke_and_reenable_ssh.py) | Revoke and re-enable SSH |
 | 16 | [16_connect_existing_runtime.py](16_connect_existing_runtime.py) | Reconnect to an existing sandbox via `Runtime.connect(runtime_id)` |
 | 17 | [17_runtime_git_operations.py](17_runtime_git_operations.py) | `sandbox.git` |
-| 18 | [18_stream_command_output.py](18_stream_command_output.py) | Stream `run_cmd` output via `on_stdout` / `on_stderr` / `on_exit` |
+| 18 | [18_stream_command_output.py](18_stream_command_output.py) | Stream command output with callbacks or `stream_cmd` |
 | 19 | [19_runtime_lifecycle.py](19_runtime_lifecycle.py) | Full lifecycle: create → pause → resume → kill |
 | 20 | [20_observability_verify.py](20_observability_verify.py) | Enable tracing for sandbox operations |
 | 21 | [21_observability_logging.py](21_observability_logging.py) | Emit agent + sandbox logs and verify in Logs |
@@ -50,8 +45,7 @@ sandbox.run_cmd(command="ls", args=["-la", "/workspace"])
 | 23 | [23_runtime_git_sdk_and_cli.py](23_runtime_git_sdk_and_cli.py) | Git via SDK (`sandbox.git`) and CLI (`gravixlayer runtime git`) |
 | 24 | [24_pty_sessions.py](24_pty_sessions.py) | Interactive PTY: attach, type, resize, signal, detach and re-attach |
 | 25 | [25_snapshots_lifecycle.py](25_snapshots_lifecycle.py) | Named snapshots: cold + hot capture, restore, deactivate, activate, delete |
-| 26 | [26_sandbox_tti_benchmark.py](26_sandbox_tti_benchmark.py) | ComputeSDK-style TTI: create + `node -v`, burst/stagger, composite score |
-| 27 | [27_sandbox_runcode_tti_benchmark.py](27_sandbox_runcode_tti_benchmark.py) | TTI via `runCode` (`print("Hello")`): worker pool + first-exec path |
+| 26 | [26_background_commands.py](26_background_commands.py) | Start a command, wait, reattach by pid, and stop it |
 
 ```bash
 python examples/runtimes/01_create_python_runtime.py

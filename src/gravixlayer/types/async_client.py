@@ -132,9 +132,8 @@ class AsyncGravixLayer:
         resp = await self._http_client.get(url)
         if resp.status_code in SUCCESS_STATUS:
             return
-        if resp.status_code >= 400:
+        if not resp.is_success:
             raise error_from_response(resp.status_code, resp.text, resp.headers)
-        resp.raise_for_status()
 
     async def aclose(self) -> None:
         """Close the underlying HTTP client and release connections."""
@@ -204,10 +203,8 @@ class AsyncGravixLayer:
                     await sleep(next_retry_delay_local(attempt, rand))
                     continue
 
-                if status >= 400:
+                if status >= 400 or not resp.is_success:
                     raise error_from_response(status, body, resp.headers)
-
-                resp.raise_for_status()
 
             except httpx.RequestError as exc:
                 last_exc = exc

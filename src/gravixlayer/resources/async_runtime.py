@@ -5,7 +5,7 @@ Runtime API resource for asynchronous client.
 import asyncio
 import inspect
 import json
-from typing import Any, Dict, List, Literal, Optional, Union, overload
+from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Union, overload
 
 import httpx
 
@@ -17,6 +17,7 @@ from .._resource_utils import (
     parse_paginated_items,
     parse_total_items,
 )
+from ..types.exceptions import GravixLayerConnectionError
 from ..types.runtime import (
     Runtime,
     RuntimeList,
@@ -24,7 +25,6 @@ from ..types.runtime import (
     RuntimeTimeoutResponse,
     SSHInfo,
     SSHStatus,
-    CommandInfo,
     CommandRunResponse,
     CodeRunResponse,
     CodeContext,
@@ -39,6 +39,7 @@ from ..types.runtime import (
     _validate_path,
     _METRICS_FIELDS,
     _RUNTIME_DEFAULTS,
+    bind_async_client,
 )
 
 from .runtime_command import (
@@ -46,7 +47,9 @@ from .runtime_command import (
     AsyncRuntimeCommandResource,
     _STREAM_HEADERS,
     afold_command_sse,
+    aiter_command_events,
     command_request_timeout,
+    open_background_handle,
     stream_timeout,
 )
 from .runtime_git import AsyncRuntimeGitResource
@@ -214,7 +217,7 @@ class AsyncRuntimes:
                 response = await self._make_agents_request("POST", "runtime", data)
             result = self._apply_defaults(response.json(), template=template)
             rt = Runtime.from_api(result)
-            rt._client = self.client
+            rt._client = bind_async_client(self.client)
             if span is not None:
                 rid = getattr(rt, "runtime_id", None) or ""
                 if rid:
@@ -241,7 +244,7 @@ class AsyncRuntimes:
             lambda s: Runtime.from_api(self._apply_defaults(s)),
         )
         for runtime_obj in runtimes_list:
-            runtime_obj._client = self.client
+            runtime_obj._client = bind_async_client(self.client)
         return RuntimeList(runtimes=runtimes_list, total=total)
 
     async def get(self, runtime_id: str) -> Runtime:
@@ -250,7 +253,7 @@ class AsyncRuntimes:
         response = await self._make_agents_request("GET", f"runtime/{runtime_id}")
         result = self._apply_defaults(response.json())
         rt = Runtime.from_api(result)
-        rt._client = self.client
+        rt._client = bind_async_client(self.client)
         return rt
 
     async def kill(self, runtime_id: str) -> RuntimeKillResponse:
@@ -394,8 +397,15 @@ class AsyncRuntimes:
                 response = await self._make_agents_request(
                     "POST", f"runtime/{runtime_id}/commands/run", data, **request_timeout
                 )
-                started = CommandInfo.from_api(response.json())
-                handle = AsyncCommandHandle(self, runtime_id, started.pid)
+                handle = open_background_handle(
+                    self,
+                    runtime_id,
+                    response.json(),
+                    command=command,
+                    args=args,
+                    working_dir=working_dir,
+                    asynchronous=True,
+                )
                 if on_stdout is not None or on_stderr is not None or on_exit is not None:
                     task = asyncio.create_task(
                         handle._follow(on_stdout, on_stderr, on_exit, on_error)
@@ -445,6 +455,37 @@ class AsyncRuntimes:
             return await afold_command_sse(
                 aiter_sse_payloads(response.aiter_lines()), on_stdout, on_stderr, on_exit
             )
+        finally:
+            await response.aclose()
+
+    async def stream_cmd(
+        self,
+        runtime_id: str,
+        command: str,
+        args: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Run a command and yield each output event as it arrives."""
+        _validate_runtime_id(runtime_id)
+        data: Dict[str, Any] = {"command": command}
+        if args is not None:
+            data["args"] = args
+        if working_dir is not None:
+            data["working_dir"] = working_dir
+        if environment is not None:
+            data["environment"] = environment
+        if timeout is not None:
+            data["timeout"] = timeout * 1000
+        endpoint = f"runtime/{runtime_id}/commands/run?stream=true"
+        budget = command_request_timeout(timeout) or stream_timeout(self.client.timeout)
+        response = await self._make_agents_request(
+            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **budget
+        )
+        try:
+            async for event in aiter_command_events(aiter_sse_payloads(response.aiter_lines())):
+                yield event
         finally:
             await response.aclose()
 
@@ -500,12 +541,15 @@ class AsyncRuntimes:
             or on_error is not None
         )
         with telemetry.runtime_span("code.run", runtime_id) as span:
+            budget = command_request_timeout(timeout)
             if streaming:
                 result = await self._run_code_streaming(
-                    runtime_id, data, on_stdout, on_stderr, on_result, on_error,
+                    runtime_id, data, budget, on_stdout, on_stderr, on_result, on_error,
                 )
             else:
-                response = await self._make_agents_request("POST", f"runtime/{runtime_id}/code/run", data)
+                response = await self._make_agents_request(
+                    "POST", f"runtime/{runtime_id}/code/run", data, **budget
+                )
                 result = CodeRunResponse.from_api(response.json())
             if span is not None:
                 text = getattr(result, "text", None) or getattr(result, "stdout", "") or ""
@@ -524,6 +568,7 @@ class AsyncRuntimes:
         self,
         runtime_id: str,
         data: Dict[str, Any],
+        request_timeout: Dict[str, Any],
         on_stdout: Optional[Any],
         on_stderr: Optional[Any],
         on_result: Optional[Any],
@@ -542,11 +587,15 @@ class AsyncRuntimes:
                 await maybe
 
         endpoint = f"runtime/{runtime_id}/code/run?stream=true"
-        response = await self._make_agents_request("POST", endpoint, data, stream=True)
+        budget = request_timeout or stream_timeout(self.client.timeout)
+        response = await self._make_agents_request(
+            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **budget
+        )
 
         logs = ExecutionLogs()
         results: List[ExecutionResult] = []
         error: Optional[ExecutionError] = None
+        finished = False
 
         try:
             async for payload in aiter_sse_payloads(response.aiter_lines()):
@@ -590,10 +639,13 @@ class AsyncRuntimes:
                         error = ExecutionError(value=str(evt.get("message") or raw))
                     await dispatch(on_error, error)
                 elif evt_type == "end":
+                    finished = True
                     break
         finally:
             await response.aclose()
 
+        if not finished:
+            raise GravixLayerConnectionError("code stream ended before the run finished")
         return CodeRunResponse(results=results, logs=logs, error=error)
 
     async def create_context(

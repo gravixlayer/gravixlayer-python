@@ -4,7 +4,7 @@ Runtime API resource for synchronous client
 
 import json
 import threading
-from typing import Any, Dict, List, Literal, Optional, Union, overload
+from typing import Any, Dict, Iterator, List, Literal, Optional, Union, overload
 
 import httpx
 
@@ -16,6 +16,7 @@ from .._resource_utils import (
     parse_paginated_items,
     parse_total_items,
 )
+from ..types.exceptions import GravixLayerConnectionError
 from ..types.runtime import (
     Runtime,
     RuntimeList,
@@ -23,7 +24,6 @@ from ..types.runtime import (
     RuntimeTimeoutResponse,
     SSHInfo,
     SSHStatus,
-    CommandInfo,
     CommandRunResponse,
     CodeRunResponse,
     CodeContext,
@@ -45,6 +45,8 @@ from .runtime_command import (
     _STREAM_HEADERS,
     command_request_timeout,
     fold_command_sse,
+    iter_command_events,
+    open_background_handle,
     stream_timeout,
 )
 from .runtime_git import RuntimeGitResource
@@ -389,8 +391,15 @@ class Runtimes:
                 response = self._make_agents_request(
                     "POST", f"runtime/{runtime_id}/commands/run", data, **request_timeout
                 )
-                started = CommandInfo.from_api(response.json())
-                handle = CommandHandle(self, runtime_id, started.pid)
+                handle = open_background_handle(
+                    self,
+                    runtime_id,
+                    response.json(),
+                    command=command,
+                    args=args,
+                    working_dir=working_dir,
+                    asynchronous=False,
+                )
                 if on_stdout is not None or on_stderr is not None or on_exit is not None:
                     threading.Thread(
                         target=handle._follow,
@@ -447,6 +456,40 @@ class Runtimes:
             return fold_command_sse(
                 iter_sse_payloads(response.iter_lines()), on_stdout, on_stderr, on_exit
             )
+        finally:
+            response.close()
+
+    def stream_cmd(
+        self,
+        runtime_id: str,
+        command: str,
+        args: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
+    ) -> Iterator[Dict[str, Any]]:
+        """Run a command and yield each output event as it arrives.
+
+        The iterator ends after the ``end`` or ``error`` event. A stream that
+        closes before either raises :class:`~gravixlayer.types.exceptions.GravixLayerConnectionError`.
+        """
+        _validate_runtime_id(runtime_id)
+        data: Dict[str, Any] = {"command": command}
+        if args is not None:
+            data["args"] = args
+        if working_dir is not None:
+            data["working_dir"] = working_dir
+        if environment is not None:
+            data["environment"] = environment
+        if timeout is not None:
+            data["timeout"] = timeout * 1000
+        endpoint = f"runtime/{runtime_id}/commands/run?stream=true"
+        budget = command_request_timeout(timeout) or stream_timeout(self.client.timeout)
+        response = self._make_agents_request(
+            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **budget
+        )
+        try:
+            yield from iter_command_events(iter_sse_payloads(response.iter_lines()))
         finally:
             response.close()
 
@@ -508,12 +551,15 @@ class Runtimes:
             or on_error is not None
         )
         with telemetry.runtime_span("code.run", runtime_id) as span:
+            budget = command_request_timeout(timeout)
             if streaming:
                 result = self._run_code_streaming(
-                    runtime_id, data, on_stdout, on_stderr, on_result, on_error,
+                    runtime_id, data, budget, on_stdout, on_stderr, on_result, on_error,
                 )
             else:
-                response = self._make_agents_request("POST", f"runtime/{runtime_id}/code/run", data)
+                response = self._make_agents_request(
+                    "POST", f"runtime/{runtime_id}/code/run", data, **budget
+                )
                 result = CodeRunResponse.from_api(response.json())
             if span is not None:
                 text = getattr(result, "text", None) or getattr(result, "stdout", "") or ""
@@ -532,6 +578,7 @@ class Runtimes:
         self,
         runtime_id: str,
         data: Dict[str, Any],
+        request_timeout: Dict[str, Any],
         on_stdout: Optional[Any],
         on_stderr: Optional[Any],
         on_result: Optional[Any],
@@ -544,11 +591,15 @@ class Runtimes:
         streaming and buffered modes without changing downstream code.
         """
         endpoint = f"runtime/{runtime_id}/code/run?stream=true"
-        response = self._make_agents_request("POST", endpoint, data, stream=True)
+        budget = request_timeout or stream_timeout(self.client.timeout)
+        response = self._make_agents_request(
+            "POST", endpoint, data, stream=True, headers=_STREAM_HEADERS, **budget
+        )
 
         logs = ExecutionLogs()
         results: List[ExecutionResult] = []
         error: Optional[ExecutionError] = None
+        finished = False
 
         try:
             for payload in iter_sse_payloads(response.iter_lines()):
@@ -596,10 +647,13 @@ class Runtimes:
                     if on_error is not None:
                         on_error(error)
                 elif evt_type == "end":
+                    finished = True
                     break
         finally:
             response.close()
 
+        if not finished:
+            raise GravixLayerConnectionError("code stream ended before the run finished")
         return CodeRunResponse(results=results, logs=logs, error=error)
 
     def create_context(

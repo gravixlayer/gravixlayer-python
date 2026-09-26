@@ -15,7 +15,7 @@ After the script finishes, open the Telemetry UI and filter by the printed
 
 Usage::
 
-    export GRAVIXLAYER_API_KEY="gl_..."
+    export GRAVIXLAYER_API_KEY="your-api-key"
 
     # One-shot enable (either is enough):
     #   export GRAVIXLAYER_ENABLE_TELEMETRY=true

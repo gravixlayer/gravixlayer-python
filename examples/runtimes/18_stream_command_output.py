@@ -24,7 +24,7 @@ sandbox = client.runtime.create(template=TEMPLATE)
 print(f"Runtime    : {sandbox.runtime_id}")
 
 # ---------------------------------------------------------------------------
-# Stream a slow command and print each chunk as it arrives.
+# 1. Callbacks. The call still returns the full result.
 # ---------------------------------------------------------------------------
 print("\n--- streaming output ---")
 
@@ -39,6 +39,16 @@ print("\n--- aggregated result ---")
 print(f"exit_code : {result.exit_code}")
 print(f"duration  : {result.duration_ms} ms")
 print(f"stdout len: {len(result.stdout)} bytes")
+
+# ---------------------------------------------------------------------------
+# 2. Or iterate the events yourself. The loop ends on the final event.
+# ---------------------------------------------------------------------------
+print("\n--- event iterator ---")
+for event in sandbox.stream_cmd(command="sh -lc 'echo one; echo two'"):
+    if event["type"] == "stdout":
+        print(event["data"], end="", flush=True)
+    elif event["type"] == "end":
+        print(f"\n[exit {event['exit_code']}]")
 
 sandbox.kill()
 print("\nRuntime terminated.")

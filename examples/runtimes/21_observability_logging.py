@@ -13,7 +13,7 @@ After the script finishes, open **Logs** in the dashboard, filter by the printed
 
 Usage::
 
-    export GRAVIXLAYER_API_KEY="gl_..."
+    export GRAVIXLAYER_API_KEY="your-api-key"
 
     # Optional:
     #   GRAVIXLAYER_TEMPLATE=base-small

@@ -76,7 +76,7 @@ _SENSITIVE_KEYS = frozenset(
 # Platform-wide default OTLP/HTTP collector endpoint. Points at the managed GravixLayer
 # OTel Collector so an agent/runtime needs zero configuration. Override per-process with
 # OTEL_EXPORTER_OTLP_ENDPOINT when the collector lives elsewhere.
-DEFAULT_OTLP_ENDPOINT = "http://otel.gravixlayer.ai:4318"
+DEFAULT_OTLP_ENDPOINT = "https://otel.gravixlayer.ai:4318"
 # Default service.name for application/client processes.
 # Override with GRAVIXLAYER_SERVICE_NAME or enable_telemetry(service_name=...).
 DEFAULT_APP_SERVICE_NAME = "my-app"
@@ -114,6 +114,11 @@ _SPANS_RESOLVED = False
 # Serializes the off-path check with ``enable_telemetry`` so a request cannot
 # miss an in-flight activate after client construction.
 _SPANS_LOCK = threading.Lock()
+# One provider install. Concurrent configure_otel calls would each start a
+# BatchSpanProcessor thread and leave the loser running.
+_OTEL_LOCK = threading.Lock()
+_RUNTIME_FILE_ID: Optional[str] = None
+_RUNTIME_FILE_READ = False
 
 
 def _activate_spans() -> None:
@@ -456,6 +461,7 @@ def _ensure_log_pipeline(
     Exports OpenTelemetry logs to the GravixLayer collector endpoint.
     """
     global _LOGS_CONFIGURED, _LOGGING_HANDLER
+    # Caller holds ``_OTEL_LOCK`` (``configure_otel``).
     if _LOGS_CONFIGURED:
         return True
     if not _ENABLED:
@@ -779,7 +785,7 @@ def configure_otel(
     """Configure global OTLP/HTTP exporters for traces **and** logs.
 
     Endpoint resolution uses the static default (:data:`DEFAULT_OTLP_ENDPOINT`,
-    ``http://otel.gravixlayer.ai:4318``) unless overridden via arg or
+    ``https://otel.gravixlayer.ai:4318``) unless overridden via arg or
     ``OTEL_EXPORTER_OTLP_ENDPOINT``.
     Idempotent and best-effort: returns ``False`` only when OpenTelemetry cannot
     be imported. Export failures are swallowed by the exporter and never block
@@ -815,21 +821,22 @@ def configure_otel(
     if silent:
         _quiet_exporter_logs()
 
-    traces_configured = False
-    current = otel_trace.get_tracer_provider()
-    if not isinstance(current, TracerProvider):
-        traces_url = _normalize_otlp_signal_url(resolved_endpoint, "traces")
-        provider = TracerProvider(resource=Resource.create(attributes))
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=traces_url)))
-        otel_trace.set_tracer_provider(provider)
-        traces_configured = True
-        _logger.debug(
-            "OTel tracing configured: endpoint=%s service=%s",
-            traces_url,
-            attributes["service.name"],
-        )
+    with _OTEL_LOCK:
+        traces_configured = False
+        current = otel_trace.get_tracer_provider()
+        if not isinstance(current, TracerProvider):
+            traces_url = _normalize_otlp_signal_url(resolved_endpoint, "traces")
+            provider = TracerProvider(resource=Resource.create(attributes))
+            provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=traces_url)))
+            otel_trace.set_tracer_provider(provider)
+            traces_configured = True
+            _logger.debug(
+                "OTel tracing configured: endpoint=%s service=%s",
+                traces_url,
+                attributes["service.name"],
+            )
 
-    logs_configured = _ensure_log_pipeline(attributes, resolved_endpoint, silent=silent)
+        logs_configured = _ensure_log_pipeline(attributes, resolved_endpoint, silent=silent)
     return traces_configured or logs_configured
 
 
@@ -1224,7 +1231,15 @@ def _install_auto_instrumentation() -> None:
     global _AUTO_INSTRUMENTED
     if _AUTO_INSTRUMENTED or not _ENABLED:
         return
+    with _OTEL_LOCK:
+        if _AUTO_INSTRUMENTED or not _ENABLED:
+            return
+        _install_auto_instrumentation_locked()
 
+
+def _install_auto_instrumentation_locked() -> None:
+    """Caller holds ``_OTEL_LOCK``."""
+    global _AUTO_INSTRUMENTED
     httpx_ok = False
     requests_ok = False
 
@@ -1258,19 +1273,28 @@ def resolve_runtime_id() -> Optional[str]:
 
     Order: ``GRAVIXLAYER_RUNTIME_ID`` → ``GRAVIXLAYER_AGENT_ID`` →
     ``/run/gravixlayer/runtime_id`` (present inside managed runtimes).
+
+    The environment is read on every call so a later ``runtime.create`` updates
+    log attributes. The file is read once.
     """
     for key in ("GRAVIXLAYER_RUNTIME_ID", "GRAVIXLAYER_AGENT_ID"):
         value = os.environ.get(key)
         if value and value.strip():
             return value.strip()
+    global _RUNTIME_FILE_ID, _RUNTIME_FILE_READ
+    if _RUNTIME_FILE_READ:
+        return _RUNTIME_FILE_ID
+    found: Optional[str] = None
     try:
         with open("/run/gravixlayer/runtime_id", encoding="utf-8") as fh:
-            value = fh.read().strip()
-            if value:
-                return value
+            raw = fh.read().strip()
+            if raw:
+                found = raw
     except OSError:
         pass
-    return None
+    _RUNTIME_FILE_ID = found
+    _RUNTIME_FILE_READ = True
+    return found
 
 
 def _load_run_otel_env() -> None:

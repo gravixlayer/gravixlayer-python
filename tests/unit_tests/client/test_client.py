@@ -182,6 +182,16 @@ class TestSyncWarmup:
             c.warmup()
         c.close()
 
+    def test_warmup_redirect_raises_sdk_error(self, mock_api):
+        mock_api.get(f"{AGENTS_BASE}/runtime").mock(
+            return_value=httpx.Response(302, headers={"location": "https://example.com/elsewhere"})
+        )
+        c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+        with pytest.raises(GravixLayerError) as raised:
+            c.warmup()
+        assert raised.value.status == 302
+        c.close()
+
     def test_warmup_on_init_calls_list_endpoint(self, mock_api):
         route = mock_api.get(f"{AGENTS_BASE}/runtime").mock(
             return_value=httpx.Response(200, json={"runtimes": [], "total": 0})
@@ -219,6 +229,15 @@ class TestSyncClientRequest:
         )
         with pytest.raises(GravixLayerAuthenticationError):
             client.runtime.get(VALID_UUID)
+
+    def test_redirect_raises_sdk_error(self, client, mock_api):
+        mock_api.get(f"{AGENTS_BASE}/runtime/{VALID_UUID}").mock(
+            return_value=httpx.Response(302, headers={"location": "https://example.com/elsewhere"})
+        )
+        with pytest.raises(GravixLayerError) as raised:
+            client.runtime.get(VALID_UUID)
+        assert raised.value.status == 302
+        assert not isinstance(raised.value, httpx.HTTPStatusError)
 
     def test_429_raises_rate_limit_after_retries(self, mock_api):
         c = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, max_retries=0)

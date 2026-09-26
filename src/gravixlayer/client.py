@@ -157,9 +157,8 @@ class GravixLayer:
         resp = self._http_client.get(url)
         if resp.status_code in SUCCESS_STATUS:
             return
-        if resp.status_code >= 400:
+        if not resp.is_success:
             raise error_from_response(resp.status_code, resp.text, resp.headers)
-        resp.raise_for_status()
 
     def close(self) -> None:
         """Close the underlying HTTP session and release connections."""
@@ -237,10 +236,8 @@ class GravixLayer:
                     sleep(delay)
                     continue
 
-                if status >= 400:
+                if status >= 400 or not resp.is_success:
                     raise error_from_response(status, body, resp.headers)
-
-                resp.raise_for_status()
 
             except httpx.RequestError as exc:
                 last_exc = exc
