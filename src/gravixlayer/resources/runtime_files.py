@@ -64,6 +64,7 @@ def _file_read_response(result: Dict[str, Any], path: str) -> FileReadResponse:
         content=content,
         path=path if body_path is None else body_path,
         size=size,
+        content_base64=result.get("content_base64"),
     )
 
 

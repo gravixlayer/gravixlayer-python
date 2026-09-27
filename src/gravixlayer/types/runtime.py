@@ -1017,6 +1017,14 @@ class FileReadResponse:
     content: str
     path: Optional[str] = None
     size: Optional[int] = None
+    content_base64: Optional[str] = None
+
+    def bytes(self) -> bytes:
+        """Exact file bytes: decode ``content_base64`` when present, else UTF-8."""
+        if self.content_base64 is not None:
+            import base64
+            return base64.b64decode(self.content_base64)
+        return self.content.encode("utf-8")
 
 
 @dataclass

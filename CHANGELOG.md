@@ -1,6 +1,17 @@
 # Changelog
 
 ## [Unreleased]
+## [0.1.200] - 2026-09-29
+### Added
+- `FileReadResponse.content_base64` — the exact file bytes for binary reads.
+  `FileReadResponse.bytes()` decodes it when present and falls back to the
+  UTF-8 text for text files.
+
+### Fixed
+- The internal benchmark examples keep the client's credential when they
+  resize the HTTP connection pool. The rebuilt client used to drop the
+  request-level auth, so every benchmark request failed authentication.
+
 ## [0.1.99] - 2026-09-24
 ### Changed
 - The default telemetry endpoint is `https://otel.gravixlayer.ai:4318`. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to point at a different collector.
