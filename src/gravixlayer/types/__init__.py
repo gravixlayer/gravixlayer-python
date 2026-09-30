@@ -23,6 +23,8 @@ from .snapshots import (
     Snapshot,
     SnapshotListResponse,
     SnapshotDeleteResponse,
+    ForkResponse,
+    ForkError,
 )
 from .agents import (
     AgentBuildStatus,
@@ -66,6 +68,8 @@ __all__ = [
     "Snapshot",
     "SnapshotListResponse",
     "SnapshotDeleteResponse",
+    "ForkResponse",
+    "ForkError",
     # Agent types
     "AgentBuildStatus",
     "AgentBuildPhase",

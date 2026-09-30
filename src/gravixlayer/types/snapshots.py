@@ -48,6 +48,74 @@ class SnapshotDeleteResponse:
     deleted: bool = True
 
 
+@dataclass
+class ForkError:
+    """One child entry that failed inside a fork batch.
+
+    Fork is per-child: every position succeeds or fails independently and the
+    request itself does not fail over a single child.
+    """
+
+    error: str
+    code: str
+
+
+@dataclass
+class ForkResponse:
+    """Result of ``runtime.fork`` / ``snapshots.fork``.
+
+    ``children`` preserves request order; each item is a ``Runtime`` on
+    success or a :class:`ForkError` on failure.
+    """
+
+    children: List[Any]  # List[Union[Runtime, ForkError]]
+    snapshot_id: str
+    snapshot_persisted: bool
+    parent_runtime_id: Optional[str] = None
+
+    @property
+    def succeeded(self) -> int:
+        """Number of children that started successfully."""
+        return sum(1 for c in self.children if not isinstance(c, ForkError))
+
+    @property
+    def failed(self) -> int:
+        """Number of children that failed to start."""
+        return sum(1 for c in self.children if isinstance(c, ForkError))
+
+    @property
+    def runtimes(self) -> List[Any]:
+        """The children that started — ``List[Runtime]``, order-preserved."""
+        return [c for c in self.children if not isinstance(c, ForkError)]
+
+    @property
+    def errors(self) -> List[ForkError]:
+        """The children that failed, in request order."""
+        return [c for c in self.children if isinstance(c, ForkError)]
+
+
+def _parse_fork_response(data: Dict[str, Any]) -> ForkResponse:
+    from .runtime import Runtime
+
+    children: List[Any] = []
+    for item in data.get("children") or []:
+        if isinstance(item, dict) and "runtime" in item:
+            rt = Runtime.from_api(item["runtime"])
+            children.append(rt)
+        elif isinstance(item, dict) and "error" in item:
+            children.append(
+                ForkError(error=str(item.get("error", "")), code=str(item.get("code", "")))
+            )
+        else:
+            children.append(ForkError(error=str(item), code="unknown"))
+    return ForkResponse(
+        children=children,
+        snapshot_id=data.get("snapshot_id", ""),
+        snapshot_persisted=bool(data.get("snapshot_persisted", False)),
+        parent_runtime_id=data.get("parent_runtime_id") or None,
+    )
+
+
 def _parse_snapshot(data: Dict[str, Any]) -> Snapshot:
     return Snapshot(
         id=data["id"],

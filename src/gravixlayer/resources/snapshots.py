@@ -7,14 +7,19 @@ import httpx
 
 from .._resource_utils import build_list_endpoint, parse_paginated_items
 from ..types.snapshots import (
+    ForkResponse,
     Snapshot,
     SnapshotDeleteResponse,
     SnapshotListResponse,
+    _parse_fork_response,
     _parse_snapshot,
 )
 
 # Capture writes disk (and memory for hot). The API allows up to 10 minutes.
 _SNAPSHOT_CREATE_TIMEOUT = httpx.Timeout(600.0)
+# A fork captures the parent once, then starts every child. Bounded by the
+# same ceiling as capture plus child creates.
+_FORK_TIMEOUT = httpx.Timeout(600.0)
 
 
 def _snapshot_path(ref: str) -> str:
@@ -146,3 +151,39 @@ class Snapshots:
         """Delete a private snapshot. Running children keep already-opened files."""
         self._make_agents_request("DELETE", _snapshot_path(snapshot))
         return SnapshotDeleteResponse(snapshot_id=snapshot, deleted=True)
+
+    def fork(
+        self,
+        snapshot: str,
+        count: int = 1,
+        timeout_seconds: Optional[int] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> ForkResponse:
+        """Start ``count`` independent runtimes from a saved snapshot.
+
+        No capture runs and the source runtime does not need to be alive.
+        Each child is an ordinary runtime; results are per-child — inspect
+        ``ForkResponse.children`` (``Runtime`` or ``ForkError`` per position).
+
+        Args:
+            snapshot: Snapshot UUID or project-unique name.
+            count: Number of children (1–100).
+            timeout_seconds: Optional timeout applied to each child.
+            env_vars: Environment variables applied to every child.
+            metadata: Metadata merged onto every child.
+        """
+        payload: Dict[str, Any] = {"count": count}
+        if timeout_seconds is not None:
+            payload["timeout_seconds"] = timeout_seconds
+        if env_vars is not None:
+            payload["env_vars"] = env_vars
+        if metadata is not None:
+            payload["metadata"] = metadata
+        response = self._make_agents_request(
+            "POST",
+            f"{_snapshot_path(snapshot)}/fork",
+            payload,
+            timeout=_FORK_TIMEOUT,
+        )
+        return _parse_fork_response(response.json())

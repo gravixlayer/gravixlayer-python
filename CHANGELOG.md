@@ -1,6 +1,26 @@
 # Changelog
 
 ## [Unreleased]
+## [0.1.201] - 2026-09-30
+### Added
+- `runtime.fork` / `async_runtime.fork` — fork a running runtime into
+  `count` (1–100) independent children from one capture, with per-child
+  results (`ForkResponse.runtimes` / `.errors`), child-only `timeout_seconds`,
+  `persist_snapshot`+`name` to keep the capture, and `env_vars`/`metadata`
+  overrides merged over the parent's.
+- `snapshots.fork` / `async_snapshots.fork` — start `count` runtimes from an
+  already-saved snapshot with no capture and no source-runtime requirement.
+- `ForkResponse`, `ForkChild`, and `ForkError` types.
+
+### Fixed
+- `runtime.fork` docs: a persisted fork capture is not in the default
+  snapshot list. Pass `source="fork"` to `snapshots.list()`, or fetch it
+  by id or name.
+
+- `runtime.git.clone`/`pull`/`push`/`fetch` accept `timeout_seconds` — a
+  per-operation server-side deadline (default 300s, maximum 900s) so remote
+  operations fail with a timeout error instead of holding the request.
+
 ## [0.1.200] - 2026-09-29
 ### Added
 - `FileReadResponse.content_base64` — the exact file bytes for binary reads.

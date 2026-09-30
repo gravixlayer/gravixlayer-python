@@ -7,13 +7,16 @@ import httpx
 
 from .._resource_utils import build_list_endpoint, parse_paginated_items
 from ..types.snapshots import (
+    ForkResponse,
     Snapshot,
     SnapshotDeleteResponse,
     SnapshotListResponse,
+    _parse_fork_response,
     _parse_snapshot,
 )
 
 _SNAPSHOT_CREATE_TIMEOUT = httpx.Timeout(600.0)
+_FORK_TIMEOUT = httpx.Timeout(600.0)
 
 
 def _snapshot_path(ref: str) -> str:
@@ -123,3 +126,32 @@ class AsyncSnapshots:
         """Delete a private snapshot. Running children keep already-opened files."""
         await self._make_agents_request("DELETE", _snapshot_path(snapshot))
         return SnapshotDeleteResponse(snapshot_id=snapshot, deleted=True)
+
+    async def fork(
+        self,
+        snapshot: str,
+        count: int = 1,
+        timeout_seconds: Optional[int] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> ForkResponse:
+        """Start ``count`` independent runtimes from a saved snapshot.
+
+        No capture runs and the source runtime does not need to be alive.
+        Each child is an ordinary runtime; results are per-child — inspect
+        ``ForkResponse.children`` (``Runtime`` or ``ForkError`` per position).
+        """
+        payload: Dict[str, Any] = {"count": count}
+        if timeout_seconds is not None:
+            payload["timeout_seconds"] = timeout_seconds
+        if env_vars is not None:
+            payload["env_vars"] = env_vars
+        if metadata is not None:
+            payload["metadata"] = metadata
+        response = await self._make_agents_request(
+            "POST",
+            f"{_snapshot_path(snapshot)}/fork",
+            payload,
+            timeout=_FORK_TIMEOUT,
+        )
+        return _parse_fork_response(response.json())

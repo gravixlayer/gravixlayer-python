@@ -292,6 +292,37 @@ class TestSyncRuntimeGit:
         assert body["branch"] == "main"
         assert body["depth"] == 1
         assert body["auth_token"] == "tok"
+        assert "timeout_seconds" not in body
+
+    def test_git_clone_timeout_seconds(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/git/clone").mock(
+            return_value=httpx.Response(200, json=_GIT_OK)
+        )
+        client.runtime.git.clone(
+            VALID_UUID,
+            "https://github.com/foo/bar.git",
+            "/workspace/bar",
+            timeout_seconds=45,
+        )
+        import json
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["timeout_seconds"] == 45
+
+    def test_git_remote_ops_send_timeout_seconds(self, client, mock_api):
+        for op, kwargs in (
+            ("pull", {"remote": "origin"}),
+            ("push", {"refspec": "HEAD:main"}),
+            ("fetch", {}),
+        ):
+            mock_api.post(f"{SB}/{VALID_UUID}/git/{op}").mock(
+                return_value=httpx.Response(200, json=_GIT_OK)
+            )
+            getattr(client.runtime.git, op)(
+                VALID_UUID, "/workspace/repo", timeout_seconds=20, **kwargs
+            )
+            import json
+            body = json.loads(mock_api.calls[-1].request.content)
+            assert body["timeout_seconds"] == 20, op
 
     def test_git_status_and_pull(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/git/status").mock(
@@ -2112,3 +2143,94 @@ class TestAsyncRuntimeFileMetaAndGit:
             assert (
                 await client.runtime.git.delete_branch(VALID_UUID, "/repo", "old")
             ).success
+
+
+# ===================================================================
+# Fork — POST /v1/agents/runtime/:id/fork
+# ===================================================================
+
+
+class TestRuntimeFork:
+    _RESP = {
+        "snapshot_id": VALID_UUID,
+        "snapshot_persisted": False,
+        "parent_runtime_id": VALID_UUID,
+        "children": [
+            {"runtime": make_runtime_response(runtime_id="aaaaaaaa-1111-1111-1111-111111111111")},
+            {"error": "quota_exceeded", "code": "quota_exceeded"},
+        ],
+    }
+
+    def test_fork_sends_body_and_parses_children(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/fork").mock(
+            return_value=httpx.Response(200, json=self._RESP)
+        )
+        res = client.runtime.fork(
+            VALID_UUID,
+            count=2,
+            timeout_seconds=600,
+            persist_snapshot=True,
+            name="kept",
+            env_vars={"A": "b"},
+            metadata={"k": 1},
+        )
+        body = json.loads(mock_api.calls.last.request.content)
+        assert body == {
+            "count": 2,
+            "timeout_seconds": 600,
+            "persist_snapshot": True,
+            "name": "kept",
+            "env_vars": {"A": "b"},
+            "metadata": {"k": 1},
+        }
+        assert res.snapshot_persisted is False
+        assert res.parent_runtime_id == VALID_UUID
+        assert res.succeeded == 1
+        assert res.failed == 1
+        assert res.runtimes[0].runtime_id == "aaaaaaaa-1111-1111-1111-111111111111"
+        assert res.errors[0].code == "quota_exceeded"
+
+    def test_fork_defaults(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/fork").mock(
+            return_value=httpx.Response(200, json=self._RESP)
+        )
+        res = client.runtime.fork(VALID_UUID)
+        assert json.loads(mock_api.calls.last.request.content) == {"count": 1}
+        assert len(res.children) == 2
+
+    def test_fork_rejects_bad_runtime_id(self, client):
+        with pytest.raises(ValueError):
+            client.runtime.fork("not-a-uuid")
+
+    @pytest.mark.asyncio
+    async def test_fork_async(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/fork").mock(
+            return_value=httpx.Response(200, json=self._RESP)
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            res = await client.runtime.fork(VALID_UUID, count=4)
+        body = json.loads(mock_api.calls.last.request.content)
+        assert body == {"count": 4}
+        assert res.succeeded == 1
+        assert res.failed == 1
+
+
+class TestAsyncSnapshotFork:
+    @pytest.mark.asyncio
+    async def test_fork_async(self, mock_api):
+        mock_api.post(f"{AGENTS_BASE}/snapshots/ckpt-1/fork").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "snapshot_id": VALID_UUID,
+                    "snapshot_persisted": True,
+                    "children": [
+                        {"runtime": make_runtime_response(runtime_id="cccccccc-cccc-cccc-cccc-cccccccccccc")}
+                    ],
+                },
+            )
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            res = await client.snapshots.fork("ckpt-1", count=1)
+        assert res.succeeded == 1
+        assert res.runtimes[0].runtime_id == "cccccccc-cccc-cccc-cccc-cccccccccccc"

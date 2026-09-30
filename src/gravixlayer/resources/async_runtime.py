@@ -18,6 +18,7 @@ from .._resource_utils import (
     parse_total_items,
 )
 from ..types.exceptions import GravixLayerConnectionError
+from ..types.snapshots import ForkResponse, _parse_fork_response
 from ..types.runtime import (
     Runtime,
     RuntimeList,
@@ -59,6 +60,9 @@ from .async_runtime_service import AsyncRuntimeServiceResource
 
 # Timeout for restoring a runtime from a snapshot (3 minutes).
 _SNAPSHOT_RESTORE_TIMEOUT = httpx.Timeout(180.0)
+# Fork captures the parent once, then starts every child — same ceiling as a
+# snapshot capture plus bounded-parallel child creates.
+_FORK_TIMEOUT = httpx.Timeout(600.0)
 
 
 def _report_task_error(task: "asyncio.Task[Any]") -> None:
@@ -746,6 +750,43 @@ class AsyncRuntimes:
         """Resume a paused runtime."""
         _validate_runtime_id(runtime_id)
         await self._make_agents_request("POST", f"runtime/{runtime_id}/resume")
+
+    async def fork(
+        self,
+        runtime_id: str,
+        count: int = 1,
+        timeout_seconds: Optional[int] = None,
+        persist_snapshot: bool = False,
+        name: Optional[str] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> "ForkResponse":
+        """Fork a running runtime into ``count`` independent children.
+
+        The parent's state is captured once, then every child restores from
+        that capture — the parent keeps running with its own ID, timeout, and
+        placement. Results are per-child: each entry in
+        ``ForkResponse.children`` is a ``Runtime`` or a ``ForkError``.
+        """
+        _validate_runtime_id(runtime_id)
+        payload: Dict[str, Any] = {"count": count}
+        if timeout_seconds is not None:
+            payload["timeout_seconds"] = timeout_seconds
+        if persist_snapshot:
+            payload["persist_snapshot"] = True
+        if name is not None:
+            payload["name"] = name
+        if env_vars is not None:
+            payload["env_vars"] = env_vars
+        if metadata is not None:
+            payload["metadata"] = metadata
+        response = await self._make_agents_request(
+            "POST",
+            f"runtime/{runtime_id}/fork",
+            payload,
+            timeout=_FORK_TIMEOUT,
+        )
+        return _parse_fork_response(response.json())
 
 
 class AsyncRuntimeTemplates:

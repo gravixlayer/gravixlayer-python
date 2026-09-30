@@ -100,6 +100,7 @@ class RuntimeGitResource:
         branch: Optional[str] = None,
         depth: Optional[int] = None,
         auth_token: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> GitOperationResult:
         """Clone a repository into the runtime.
 
@@ -120,6 +121,8 @@ class RuntimeGitResource:
             data["depth"] = int(depth)
         if auth_token is not None:
             data["auth_token"] = auth_token
+        if timeout_seconds is not None:
+            data["timeout_seconds"] = int(timeout_seconds)
         # Never put auth_token in span inputs (even with redaction).
         return self._call(
             "clone",
@@ -178,6 +181,7 @@ class RuntimeGitResource:
         remote: Optional[str] = None,
         branch: Optional[str] = None,
         auth_token: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> GitOperationResult:
         """Pull from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         _validate_runtime_id(runtime_id)
@@ -189,6 +193,8 @@ class RuntimeGitResource:
             data["branch"] = branch
         if auth_token is not None:
             data["auth_token"] = auth_token
+        if timeout_seconds is not None:
+            data["timeout_seconds"] = int(timeout_seconds)
         # Never put auth_token in span inputs (even with redaction).
         return self._call(
             "pull",
@@ -206,6 +212,7 @@ class RuntimeGitResource:
         username: Optional[str] = None,
         password: Optional[str] = None,
         auth_token: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> GitOperationResult:
         """Push to a remote.
 
@@ -225,6 +232,8 @@ class RuntimeGitResource:
             data["password"] = password
         if auth_token is not None:
             data["auth_token"] = auth_token
+        if timeout_seconds is not None:
+            data["timeout_seconds"] = int(timeout_seconds)
         # Never put credentials in span inputs (even with redaction).
         return self._call(
             "push",
@@ -239,6 +248,7 @@ class RuntimeGitResource:
         repository_path: str,
         remote: Optional[str] = None,
         auth_token: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> GitOperationResult:
         """Fetch from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         _validate_runtime_id(runtime_id)
@@ -248,6 +258,8 @@ class RuntimeGitResource:
             data["remote"] = remote
         if auth_token is not None:
             data["auth_token"] = auth_token
+        if timeout_seconds is not None:
+            data["timeout_seconds"] = int(timeout_seconds)
         # Never put auth_token in span inputs (even with redaction).
         return self._call(
             "fetch",
@@ -381,6 +393,7 @@ class AsyncRuntimeGitResource:
         branch: Optional[str] = None,
         depth: Optional[int] = None,
         auth_token: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> GitOperationResult:
         """Clone a repository into the runtime.
 
@@ -400,6 +413,8 @@ class AsyncRuntimeGitResource:
             data["depth"] = int(depth)
         if auth_token is not None:
             data["auth_token"] = auth_token
+        if timeout_seconds is not None:
+            data["timeout_seconds"] = int(timeout_seconds)
         # Never put auth_token in span inputs (even with redaction).
         return await self._call(
             "clone",
@@ -457,6 +472,7 @@ class AsyncRuntimeGitResource:
         remote: Optional[str] = None,
         branch: Optional[str] = None,
         auth_token: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> GitOperationResult:
         """Pull from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         _validate_runtime_id(runtime_id)
@@ -468,6 +484,8 @@ class AsyncRuntimeGitResource:
             data["branch"] = branch
         if auth_token is not None:
             data["auth_token"] = auth_token
+        if timeout_seconds is not None:
+            data["timeout_seconds"] = int(timeout_seconds)
         # Never put auth_token in span inputs (even with redaction).
         return await self._call(
             "pull",
@@ -485,6 +503,7 @@ class AsyncRuntimeGitResource:
         username: Optional[str] = None,
         password: Optional[str] = None,
         auth_token: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> GitOperationResult:
         """Push to a remote.
 
@@ -504,6 +523,8 @@ class AsyncRuntimeGitResource:
             data["password"] = password
         if auth_token is not None:
             data["auth_token"] = auth_token
+        if timeout_seconds is not None:
+            data["timeout_seconds"] = int(timeout_seconds)
         # Never put credentials in span inputs (even with redaction).
         return await self._call(
             "push",
@@ -518,6 +539,7 @@ class AsyncRuntimeGitResource:
         repository_path: str,
         remote: Optional[str] = None,
         auth_token: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> GitOperationResult:
         """Fetch from a remote. Pass ``auth_token`` for a private HTTPS remote."""
         _validate_runtime_id(runtime_id)
@@ -527,6 +549,8 @@ class AsyncRuntimeGitResource:
             data["remote"] = remote
         if auth_token is not None:
             data["auth_token"] = auth_token
+        if timeout_seconds is not None:
+            data["timeout_seconds"] = int(timeout_seconds)
         # Never put auth_token in span inputs (even with redaction).
         return await self._call(
             "fetch",
