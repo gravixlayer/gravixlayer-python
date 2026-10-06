@@ -18,16 +18,10 @@ WORKDIR /workspace
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
-        dnsutils \
         iproute2 \
         iptables \
         nftables \
-        iputils-ping \
-        net-tools \
-        netcat-openbsd \
-        openssh-sftp-server \
         procps \
-        traceroute \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r agent \
@@ -38,26 +32,23 @@ RUN groupadd -r agent \
 
 FROM system AS devtools
 
-# gawk: Codex install.sh SHA-256 parsing fails on Ubuntu's default mawk.
+# gawk: the Codex installer's SHA-256 parsing fails on Ubuntu's default mawk.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         gawk \
         git \
-        vim-tiny \
-        nano \
-        xz-utils \
+    && rm -rf /var/lib/apt/lists/* \
     && NODE_ARCH="$(uname -m)" \
     && case "$NODE_ARCH" in \
          x86_64|amd64) NODE_DIST=linux-x64 ;; \
          aarch64|arm64) NODE_DIST=linux-arm64 ;; \
          *) echo "unsupported Node arch: $NODE_ARCH" >&2; exit 1 ;; \
        esac \
-    && curl -fsSL "https://nodejs.org/dist/v24.18.0/node-v24.18.0-${NODE_DIST}.tar.xz" \
-        | tar -xJ -C /usr/local --strip-components=1 \
+    && curl -fsSL "https://nodejs.org/dist/v24.18.0/node-v24.18.0-${NODE_DIST}.tar.gz" \
+        | tar -xz -C /usr/local --strip-components=1 \
     && npm install -g npm@12.0.1 \
     && node -v | grep -F 'v24.18.0' \
-    && npm -v | grep -F '12.0.1' \
-    && rm -rf /var/lib/apt/lists/*
+    && npm -v | grep -F '12.0.1'
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /usr/local/bin/uv
 ENV UV_PYTHON_INSTALL_DIR="/workspace/.uv/python"
@@ -66,7 +57,7 @@ RUN uv python install 3.14.6 \
     && ln -sf "$(uv python find 3.14.6)" /usr/local/bin/python \
     && uv cache clean
 
-# Codex CLI — recommended standalone install (https://learn.chatgpt.com/docs/codex/cli)
+# Codex CLI — standalone installer
 RUN curl -fsSL https://chatgpt.com/codex/install.sh \
         | CODEX_INSTALL_DIR=/usr/local/bin CODEX_NON_INTERACTIVE=1 sh \
     && command -v codex \
@@ -79,6 +70,8 @@ ENV PATH="/workspace/.venv/bin:/usr/local/bin:/usr/bin:/bin" \
     UV_PYTHON_INSTALL_DIR="/workspace/.uv/python" \
     HOME="/workspace"
 
+# /workspace/.venv/bin is first on PATH so bare `python` / `pip` hit the
+# seeded venv; /usr/local/bin/python stays on the uv-managed interpreter.
 RUN uv venv --python 3.14.6 --seed /workspace/.venv \
     && uv pip install --python /workspace/.venv/bin/python cloudpickle \
     && uv cache clean \

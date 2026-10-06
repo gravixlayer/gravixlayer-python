@@ -1,7 +1,15 @@
 # Changelog
 
 ## [Unreleased]
-## [0.1.201] - 2026-09-30
+### Changed
+- `examples/templates/dockerfiles/` — leaner base, dax, and agent images:
+  diagnostics-only packages (dnsutils, ping, netcat, net-tools, traceroute),
+  editors, and xz-utils removed; Node downloads the `.tar.gz` dist so xz is
+  not needed; the redundant `openssh-sftp-server` entry is gone (the build's
+  `openssh-server` already depends on it). `agent-codex` keeps `gawk` — the
+  Codex installer's SHA-256 check fails on mawk.
+
+## [0.1.101] - 2026-09-30
 ### Added
 - `runtime.fork` / `async_runtime.fork` — fork a running runtime into
   `count` (1–100) independent children from one capture, with per-child
@@ -21,7 +29,7 @@
   per-operation server-side deadline (default 300s, maximum 900s) so remote
   operations fail with a timeout error instead of holding the request.
 
-## [0.1.200] - 2026-09-29
+## [0.1.100] - 2026-09-29
 ### Added
 - `FileReadResponse.content_base64` — the exact file bytes for binary reads.
   `FileReadResponse.bytes()` decodes it when present and falls back to the
