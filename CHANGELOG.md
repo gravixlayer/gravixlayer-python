@@ -1,7 +1,21 @@
 # Changelog
 
 ## [Unreleased]
+## [0.1.102] - 2026-10-07
 ### Changed
+- `GravixLayer` / `AsyncGravixLayer` — HTTP/2 is now the default transport
+  (`http2=True`) for HTTPS. Requests for an origin spread over a small pool
+  of parallel HTTP/2 connections (up to 4 lanes): sequential callers keep
+  one connection, while a burst — once the least-loaded lane has depth —
+  opens the remaining lanes at once so concurrent calls stop serializing
+  on a single connection. `http2=False` keeps a plain HTTP/1.1 pool.
+- `warmup()` now opens every lane in parallel; the hostname lookup also
+  warms during client construction, and all lanes share one TLS trust
+  store (built at construction) so later connections can resume sessions.
+- A lane whose connection fails is dropped and redialled; requests that
+  never reached the wire may move lanes, while a request that may have
+  been sent is never replayed. Origins that only answer HTTP/1.1 are
+  learned and routed through a shared HTTP/1.1 pool.
 - `examples/templates/dockerfiles/` — leaner base, dax, and agent images:
   diagnostics-only packages (dnsutils, ping, netcat, net-tools, traceroute),
   editors, and xz-utils removed; Node downloads the `.tar.gz` dist so xz is

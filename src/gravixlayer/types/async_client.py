@@ -6,6 +6,7 @@ import random
 from typing import Optional, Dict, Any
 
 from .. import __version__
+from .._lanes import AsyncLanesTransport, H2_LANES, env_proxy_configured, warm_dns
 from .._resource_utils import build_list_endpoint
 from .._request_utils import (
     HTTP_LIMITS,
@@ -44,8 +45,10 @@ class AsyncGravixLayer:
     For minimal first-request latency after process start, ``await client.warmup()``
     once during startup (same idea as :meth:`gravixlayer.GravixLayer.warmup`).
 
-    Transport defaults to **HTTP/1.1** (``http2=False``). Pass ``http2=True`` to use
-    HTTP/2 (ALPN ``h2``) when you want multiplexing or your measurements favor it.
+    Transport defaults to **HTTP/2** (``http2=True``): HTTPS requests run over a
+    small pool of parallel HTTP/2 connections — opened lazily and filled once a
+    burst is proven — so concurrent calls spread across connections instead of
+    serializing on one. Pass ``http2=False`` for a plain HTTP/1.1 pool.
 
     Example:
         >>> async with AsyncGravixLayer() as client:  # defaults to cloud="aws", region="us-east-1"
@@ -62,7 +65,7 @@ class AsyncGravixLayer:
         timeout: float = 60.0,
         max_retries: int = 3,
         headers: Optional[Dict[str, str]] = None,
-        http2: bool = False,
+        http2: bool = True,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
         if not self.api_key:
@@ -103,16 +106,41 @@ class AsyncGravixLayer:
             )
         }
 
-        self._http_client = httpx.AsyncClient(
-            http2=http2,
-            timeout=self.timeout,
-            headers={
-                "User-Agent": user_agent,
-                **custom_headers,
-            },
-            auth=ApiKeyAuth(authorization, self.base_url),
-            limits=HTTP_LIMITS,
-        )
+        # Over HTTPS the default transport spreads bursts across parallel
+        # HTTP/2 lanes; the plain HTTP/1.1 pool is unchanged for ``http2=False``.
+        # When a proxy is set in the environment the client builds its own
+        # transports so proxy mounts still apply — lanes connect directly.
+        if http2 and not env_proxy_configured():
+            self._transport: httpx.AsyncBaseTransport = AsyncLanesTransport(
+                fallback_limits=HTTP_LIMITS
+            )
+            self._http_client = httpx.AsyncClient(
+                timeout=self.timeout,
+                headers={
+                    "User-Agent": user_agent,
+                    **custom_headers,
+                },
+                auth=ApiKeyAuth(authorization, self.base_url),
+                transport=self._transport,
+            )
+        else:
+            self._http_client = httpx.AsyncClient(
+                timeout=self.timeout,
+                headers={
+                    "User-Agent": user_agent,
+                    **custom_headers,
+                },
+                auth=ApiKeyAuth(authorization, self.base_url),
+                http2=http2,
+                limits=HTTP_LIMITS,
+            )
+            self._transport = self._http_client._transport
+
+        # The hostname lookup warms on a daemon thread while the client
+        # finishes constructing, so the first request's connect skips it.
+        url = httpx.URL(self.base_url)
+        if url.host:
+            warm_dns(url.host)
 
         self.runtime = AsyncRuntimeResource(self)
         self.templates = AsyncTemplates(self)
@@ -129,6 +157,17 @@ class AsyncGravixLayer:
         """
         endpoint = build_list_endpoint("runtime", limit=1, offset=0)
         url = build_url(endpoint, "v1/agents", self._service_urls, self.base_url)
+        if isinstance(self._transport, AsyncLanesTransport):
+            # Fill the lane pool, then drive one request per lane so every
+            # connection's handshake finishes before real traffic arrives.
+            self._transport.ensure_pool(httpx.URL(url))
+            responses = await asyncio.gather(
+                *(self._http_client.get(url) for _ in range(H2_LANES))
+            )
+            for resp in responses:
+                if not resp.is_success:
+                    raise error_from_response(resp.status_code, resp.text, resp.headers)
+            return
         resp = await self._http_client.get(url)
         if resp.status_code in SUCCESS_STATUS:
             return

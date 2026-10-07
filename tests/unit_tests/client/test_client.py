@@ -146,17 +146,19 @@ class TestSyncClientInit:
         assert route.calls.last.request.headers["Authorization"] == "Token t"
         client.close()
 
-    def test_http2_defaults_to_http11(self):
+    def test_http2_defaults_to_lanes(self):
+        from gravixlayer._lanes import LanesTransport
+
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
-        pool = client._http_client._transport._pool
-        assert pool._http2 is False
-        assert pool._http1 is True
+        transport = client._http_client._transport
+        assert isinstance(transport, LanesTransport)
+        assert transport._http2 is True
         client.close()
 
-    def test_http2_true_opt_in(self):
-        client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, http2=True)
+    def test_http2_false_uses_plain_pool(self):
+        client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL, http2=False)
         pool = client._http_client._transport._pool
-        assert pool._http2 is True
+        assert pool._http2 is False
         assert pool._http1 is True
         client.close()
 
@@ -406,19 +408,21 @@ class TestAsyncClientInit:
         assert request.headers["X-Custom"] == "value"
 
     @pytest.mark.asyncio
-    async def test_http2_defaults_to_http11(self):
+    async def test_http2_defaults_to_lanes(self):
+        from gravixlayer._lanes import AsyncLanesTransport
+
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
-            pool = client._http_client._transport._pool
-            assert pool._http2 is False
-            assert pool._http1 is True
+            transport = client._http_client._transport
+            assert isinstance(transport, AsyncLanesTransport)
+            assert transport._http2 is True
 
     @pytest.mark.asyncio
-    async def test_http2_true_opt_in(self):
+    async def test_http2_false_uses_plain_pool(self):
         async with AsyncGravixLayer(
-            api_key=TEST_API_KEY, base_url=TEST_BASE_URL, http2=True
+            api_key=TEST_API_KEY, base_url=TEST_BASE_URL, http2=False
         ) as client:
             pool = client._http_client._transport._pool
-            assert pool._http2 is True
+            assert pool._http2 is False
             assert pool._http1 is True
 
 

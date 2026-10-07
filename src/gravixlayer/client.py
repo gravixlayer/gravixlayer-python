@@ -2,11 +2,13 @@ import os
 import time
 import random
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any
 
 import httpx
 
 from . import __version__
+from ._lanes import H2_LANES, LanesTransport, env_proxy_configured, warm_dns
 from ._resource_utils import build_list_endpoint
 from ._request_utils import (
     HTTP_LIMITS,
@@ -49,11 +51,14 @@ class GravixLayer:
         timeout: Request timeout in seconds (default: 60.0)
         max_retries: Maximum retry attempts for transient failures (default: 3)
         headers: Additional HTTP headers to include in requests
-        http2: Use HTTP/2 when True. Default is False (HTTP/1.1) for lower request
-            latency on typical single-stream API usage; pass True for multiplexing
-            or when profiling shows benefit.
+        http2: Use HTTP/2 when True (the default). HTTPS requests run over a
+            small pool of parallel HTTP/2 connections — opened lazily and filled
+            once a burst is proven — so concurrent calls spread across
+            connections instead of serializing on one. Pass ``False`` for a
+            plain HTTP/1.1 pool.
         warmup_on_init: If True, call :meth:`warmup` at the end of construction so the
-            first user request does not pay TCP+TLS+ALPN setup (adds one list-runtime GET).
+            first user request does not pay TCP+TLS+ALPN setup (adds one GET per
+            transport lane).
 
     Example:
         >>> from gravixlayer import GravixLayer
@@ -70,7 +75,7 @@ class GravixLayer:
         timeout: float = 60.0,
         max_retries: int = 3,
         headers: Optional[Dict[str, str]] = None,
-        http2: bool = False,
+        http2: bool = True,
         warmup_on_init: bool = False,
     ):
         self.api_key = api_key or os.environ.get("GRAVIXLAYER_API_KEY")
@@ -114,16 +119,39 @@ class GravixLayer:
             )
         }
 
-        self._http_client = httpx.Client(
-            http2=http2,
-            timeout=self.timeout,
-            headers={
-                "User-Agent": user_agent,
-                **custom_headers,
-            },
-            auth=ApiKeyAuth(authorization, self.base_url),
-            limits=HTTP_LIMITS,
-        )
+        # Over HTTPS the default transport spreads bursts across parallel
+        # HTTP/2 lanes; the plain HTTP/1.1 pool is unchanged for ``http2=False``.
+        # When a proxy is set in the environment the client builds its own
+        # transports so proxy mounts still apply — lanes connect directly.
+        if http2 and not env_proxy_configured():
+            self._transport: httpx.BaseTransport = LanesTransport(fallback_limits=HTTP_LIMITS)
+            self._http_client = httpx.Client(
+                timeout=self.timeout,
+                headers={
+                    "User-Agent": user_agent,
+                    **custom_headers,
+                },
+                auth=ApiKeyAuth(authorization, self.base_url),
+                transport=self._transport,
+            )
+        else:
+            self._http_client = httpx.Client(
+                timeout=self.timeout,
+                headers={
+                    "User-Agent": user_agent,
+                    **custom_headers,
+                },
+                auth=ApiKeyAuth(authorization, self.base_url),
+                http2=http2,
+                limits=HTTP_LIMITS,
+            )
+            self._transport = self._http_client._transport
+
+        # The hostname lookup warms on a daemon thread while the client
+        # finishes constructing, so the first request's connect skips it.
+        url = httpx.URL(self.base_url)
+        if url.host:
+            warm_dns(url.host)
 
         self.runtime = RuntimeResource(self)
         self.templates = Templates(self)
@@ -154,6 +182,16 @@ class GravixLayer:
         """
         endpoint = build_list_endpoint("runtime", limit=1, offset=0)
         url = build_url(endpoint, "v1/agents", self._service_urls, self.base_url)
+        if isinstance(self._transport, LanesTransport):
+            # Fill the lane pool, then drive one request per lane so every
+            # connection's handshake finishes before real traffic arrives.
+            self._transport.ensure_pool(httpx.URL(url))
+            with ThreadPoolExecutor(max_workers=H2_LANES) as pool:
+                responses = list(pool.map(self._http_client.get, [url] * H2_LANES))
+            for resp in responses:
+                if not resp.is_success:
+                    raise error_from_response(resp.status_code, resp.text, resp.headers)
+            return
         resp = self._http_client.get(url)
         if resp.status_code in SUCCESS_STATUS:
             return

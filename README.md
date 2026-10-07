@@ -54,8 +54,9 @@ client = GravixLayer(
 | `max_retries` | `3` | Transient failures only. |
 
 Construct the client once and reuse it. Call `client.warmup()` at startup if
-you want TCP and TLS paid before the first request that matters. HTTP/1.1 is
-the default; pass `http2=True` for multiplexing under high concurrency.
+you want TCP and TLS paid before the first request that matters. HTTP/2 is
+the default over HTTPS — concurrent requests spread across a small pool of
+connections; pass `http2=False` for a plain HTTP/1.1 pool.
 
 ## Runtimes
 
