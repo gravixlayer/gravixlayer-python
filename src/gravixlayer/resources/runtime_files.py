@@ -244,11 +244,17 @@ class RuntimeFileResource:
                 telemetry.record_outputs(span, {"path": path, "size": len(content)})
             return FileWriteResponse(**result)
 
-    def delete(self, runtime_id: str, path: str) -> FileDeleteResponse:
-        """Delete a file or directory."""
+    def delete(self, runtime_id: str, path: str, recursive: bool = False) -> FileDeleteResponse:
+        """Delete a file or directory.
+
+        Args:
+            runtime_id: Target runtime ID.
+            path: Absolute path to delete.
+            recursive: Required to delete a directory and its contents.
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        payload = {"path": path}
+        payload = {"path": path, "recursive": recursive}
         with telemetry.runtime_span("file.delete", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/delete", payload)
             result = response.json()
@@ -794,10 +800,19 @@ class AsyncRuntimeFileResource:
                 telemetry.record_outputs(span, {"path": path, "size": len(content)})
             return FileWriteResponse(**result)
 
-    async def delete(self, runtime_id: str, path: str) -> FileDeleteResponse:
+    async def delete(
+        self, runtime_id: str, path: str, recursive: bool = False
+    ) -> FileDeleteResponse:
+        """Delete a file or directory.
+
+        Args:
+            runtime_id: Target runtime ID.
+            path: Absolute path to delete.
+            recursive: Required to delete a directory and its contents.
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        payload = {"path": path}
+        payload = {"path": path, "recursive": recursive}
         with telemetry.runtime_span("file.delete", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/delete", payload)
             result = response.json()

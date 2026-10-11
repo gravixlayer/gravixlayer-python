@@ -118,3 +118,18 @@ def parse_paginated_items(
         payload.get("limit", default_limit),
         payload.get("offset", default_offset),
     )
+
+
+def sandbox_lifetime_seconds(
+    timeout: Optional[int], timeout_seconds: Optional[int]
+) -> Optional[int]:
+    """Sandbox lifetime in seconds for the create body.
+
+    ``timeout`` and ``timeout_seconds`` are the same lifetime. A request
+    that sets both must set them to the same value.
+    """
+    if timeout is not None and timeout_seconds is not None and timeout != timeout_seconds:
+        raise ValueError("timeout and timeout_seconds must be equal")
+    if timeout_seconds is not None:
+        return timeout_seconds
+    return timeout

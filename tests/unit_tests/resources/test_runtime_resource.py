@@ -154,6 +154,22 @@ class TestSyncRuntimeLifecycle:
         assert body["providers"] == ["provider-uuid-1"]
         assert body["network_policy_ids"] == ["policy-uuid-1", "policy-uuid-2"]
 
+    def test_create_timeout_seconds_is_the_same_lifetime(self, client, mock_api):
+        mock_api.post(f"{SB}").mock(
+            return_value=httpx.Response(200, json=make_runtime_response())
+        )
+        client.runtime.create(template="base-small", timeout_seconds=45)
+        import json
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["timeout"] == 45
+
+        client.runtime.create(template="base-small", timeout=45, timeout_seconds=45)
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["timeout"] == 45
+
+        with pytest.raises(ValueError, match="timeout and timeout_seconds"):
+            client.runtime.create(template="base-small", timeout=10, timeout_seconds=45)
+
     def test_list(self, client, mock_api):
         mock_api.get(url__regex=rf"{SB}\?").mock(
             return_value=httpx.Response(200, json=make_list_response(3))
@@ -460,6 +476,19 @@ class TestSyncRuntimeFiles:
         )
         result = client.runtime.file.delete(VALID_UUID, "/tmp/f.txt")
         assert result.message == "Deleted"
+        import json
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["recursive"] is False
+
+    def test_delete_file_recursive_forwards_flag(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/files/delete").mock(
+            return_value=httpx.Response(200, json={"message": "Deleted", "path": "/tmp/dir"})
+        )
+        client.runtime.file.delete(VALID_UUID, "/tmp/dir", recursive=True)
+        import json
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["path"] == "/tmp/dir"
+        assert body["recursive"] is True
 
     def test_make_directory(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/files/create-directory").mock(
@@ -1280,6 +1309,21 @@ class TestAsyncRuntimeLifecycle:
             rt = await client.runtime.create(template="base-small")
             assert isinstance(rt, Runtime)
             assert rt.runtime_id == VALID_UUID
+
+    @pytest.mark.asyncio
+    async def test_create_timeout_seconds_is_the_same_lifetime(self, mock_api):
+        mock_api.post(f"{SB}").mock(
+            return_value=httpx.Response(200, json=make_runtime_response())
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            await client.runtime.create(template="base-small", timeout_seconds=45)
+            import json
+            body = json.loads(mock_api.calls[-1].request.content)
+            assert body["timeout"] == 45
+            with pytest.raises(ValueError, match="timeout and timeout_seconds"):
+                await client.runtime.create(
+                    template="base-small", timeout=10, timeout_seconds=45
+                )
 
     @pytest.mark.asyncio
     async def test_list(self, mock_api):

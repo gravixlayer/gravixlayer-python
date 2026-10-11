@@ -16,6 +16,7 @@ from .._resource_utils import (
     normalize_runtime_api_payload,
     parse_paginated_items,
     parse_total_items,
+    sandbox_lifetime_seconds,
 )
 from ..types.exceptions import GravixLayerConnectionError
 from ..types.snapshots import ForkResponse, _parse_fork_response
@@ -154,6 +155,7 @@ class AsyncRuntimes:
         network_policy_ids: Optional[List[str]] = None,
         provider: Optional[str] = None,
         snapshot: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> Runtime:
         """Create a new runtime instance.
 
@@ -163,6 +165,7 @@ class AsyncRuntimes:
             template: Template name or ID to use. Ignored when ``snapshot`` is set
                 unless a non-default template is also passed (then ValueError).
             timeout: Runtime timeout in seconds
+            timeout_seconds: Same lifetime in seconds. Use this or ``timeout``.
             env_vars: Environment variables for the runtime
             metadata: Metadata tags for the runtime
             internet_access: Whether to allow internet access
@@ -197,8 +200,9 @@ class AsyncRuntimes:
             data["snapshot"] = snapshot
         else:
             data["template"] = template or "base-small"
-        if timeout is not None:
-            data["timeout"] = timeout
+        lifetime = sandbox_lifetime_seconds(timeout, timeout_seconds)
+        if lifetime is not None:
+            data["timeout"] = lifetime
         if env_vars is not None:
             data["env_vars"] = env_vars
         if metadata is not None:

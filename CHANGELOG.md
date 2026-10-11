@@ -1,6 +1,15 @@
 # Changelog
 
 ## [Unreleased]
+## [0.1.103] - 2026-10-07
+### Added
+- `runtime.create(timeout_seconds=)` is the sandbox lifetime in seconds,
+  the same value as `timeout`. Set either one. Setting both to different
+  values raises `ValueError`.
+- `runtime.file.delete(runtime_id, path, recursive=False)` — sync and
+  async resource plus the bound `rt.file.delete(path, recursive=)` —
+  accepts `recursive=True` to remove a non-empty directory tree.
+
 ## [0.1.102] - 2026-10-07
 ### Changed
 - `GravixLayer` / `AsyncGravixLayer` — HTTP/2 is now the default transport

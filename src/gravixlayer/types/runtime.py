@@ -7,6 +7,8 @@ import re
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Union
 from dataclasses import dataclass, field
 
+from .._resource_utils import sandbox_lifetime_seconds
+
 
 # ---------------------------------------------------------------------------
 # Input validation helpers
@@ -187,6 +189,7 @@ class Runtime:
         base_url: Optional[str] = None,
         client: Optional[Any] = None,
         snapshot: Optional[str] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> "Runtime":
         """
         Create a new runtime instance with simplified interface.
@@ -196,6 +199,7 @@ class Runtime:
             cloud: Cloud (aws/azure/gcp; default: "aws")
             region: Region to deploy in (default: "us-east-1")
             timeout: Timeout in seconds (default: None = no timeout). Pass 0 to explicitly disable timeout.
+            timeout_seconds: Same lifetime in seconds. Use this or ``timeout``.
             metadata: Optional metadata tags
             internet_access: Whether to allow internet access (default: None = server default)
             env_vars: Environment variables for the runtime
@@ -210,6 +214,7 @@ class Runtime:
         Returns:
             Runtime instance ready for code execution
         """
+        lifetime = sandbox_lifetime_seconds(timeout, timeout_seconds)
         if client is None:
             from ..client import GravixLayer
             client = GravixLayer(api_key=api_key, base_url=base_url, cloud=cloud, region=region)
@@ -219,7 +224,7 @@ class Runtime:
 
         runtime_response = client.runtime.create(
             template=template,
-            timeout=timeout,
+            timeout=lifetime,
             metadata=metadata or {},
             internet_access=internet_access,
             env_vars=env_vars,
@@ -247,7 +252,7 @@ class Runtime:
         )
 
         instance._client = client
-        instance._timeout_seconds = timeout
+        instance._timeout_seconds = lifetime
         instance._owns_client = owns_client
         return instance
 
@@ -690,9 +695,9 @@ class RuntimeFileBound:
         rid, client = self._rc()
         return client.runtime.file.write(rid, path, content)
 
-    def delete(self, path: str) -> "FileDeleteResponse":
+    def delete(self, path: str, recursive: bool = False) -> "FileDeleteResponse":
         rid, client = self._rc()
-        return client.runtime.file.delete(rid, path)
+        return client.runtime.file.delete(rid, path, recursive)
 
     def list(self, path: str = "/workspace") -> "FileListResponse":
         rid, client = self._rc()
