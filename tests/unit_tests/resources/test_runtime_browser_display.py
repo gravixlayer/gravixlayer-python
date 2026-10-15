@@ -175,13 +175,31 @@ class TestSyncBrowser:
         r = client.runtime.browser.pdf(VALID_UUID, BID, "t1")
         assert base64.b64decode(r["data"]) == b"%PDF"
 
-    def test_dialog_default_auto_dismiss(self, client, mock_api):
+    def test_dialog_answers_by_default(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/dialog").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
         client.runtime.browser.dialog(VALID_UUID, BID)
         body = json.loads(mock_api.calls[-1].request.content)
-        assert body["auto_dismiss"] is True and body["accept"] is True
+        # auto_dismiss=False → the call answers (accept+prompt_text) rather
+        # than dismissing.
+        assert body["auto_dismiss"] is False and body["accept"] is True
+
+    def test_dialog_auto_dismiss_opt_in(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/dialog").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
+        client.runtime.browser.dialog(VALID_UUID, BID, auto_dismiss=True)
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["auto_dismiss"] is True
+
+    def test_screenshot_quality_kwarg(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/screenshot").mock(
+            return_value=httpx.Response(200, json={"data": "", "format": "jpeg"})
+        )
+        client.runtime.browser.screenshot(VALID_UUID, BID, format="jpeg", quality=70)
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["quality"] == 70 and body["format"] == "jpeg"
 
 
 # ===================================================================

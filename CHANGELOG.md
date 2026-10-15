@@ -1,6 +1,23 @@
 # Changelog
 
 ## [Unreleased]
+## [0.1.105] - 2026-10-15
+### Fixed
+- `browser.screenshot(..., quality=)` accepts a JPEG quality parameter (was
+  only reachable through raw requests).
+- `browser.dialog()` answers the pending dialog by default —
+  `auto_dismiss=True` now means "restore auto-dismiss policy and clear any
+  pending dialog", not "dismiss instead of answering". Prompt dialogs can
+  be filled via `prompt_text`.
+
+### Templates
+
+- **`base-desktop`** (`examples/templates/dockerfiles/base-desktop.Dockerfile`) —
+  the desktop template: base toolchain + Chromium (Playwright build,
+  amd64+arm64) + Xvfb + openbox + fonts + dbus/at-spi2-core/xdg-utils.
+  `browser.open` / `display.enable` work out of the box; no GNOME/KDE or
+  VNC — cellcore owns the framebuffer and view stream.
+
 ## [0.1.104] - 2026-10-15
 ### Added
 - `client.storage` — storage mounts end to end: `storage.buckets`

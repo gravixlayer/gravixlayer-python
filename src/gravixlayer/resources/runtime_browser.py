@@ -44,11 +44,13 @@ def _open_body(engine: str, headless: bool, profile_dir: str,
 
 
 def _shot_body(target_id: str, format: str, full_page: bool, element: Any,
-               wait_stable_ms: int, timeout_ms: int) -> Dict[str, Any]:
+               quality: int, wait_stable_ms: int, timeout_ms: int) -> Dict[str, Any]:
     body: Dict[str, Any] = {"target_id": target_id, "format": format,
                             "full_page": full_page}
     if element is not None:
         body["element"] = _target(element)
+    if quality:
+        body["quality"] = quality
     if wait_stable_ms:
         body["wait_stable_ms"] = wait_stable_ms
         body["timeout_ms"] = timeout_ms or wait_stable_ms * 4
@@ -170,12 +172,13 @@ class RuntimeBrowserResource:
 
     def screenshot(self, runtime_id: str, browser_id: str, target_id: str = "",
                    format: str = "png", full_page: bool = False, element: Any = None,
-                   wait_stable_ms: int = 0, timeout_ms: int = 0) -> Dict[str, Any]:
+                   quality: int = 0, wait_stable_ms: int = 0,
+                   timeout_ms: int = 0) -> Dict[str, Any]:
         """Page screenshot — viewport default; ``full_page`` or ``element`` for a
-        scoped clip. Data is base64."""
+        scoped clip. ``quality`` applies to JPEG (0–100). Data is base64."""
         _validate_runtime_id(runtime_id)
         return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/screenshot",
-                       _shot_body(target_id, format, full_page, element,
+                       _shot_body(target_id, format, full_page, element, quality,
                                   wait_stable_ms, timeout_ms))
 
     def snapshot(self, runtime_id: str, browser_id: str, target_id: str = "",
@@ -289,9 +292,11 @@ class RuntimeBrowserResource:
     # -- dialogs / downloads / pdf / view -------------------------------------------------------------
 
     def dialog(self, runtime_id: str, browser_id: str, accept: bool = True,
-               prompt_text: str = "", auto_dismiss: bool = True,
+               prompt_text: str = "", auto_dismiss: bool = False,
                target_id: str = "") -> Dict[str, Any]:
-        """Handle a pending alert/confirm/prompt — auto-dismiss is the default."""
+        """Answer a pending alert/confirm/prompt (``prompt_text`` fills prompt
+        dialogs). ``auto_dismiss=True`` instead restores auto-dismiss policy
+        and clears any pending dialog."""
         _validate_runtime_id(runtime_id)
         return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/dialog",
                        {"target_id": target_id, "accept": accept,
@@ -448,10 +453,11 @@ class AsyncRuntimeBrowserResource:
 
     async def screenshot(self, runtime_id: str, browser_id: str, target_id: str = "",
                          format: str = "png", full_page: bool = False, element: Any = None,
-                         wait_stable_ms: int = 0, timeout_ms: int = 0) -> Dict[str, Any]:
+                         quality: int = 0, wait_stable_ms: int = 0,
+                         timeout_ms: int = 0) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
         return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/screenshot",
-                             _shot_body(target_id, format, full_page, element,
+                             _shot_body(target_id, format, full_page, element, quality,
                                         wait_stable_ms, timeout_ms))
 
     async def snapshot(self, runtime_id: str, browser_id: str, target_id: str = "",
@@ -554,7 +560,7 @@ class AsyncRuntimeBrowserResource:
                                        {"dx": dx, "dy": dy}, force=force, settle_timeout_ms=settle_timeout_ms, target_timeout_ms=target_timeout_ms))
 
     async def dialog(self, runtime_id: str, browser_id: str, accept: bool = True,
-                     prompt_text: str = "", auto_dismiss: bool = True,
+                     prompt_text: str = "", auto_dismiss: bool = False,
                      target_id: str = "") -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
         return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/dialog",
