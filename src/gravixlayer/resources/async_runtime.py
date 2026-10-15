@@ -58,6 +58,8 @@ from .runtime_git import AsyncRuntimeGitResource
 from .runtime_files import AsyncRuntimeFileResource
 from .runtime_pty import AsyncRuntimePtyResource
 from .async_runtime_service import AsyncRuntimeServiceResource
+from .runtime_display import AsyncRuntimeDisplayResource
+from .runtime_browser import AsyncRuntimeBrowserResource
 
 # Timeout for restoring a runtime from a snapshot (3 minutes).
 _SNAPSHOT_RESTORE_TIMEOUT = httpx.Timeout(180.0)
@@ -84,10 +86,13 @@ class AsyncRuntimes:
     def __init__(self, client):
         self.client = client
         self._git_resource: Optional["AsyncRuntimeGitResource"] = None
+        self._mounts_resource: Optional["AsyncRuntimeMounts"] = None
         self._file_resource: Optional[AsyncRuntimeFileResource] = None
         self._pty_resource: Optional[AsyncRuntimePtyResource] = None
         self._service_resource: Optional[AsyncRuntimeServiceResource] = None
         self._command_resource: Optional[AsyncRuntimeCommandResource] = None
+        self._display_resource: Optional[AsyncRuntimeDisplayResource] = None
+        self._browser_resource: Optional[AsyncRuntimeBrowserResource] = None
 
     @property
     def file(self) -> AsyncRuntimeFileResource:
@@ -104,11 +109,34 @@ class AsyncRuntimes:
         return self._pty_resource
 
     @property
+    def display(self) -> AsyncRuntimeDisplayResource:
+        """Display plane: ``screenshot``, mouse, keyboard, ``view`` — pixels + input."""
+        if self._display_resource is None:
+            self._display_resource = AsyncRuntimeDisplayResource(self)
+        return self._display_resource
+
+    @property
+    def browser(self) -> AsyncRuntimeBrowserResource:
+        """Browser plane: ``open``, ``navigate``, ``snapshot``, element actions, ``pdf``, ``downloads``."""
+        if self._browser_resource is None:
+            self._browser_resource = AsyncRuntimeBrowserResource(self)
+        return self._browser_resource
+
+    @property
     def git(self) -> "AsyncRuntimeGitResource":
         """Git operations: ``await client.runtime.git.clone(...)``, etc."""
         if self._git_resource is None:
             self._git_resource = AsyncRuntimeGitResource(self)
         return self._git_resource
+
+    @property
+    def mounts(self) -> "AsyncRuntimeMounts":
+        """Storage mounts: ``attach``, ``list``, ``detach`` on a runtime."""
+        if self._mounts_resource is None:
+            from .async_storage import AsyncRuntimeMounts
+
+            self._mounts_resource = AsyncRuntimeMounts(self.client)
+        return self._mounts_resource
 
     @property
     def service(self) -> AsyncRuntimeServiceResource:
@@ -153,6 +181,7 @@ class AsyncRuntimes:
         agent_id: Optional[str] = None,
         providers: Optional[List[str]] = None,
         network_policy_ids: Optional[List[str]] = None,
+        mounts: Optional[List[Dict[str, Any]]] = None,
         provider: Optional[str] = None,
         snapshot: Optional[str] = None,
         timeout_seconds: Optional[int] = None,
@@ -215,6 +244,12 @@ class AsyncRuntimes:
             data["providers"] = providers
         if network_policy_ids is not None:
             data["network_policy_ids"] = network_policy_ids
+        if mounts is not None:
+            if len(mounts) > 8:
+                raise ValueError(f"at most 8 mounts per runtime, got {len(mounts)}")
+            from ..types.storage import build_mount_spec
+
+            data["mounts"] = [build_mount_spec(m) for m in mounts]
 
         with telemetry.runtime_span("create", "") as span:
             if snapshot:

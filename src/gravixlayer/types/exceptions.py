@@ -52,8 +52,13 @@ def error_from_response(
             body=payload,
             headers=header_map,
         )
+    message = format_error_message(text, body)
+    if message == "Request failed.":
+        # Empty/unparseable bodies (e.g. a 404 from a wrong route prefix)
+        # must still tell the caller what status came back.
+        message = f"Request failed (HTTP {status})."
     return _class_for_status(status)(
-        format_error_message(text, body),
+        message,
         status=status,
         code=error_code(body),
         body=payload,

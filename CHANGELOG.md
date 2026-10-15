@@ -1,6 +1,48 @@
 # Changelog
 
 ## [Unreleased]
+## [0.1.104] - 2026-10-15
+### Added
+- `client.storage` — storage mounts end to end: `storage.buckets`
+  (`create`/`list`/`get`/`delete` managed buckets),
+  `storage.links` (`create`/`list`/`get`/`verify`/`delete` for S3 and
+  S3-compatible buckets; static secret references or `oidc` role
+  assumption — credential material never crosses the SDK), and
+  `storage.mounts` (`attach`/`list`/`detach` on a running runtime).
+  `sandbox.mounts` is bound on every `Runtime` object and
+  `client.runtime.mounts` exposes the unbound resource, and
+  `runtime.create(mounts=[...])` attaches bucket, link, and git mounts at
+  boot. Mount requests are validated locally — bad paths, mixed
+  bucket/link targets, non-https endpoints or git URLs fail before the
+  request leaves the process. `AsyncGravixLayer` gets the same surface.
+- `client.runtime.display` — the pixel plane: `enable`/`disable`/`status`,
+  `screenshot` (`wait_stable_ms`, region, format), `click`/`move`/`scroll`,
+  `type`/`press`/`hotkey`, `wait_stable`, `view`. Drives the runtime's screen
+  for surfaces the DOM cannot address — dialogs, canvas, native windows.
+- `client.runtime.browser` — the semantic plane: `open`/`close`/`list`/`status`,
+  `navigate` (+`back`/`forward`/`reload`), `snapshot` (element digest with
+  `ref` targets), `evaluate`, element actions `click`/`fill`/`type`/`press`/
+  `hotkey`/`scroll` with actionability and post-action settle, `dialog`,
+  `downloads` (+`wait_name`)/`download`, per-target `pdf`, `view`. `goto(url)` auto-opens
+  the default browser on first use; `dblclick`/`hover` join `click`.
+- `runtime.browser` / `runtime.display` on the `Runtime` object — bound
+  handles that drop the `runtime_id` argument (same shape as ``runtime.git``
+  / ``runtime.pty``). Actions
+  accept a `ref` from `snapshot()`, a `{by, value}` selector, or `(x, y)`
+  coords; `fill(..., secret_ref=...)` types a stored secret without sending
+  it through the client. `AsyncGravixLayer` gets the same surface.
+### Removed
+- `gravixlayer.cli` — a broken, never-published module whose imports of
+  `cmd_runtime`/`cmd_template` raised `ModuleNotFoundError`. It was not
+  wired to a console script (`gravixlayer-runtime` is unaffected); the
+  standalone `gravixlayer` binary is the product CLI.
+
+### Fixed
+- Error messages now carry the HTTP status when the API returns an
+  empty or unparseable error body — `Request failed (HTTP 404).`
+  instead of a bare `Request failed.` — so a routing mistake (for
+  example a base URL that already ends in `/v1`) is diagnosable.
+
 ## [0.1.103] - 2026-10-07
 ### Added
 - `runtime.create(timeout_seconds=)` is the sandbox lifetime in seconds,

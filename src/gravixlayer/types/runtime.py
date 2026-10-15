@@ -8,6 +8,7 @@ from typing import Any, BinaryIO, Callable, Dict, List, Optional, Union
 from dataclasses import dataclass, field
 
 from .._resource_utils import sandbox_lifetime_seconds
+from .storage import RuntimeMount, RuntimeMountList
 
 
 # ---------------------------------------------------------------------------
@@ -554,6 +555,12 @@ class Runtime:
         self._require_alive()
         return RuntimeGit(self._client, self.runtime_id)
 
+    @property
+    def mounts(self) -> "RuntimeMountsBound":
+        """Storage mounts on this runtime: ``attach``, ``list``, ``detach``."""
+        self._require_alive()
+        return RuntimeMountsBound(self)
+
     # -- State management --------------------------------------------------
 
     def pause(self) -> None:
@@ -616,6 +623,16 @@ class Runtime:
     def command(self) -> "RuntimeCommandBound":
         """Background commands on this runtime."""
         return RuntimeCommandBound(self)
+
+    @property
+    def browser(self) -> "RuntimeBrowserBound":
+        """Browser on this runtime (same as ``client.runtime.browser``, without ``runtime_id``)."""
+        return RuntimeBrowserBound(self)
+
+    @property
+    def display(self) -> "RuntimeDisplayBound":
+        """Display on this runtime (same as ``client.runtime.display``, without ``runtime_id``)."""
+        return RuntimeDisplayBound(self)
 
     def service(
         self,
@@ -835,6 +852,39 @@ class RuntimeFileBound:
     def download_file(self, path: str) -> bytes:
         rid, client = self._rc()
         return client.runtime.file.download_file(rid, path)
+
+
+class RuntimeMountsBound:
+    """Bound view of ``client.storage.mounts`` — forwards ``runtime_id``.
+
+    With :class:`gravixlayer.GravixLayer` these return values directly;
+    with :class:`gravixlayer.AsyncGravixLayer` they return awaitables.
+    """
+
+    __slots__ = ("_runtime",)
+
+    def __init__(self, runtime: "Runtime") -> None:
+        object.__setattr__(self, "_runtime", runtime)
+
+    def _rc(self) -> tuple[str, Any]:
+        r = object.__getattribute__(self, "_runtime")
+        r._require_alive()
+        return r.runtime_id, r._client
+
+    def attach(self, mount: Dict[str, Any]) -> RuntimeMount:
+        """Attach a bucket/link/git mount at a guest path."""
+        rid, client = self._rc()
+        return client.storage.mounts.attach(rid, mount)
+
+    def list(self) -> RuntimeMountList:
+        """List this runtime's mounts and their states."""
+        rid, client = self._rc()
+        return client.storage.mounts.list(rid)
+
+    def detach(self, attachment_id: str) -> bool:
+        """Detach a mount by attachment id."""
+        rid, client = self._rc()
+        return client.storage.mounts.detach(rid, attachment_id)
 
 
 class RuntimePtyBound:
@@ -1948,3 +1998,194 @@ _RUNTIME_DEFAULTS: Dict[str, Any] = {
     "memory_mb": None,
     "ended_at": None,
 }
+
+
+class RuntimeBrowserBound:
+    """Bound view of ``client.runtime.browser`` minus ``runtime_id``.
+
+    First-class computer-use: ``runtime.browser.goto(url)`` auto-opens the
+    default browser and navigates; actions accept a ref (``"e3"``), a
+    selector dict, or ``(x, y)`` coords.
+    """
+
+    __slots__ = ("_runtime",)
+
+    def __init__(self, runtime: "Runtime") -> None:
+        object.__setattr__(self, "_runtime", runtime)
+
+    def _rc(self) -> tuple[str, Any]:
+        r = object.__getattribute__(self, "_runtime")
+        r._require_alive()
+        return r.runtime_id, r._client
+
+    def open(self, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.open(rid, **kwargs)
+
+    def goto(self, url: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.goto(rid, url, **kwargs)
+
+    def close(self, browser_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.close(rid, browser_id)
+
+    def list(self) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.list(rid)
+
+    def status(self, browser_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.status(rid, browser_id)
+
+    def navigate(self, browser_id: str, url: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.navigate(rid, browser_id, url, **kwargs)
+
+    def back(self, browser_id: str, target_id: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.back(rid, browser_id, target_id)
+
+    def forward(self, browser_id: str, target_id: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.forward(rid, browser_id, target_id)
+
+    def reload(self, browser_id: str, target_id: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.reload(rid, browser_id, target_id)
+
+    def targets(self, browser_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.targets(rid, browser_id)
+
+    def screenshot(self, browser_id: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.screenshot(rid, browser_id, **kwargs)
+
+    def snapshot(self, browser_id: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.snapshot(rid, browser_id, **kwargs)
+
+    def evaluate(self, browser_id: str, expression: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.evaluate(rid, browser_id, expression, **kwargs)
+
+    def click(self, browser_id: str, target: Any, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.click(rid, browser_id, target, **kwargs)
+
+    def dblclick(self, browser_id: str, target: Any, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.dblclick(rid, browser_id, target, **kwargs)
+
+    def hover(self, browser_id: str, target: Any, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.hover(rid, browser_id, target, **kwargs)
+
+    def fill(self, browser_id: str, target: Any, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.fill(rid, browser_id, target, **kwargs)
+
+    def type(self, browser_id: str, target: Any, text: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.type(rid, browser_id, target, text, **kwargs)
+
+    def press(self, browser_id: str, key: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.press(rid, browser_id, key, **kwargs)
+
+    def hotkey(self, browser_id: str, keys: List[str], **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.hotkey(rid, browser_id, keys, **kwargs)
+
+    def scroll(self, browser_id: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.scroll(rid, browser_id, **kwargs)
+
+    def dialog(self, browser_id: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.dialog(rid, browser_id, **kwargs)
+
+    def downloads(self, browser_id: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.downloads(rid, browser_id, **kwargs)
+
+    def download(self, browser_id: str, download_id: str,
+                 meta_only: bool = False) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.download(rid, browser_id, download_id,
+                                               meta_only=meta_only)
+
+    def activate(self, browser_id: str, target_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.activate(rid, browser_id, target_id)
+
+    def pdf(self, browser_id: str, target_id: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.pdf(rid, browser_id, target_id, **kwargs)
+
+    def view(self, browser_id: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.view(rid, browser_id, **kwargs)
+
+
+class RuntimeDisplayBound:
+    """Bound view of ``client.runtime.display`` minus ``runtime_id``."""
+
+    __slots__ = ("_runtime",)
+
+    def __init__(self, runtime: "Runtime") -> None:
+        object.__setattr__(self, "_runtime", runtime)
+
+    def _rc(self) -> tuple[str, Any]:
+        r = object.__getattribute__(self, "_runtime")
+        r._require_alive()
+        return r.runtime_id, r._client
+
+    def enable(self, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.enable(rid, **kwargs)
+
+    def disable(self) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.disable(rid)
+
+    def status(self) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.status(rid)
+
+    def screenshot(self, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.screenshot(rid, **kwargs)
+
+    def click(self, x: int, y: int, button: str = "left") -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.click(rid, x, y, button)
+
+    def move(self, x: int, y: int) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.move(rid, x, y)
+
+    def scroll(self, x: int = 0, y: int = 0) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.scroll(rid, x, y)
+
+    def type(self, text: str, delay_ms: int = 0) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.type(rid, text, delay_ms=delay_ms)
+
+    def press(self, key: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.press(rid, key)
+
+    def hotkey(self, keys: List[str]) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.hotkey(rid, keys)
+
+    def wait_stable(self, stable_ms: int = 500, timeout_ms: int = 10_000) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.wait_stable(rid, stable_ms, timeout_ms)
+
+    def view(self, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.view(rid, **kwargs)

@@ -122,6 +122,27 @@ from .resources.async_agents import (
 from .resources.async_secret_providers import AsyncProviders
 from .resources.async_identity import AsyncIdentity
 from .resources.async_network_policies import AsyncNetworkPolicies
+from .resources.storage import Storage, StorageBuckets, BucketLinks, RuntimeMounts
+from .resources.async_storage import (
+    AsyncStorage,
+    AsyncStorageBuckets,
+    AsyncBucketLinks,
+    AsyncRuntimeMounts,
+)
+from .types.storage import (
+    StorageBucket,
+    StorageBucketList,
+    BucketLink,
+    BucketLinkList,
+    RuntimeMount,
+    RuntimeMountList,
+    LINK_PROVIDERS,
+    MOUNT_RO,
+    MOUNT_RW,
+    MOUNT_ATTACHED,
+    MOUNT_DETACHED,
+    MOUNT_FAILED,
+)
 from .types.secret_providers import (
     SecretInfo,
     SecretProvider,
@@ -286,6 +307,27 @@ __all__ = [
     # Network policies
     "NetworkPolicies",
     "AsyncNetworkPolicies",
+    # Storage mounts
+    "Storage",
+    "AsyncStorage",
+    "StorageBuckets",
+    "AsyncStorageBuckets",
+    "BucketLinks",
+    "AsyncBucketLinks",
+    "RuntimeMounts",
+    "AsyncRuntimeMounts",
+    "StorageBucket",
+    "StorageBucketList",
+    "BucketLink",
+    "BucketLinkList",
+    "RuntimeMount",
+    "RuntimeMountList",
+    "LINK_PROVIDERS",
+    "MOUNT_RO",
+    "MOUNT_RW",
+    "MOUNT_ATTACHED",
+    "MOUNT_DETACHED",
+    "MOUNT_FAILED",
     "NetworkPolicy",
     "NetworkPolicyList",
     "NetworkPolicyRule",

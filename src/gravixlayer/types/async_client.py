@@ -32,6 +32,7 @@ from ..resources.async_snapshots import AsyncSnapshots
 from ..resources.async_agents import AsyncAgents
 from ..resources.async_identity import AsyncIdentity
 from ..resources.async_network_policies import AsyncNetworkPolicies
+from ..resources.async_storage import AsyncStorage
 from .. import telemetry
 
 class AsyncGravixLayer:
@@ -148,6 +149,7 @@ class AsyncGravixLayer:
         self.agents = AsyncAgents(self)
         self.identity = AsyncIdentity(self)
         self.network_policies = AsyncNetworkPolicies(self)
+        self.storage = AsyncStorage(self)
 
     async def warmup(self) -> None:
         """Same as :meth:`gravixlayer.GravixLayer.warmup` but async.

@@ -87,6 +87,16 @@ class TestErrorFromResponse:
         assert str(err) == "Runtime not found"
         assert err.code == "not_found"
 
+    def test_empty_body_reports_status(self):
+        err = error_from_response(404, "")
+        assert str(err) == "Request failed (HTTP 404)."
+        assert err.status == 404
+
+    def test_blank_body_reports_status(self):
+        err = error_from_response(503, "  ")
+        assert str(err) == "Request failed (HTTP 503)."
+        assert err.status == 503
+
     def test_rate_limit_class_and_retry_after(self):
         err = error_from_response(
             429,

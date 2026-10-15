@@ -55,6 +55,8 @@ from .runtime_git import RuntimeGitResource
 from .runtime_files import RuntimeFileResource
 from .runtime_pty import RuntimePtyResource
 from .runtime_service import RuntimeServiceResource
+from .runtime_display import RuntimeDisplayResource
+from .runtime_browser import RuntimeBrowserResource
 
 # Timeout for restoring a runtime from a snapshot (3 minutes).
 _SNAPSHOT_RESTORE_TIMEOUT = httpx.Timeout(180.0)
@@ -73,6 +75,9 @@ class Runtimes:
         self._pty_resource: Optional[RuntimePtyResource] = None
         self._service_resource: Optional[RuntimeServiceResource] = None
         self._command_resource: Optional[RuntimeCommandResource] = None
+        self._display_resource: Optional[RuntimeDisplayResource] = None
+        self._browser_resource: Optional[RuntimeBrowserResource] = None
+        self._mounts_resource: Optional["RuntimeMounts"] = None
 
     @property
     def file(self) -> RuntimeFileResource:
@@ -89,11 +94,34 @@ class Runtimes:
         return self._pty_resource
 
     @property
+    def display(self) -> RuntimeDisplayResource:
+        """Display plane: ``screenshot``, mouse, keyboard, ``view`` — pixels + input."""
+        if self._display_resource is None:
+            self._display_resource = RuntimeDisplayResource(self)
+        return self._display_resource
+
+    @property
+    def browser(self) -> RuntimeBrowserResource:
+        """Browser plane: ``open``, ``navigate``, ``snapshot``, element actions, ``pdf``, ``downloads``."""
+        if self._browser_resource is None:
+            self._browser_resource = RuntimeBrowserResource(self)
+        return self._browser_resource
+
+    @property
     def git(self) -> "RuntimeGitResource":
         """Git operations: ``client.runtime.git.clone(...)``, ``.pull``, etc."""
         if self._git_resource is None:
             self._git_resource = RuntimeGitResource(self)
         return self._git_resource
+
+    @property
+    def mounts(self) -> "RuntimeMounts":
+        """Storage mounts: ``attach``, ``list``, ``detach`` on a runtime."""
+        if self._mounts_resource is None:
+            from .storage import RuntimeMounts
+
+            self._mounts_resource = RuntimeMounts(self.client)
+        return self._mounts_resource
 
     @property
     def service(self) -> RuntimeServiceResource:
@@ -138,6 +166,7 @@ class Runtimes:
         agent_id: Optional[str] = None,
         providers: Optional[List[str]] = None,
         network_policy_ids: Optional[List[str]] = None,
+        mounts: Optional[List[Dict[str, Any]]] = None,
         provider: Optional[str] = None,
         snapshot: Optional[str] = None,
         timeout_seconds: Optional[int] = None,
@@ -161,6 +190,12 @@ class Runtimes:
                 persisted decrypted by the platform).
             network_policy_ids: Optional network policy IDs to attach at creation
                 (the system default is always attached).
+            mounts: Optional storage mounts to attach at boot — dicts like
+                ``{"kind": "bucket", "path": "/mnt/data", "mode": "rw",
+                  "bucket": "<id-or-name>"}`` or ``{"kind": "git", "path": ...,
+                  "url": "https://..."}``. At most 8; paths must be absolute
+                and non-nesting. A mount is required by default — a failed
+                attach fails the create; ``"required": False`` tolerates it.
             provider: Deprecated alias for ``cloud``.
             snapshot: Snapshot name or UUID. Mutually exclusive with an explicit
                 ``template`` other than the default ``base-small``.
@@ -203,6 +238,12 @@ class Runtimes:
             data["providers"] = providers
         if network_policy_ids is not None:
             data["network_policy_ids"] = network_policy_ids
+        if mounts is not None:
+            if len(mounts) > 8:
+                raise ValueError(f"at most 8 mounts per runtime, got {len(mounts)}")
+            from ..types.storage import build_mount_spec
+
+            data["mounts"] = [build_mount_spec(m) for m in mounts]
 
         with telemetry.runtime_span("create", "") as span:
             if snapshot:

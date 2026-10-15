@@ -29,6 +29,7 @@ from .resources.snapshots import Snapshots
 from .resources.agents import Agents
 from .resources.identity import Identity
 from .resources.network_policies import NetworkPolicies
+from .resources.storage import Storage
 from . import telemetry
 from .types.exceptions import (
     GravixLayerError,
@@ -159,6 +160,7 @@ class GravixLayer:
         self.agents = Agents(self)
         self.identity = Identity(self)
         self.network_policies = NetworkPolicies(self)
+        self.storage = Storage(self)
 
         if warmup_on_init:
             self.warmup()

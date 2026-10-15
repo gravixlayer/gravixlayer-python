@@ -183,6 +183,42 @@ sandbox = client.runtime.create(
 Attaching several policies applies the most restrictive of them, so adding one
 can only narrow access.
 
+## Storage mounts
+
+Managed buckets, links to buckets you already own, and git repositories can
+mount into a sandbox at boot or while it runs:
+
+```python
+bucket = client.storage.buckets.create("datasets")
+
+sandbox = client.runtime.create(mounts=[
+    {"kind": "bucket", "path": "/mnt/data", "mode": "rw", "bucket": bucket.id},
+    {"kind": "git", "path": "/mnt/repo", "url": "https://example.com/org/repo.git"},
+])
+
+# Hot-attach, inspect, detach on a running sandbox.
+mount = sandbox.mounts.attach(
+    {"kind": "bucket", "path": "/mnt/more", "link": "byo-data"}
+)
+print(mount.state, mount.provenance)
+sandbox.mounts.detach(mount.id)
+```
+
+Bring your own bucket with a *link* — credentials live in a secret provider
+and are referenced by name, never passed through the SDK:
+
+```python
+link = client.storage.links.create(
+    "byo-data", "acme-data",
+    provider="s3_compatible",
+    endpoint="https://objects.example.com",
+    path_style=True,
+    secret_provider_id=provider.id,
+    access_key_secret="AWS_ACCESS_KEY_ID",
+    secret_key_secret="AWS_SECRET_ACCESS_KEY",
+)
+```
+
 ## Secrets
 
 ```python

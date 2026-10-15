@@ -157,12 +157,11 @@ markers = [
 ]
 
 # Public SDK coverage gate (client + resources + types + shared request helpers).
-# Excludes optional runtime/a2a/frameworks adapters and CLI — not the published HTTP API surface.
+# Excludes optional runtime/a2a/frameworks adapters — not the published HTTP API surface.
 [tool.coverage.run]
 branch = true
 source = ["gravixlayer"]
 omit = [
-    "*/gravixlayer/cli/*",
     "*/gravixlayer/runtime/*",
     "*/gravixlayer/a2a/*",
     "*/gravixlayer/frameworks/*",
