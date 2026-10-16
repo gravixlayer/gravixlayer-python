@@ -25,7 +25,13 @@ def _shot_body(format: str, region: Optional[Dict[str, int]], quality: int,
                scale_pct: int, wait_stable_ms: int, timeout_ms: int) -> Dict[str, Any]:
     body: Dict[str, Any] = {"format": format}
     if region is not None:
-        body["region"] = region
+        # Wire shape is {x, y, w, h}; accept width/height as aliases.
+        r = dict(region)
+        if "w" not in r and "width" in r:
+            r["w"] = r.pop("width")
+        if "h" not in r and "height" in r:
+            r["h"] = r.pop("height")
+        body["region"] = r
     if quality:
         body["quality"] = quality
     if scale_pct:
@@ -67,7 +73,8 @@ class RuntimeDisplayResource:
                    scale_pct: int = 0, wait_stable_ms: int = 0,
                    timeout_ms: int = 0) -> Dict[str, Any]:
         """Screenshot the display. ``wait_stable_ms`` blocks until pixel-stable.
-        Data is base64."""
+        ``region`` crops to ``{"x", "y", "w", "h"}`` (``width``/``height``
+        accepted as aliases). Data is base64."""
         _validate_runtime_id(runtime_id)
         return self._j("POST", f"runtime/{runtime_id}/display/screenshot",
                        _shot_body(format, region, quality, scale_pct,

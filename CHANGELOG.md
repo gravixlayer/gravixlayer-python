@@ -1,6 +1,19 @@
 # Changelog
 
 ## [Unreleased]
+## [0.1.106] - 2026-10-16
+### Fixed
+- `test_live_storage` tolerates the post-resume op-stream rebind window on
+  pause/resume and fork children (reads retry inside a bounded loop instead
+  of racing a single attempt).
+### Tests
+- `tests/integration_tests/test_live_storage.py` — opt-in live suite for the
+  storage-mount surface: managed buckets, static-credential bucket links,
+  public/private git mounts, pause/resume, fork inheritance, kill-detach,
+  read-only enforcement, and guest credential hygiene. Skips unless
+  `GRAVIXLAYER_API_KEY` is set; reads `~/.config/gravix-test/aws.env` for
+  AWS/git test credentials.
+
 ## [0.1.105] - 2026-10-15
 ### Fixed
 - `browser.screenshot(..., quality=)` accepts a JPEG quality parameter (was
