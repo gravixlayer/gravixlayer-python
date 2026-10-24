@@ -56,6 +56,7 @@ from .runtime_files import RuntimeFileResource
 from .runtime_pty import RuntimePtyResource
 from .runtime_service import RuntimeServiceResource
 from .runtime_display import RuntimeDisplayResource
+from .runtime_desktop import RuntimeDesktopResource
 from .runtime_browser import RuntimeBrowserResource
 
 # Timeout for restoring a runtime from a snapshot (3 minutes).
@@ -76,6 +77,7 @@ class Runtimes:
         self._service_resource: Optional[RuntimeServiceResource] = None
         self._command_resource: Optional[RuntimeCommandResource] = None
         self._display_resource: Optional[RuntimeDisplayResource] = None
+        self._desktop_resource: Optional[RuntimeDesktopResource] = None
         self._browser_resource: Optional[RuntimeBrowserResource] = None
         self._mounts_resource: Optional["RuntimeMounts"] = None
 
@@ -99,6 +101,13 @@ class Runtimes:
         if self._display_resource is None:
             self._display_resource = RuntimeDisplayResource(self)
         return self._display_resource
+
+    @property
+    def desktop(self) -> RuntimeDesktopResource:
+        """Desktop session plane: component ``status``/``start``/``stop``/``restart``, ``logs``."""
+        if self._desktop_resource is None:
+            self._desktop_resource = RuntimeDesktopResource(self)
+        return self._desktop_resource
 
     @property
     def browser(self) -> RuntimeBrowserResource:
@@ -184,7 +193,9 @@ class Runtimes:
                 explicit empty map (distinct from omitting the field).
             metadata: Metadata tags for the runtime
             internet_access: Whether to allow internet access (default: None = server default)
-            agent_id: Agent ID to associate with the runtime
+            agent_id: Removed — the API rejects ``agent_id`` on create. Attach MCP
+                servers via the ``mcp`` attach spec instead; passing it raises
+                ``ValueError`` instead of a server 400.
             providers: Optional secret provider IDs to attach at creation;
                 their secrets are injected into the sandbox environment (never
                 persisted decrypted by the platform).
@@ -233,7 +244,10 @@ class Runtimes:
         if internet_access is not None:
             data["internet_access"] = internet_access
         if agent_id is not None:
-            data["agent_id"] = agent_id
+            raise ValueError(
+                "agent_id was removed from runtime create — attach MCP servers via the "
+                "'mcp' attach spec instead"
+            )
         if providers is not None:
             data["providers"] = providers
         if network_policy_ids is not None:

@@ -2154,33 +2154,69 @@ class RuntimeDisplayBound:
         rid, client = self._rc()
         return client.runtime.display.status(rid)
 
+    def info(self) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.info(rid)
+
+    def position(self) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.position(rid)
+
+    def keys(self) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.keys(rid)
+
     def screenshot(self, **kwargs) -> Any:
         rid, client = self._rc()
         return client.runtime.display.screenshot(rid, **kwargs)
 
-    def click(self, x: int, y: int, button: str = "left") -> Any:
+    def click(self, x: Optional[int] = None, y: Optional[int] = None,
+              button: str = "left", **kwargs) -> Any:
         rid, client = self._rc()
-        return client.runtime.display.click(rid, x, y, button)
+        return client.runtime.display.click(rid, x, y, button, **kwargs)
 
-    def move(self, x: int, y: int) -> Any:
+    def down(self, x: Optional[int] = None, y: Optional[int] = None,
+             button: str = "left", **kwargs) -> Any:
         rid, client = self._rc()
-        return client.runtime.display.move(rid, x, y)
+        return client.runtime.display.down(rid, x, y, button, **kwargs)
 
-    def scroll(self, x: int = 0, y: int = 0) -> Any:
+    def up(self, button: str = "left", **kwargs) -> Any:
         rid, client = self._rc()
-        return client.runtime.display.scroll(rid, x, y)
+        return client.runtime.display.up(rid, button, **kwargs)
 
-    def type(self, text: str, delay_ms: int = 0) -> Any:
+    def drag(self, to_x: int, to_y: int, **kwargs) -> Any:
         rid, client = self._rc()
-        return client.runtime.display.type(rid, text, delay_ms=delay_ms)
+        return client.runtime.display.drag(rid, to_x, to_y, **kwargs)
 
-    def press(self, key: str) -> Any:
+    def move(self, x: int, y: int, **kwargs) -> Any:
         rid, client = self._rc()
-        return client.runtime.display.press(rid, key)
+        return client.runtime.display.move(rid, x, y, **kwargs)
 
-    def hotkey(self, keys: List[str]) -> Any:
+    def scroll(self, dx: int = 0, dy: int = 0,
+               x: Optional[int] = None, y: Optional[int] = None,
+               **kwargs) -> Any:
         rid, client = self._rc()
-        return client.runtime.display.hotkey(rid, keys)
+        return client.runtime.display.scroll(rid, x, y, dx, dy, **kwargs)
+
+    def type(self, text: str, delay_ms: int = 0, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.type(rid, text, delay_ms=delay_ms, **kwargs)
+
+    def press(self, key: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.press(rid, key, **kwargs)
+
+    def hotkey(self, keys: List[str], **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.hotkey(rid, keys, **kwargs)
+
+    def get_clipboard(self) -> str:
+        rid, client = self._rc()
+        return client.runtime.display.get_clipboard(rid)
+
+    def set_clipboard(self, text: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.set_clipboard(rid, text)
 
     def wait_stable(self, stable_ms: int = 500, timeout_ms: int = 10_000) -> Any:
         rid, client = self._rc()
@@ -2189,3 +2225,64 @@ class RuntimeDisplayBound:
     def view(self, **kwargs) -> Any:
         rid, client = self._rc()
         return client.runtime.display.view(rid, **kwargs)
+
+    def stop_view(self) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.stop_view(rid)
+
+    # -- agent step ---------------------------------------------------------
+
+    def act(self, actions: List[Dict[str, Any]], **kwargs) -> Any:
+        """One agent step: batched inputs → settle → observation."""
+        rid, client = self._rc()
+        return client.runtime.display.act(rid, actions, **kwargs)
+
+    # -- geometry / windows / apps ------------------------------------------
+
+    def resize(self, width: int, height: int) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.resize(rid, width, height)
+
+    def windows(self, window_class: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.windows(rid, window_class)
+
+    def window_op(self, window_id: int, op: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.window_op(rid, window_id, op, **kwargs)
+
+    def focus_window(self, window_id: int) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.focus_window(rid, window_id)
+
+    def close_window(self, window_id: int) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.close_window(rid, window_id)
+
+    def move_window(self, window_id: int, x: int, y: int) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.move_window(rid, window_id, x, y)
+
+    def resize_window(self, window_id: int, w: int, h: int) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.resize_window(rid, window_id, w, h)
+
+    def apps(self) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.apps(rid)
+
+    def launch_app(self, app: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.launch_app(rid, app, **kwargs)
+
+    def open(self, target: str, **kwargs) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.open(rid, target, **kwargs)
+
+    def clipboard_image(self) -> bytes:
+        rid, client = self._rc()
+        return client.runtime.display.clipboard_image(rid)
+
+    def set_clipboard_image(self, png: bytes) -> Any:
+        rid, client = self._rc()
+        return client.runtime.display.set_clipboard_image(rid, png)

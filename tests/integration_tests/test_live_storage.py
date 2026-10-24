@@ -97,11 +97,6 @@ MOUNT_GIT = "/mnt/repo"
 MOUNT_GIT_PRIVATE = "/mnt/repo-private"
 MOUNT_GIT_BAD = "/mnt/repo-bad"
 
-# Dev-box bootstrap: when GRAVIXLAYER_SVC_IMAGE points at a guest svc binary,
-# each freshly created runtime gets that binary swapped in (the deployed
-# template snapshot predates the fix under test). Empty = no swap.
-SVC_IMAGE = os.environ.get("GRAVIXLAYER_SVC_IMAGE", "")
-
 # ===========================================================================
 # Helpers
 # ===========================================================================
@@ -119,68 +114,10 @@ def _sh(sandbox, cmd: str) -> tuple[int, str, str]:
     return int(rc), out, err
 
 
-def _swap_guest_svc(sandbox, binary: bytes) -> None:
-    """Replace the guest's control binary with `binary` and restart it.
-
-    The guest supervisor service is immutable-flagged (`chattr +i`) and runs
-    as root; the swap clears the flag, renames over the path, restores the
-    flag, then SIGTERMs the process so systemd respawns it on the new image.
-    Exec is polled until the control channel reconnects.
-    """
-    sandbox.file.upload("/tmp/.svc-new", binary, mode=0o755)
-    _sh(
-        sandbox,
-        "sudo chmod 755 /tmp/.svc-new && "
-        "sudo chattr -i /usr/lib/.srt/svc 2>/dev/null; "
-        "sudo mv -T /tmp/.svc-new /usr/lib/.srt/svc && "
-        "sudo chattr +i /usr/lib/.srt/svc && "
-        "sudo kill -TERM $(pgrep -f 'srt/svc' | head -1)",
-    )
-    # A successful exec means the control channel is up, but the storage
-    # service binds separately — a mount attach issued in the same instant can
-    # still race the listener. Settle briefly past the first good exec.
-    deadline = time.time() + 120
-    while time.time() < deadline:
-        try:
-            _sh(sandbox, "true")
-            break
-        except Exception:
-            time.sleep(4)
-    else:
-        raise TimeoutError("guest control channel did not reconnect after svc swap")
-    time.sleep(5)
-    try:
-        _sh(sandbox, "true")
-    except Exception:
-        raise TimeoutError("guest control channel flapped after svc swap")
-
-
 def _mk_runtime(client: GravixLayer, cleanup, **kwargs):
-    """Create a runtime and (when SVC_IMAGE is set) swap the guest's control
-    binary before any mount attach runs. Create-time mounts cannot attach
-    until the swap completes, so under SVC_IMAGE they are deferred to a
-    hot-attach after the swap — same mount spec, same assertions."""
-    defer = SVC_IMAGE and kwargs.get("mounts")
-    mounts = kwargs.pop("mounts", None) if defer else kwargs.get("mounts")
+    """Create a runtime and register it for cleanup."""
     sandbox = client.runtime.create(**kwargs)
     cleanup.runtimes.append(sandbox.runtime_id)
-    if SVC_IMAGE:
-        with open(SVC_IMAGE, "rb") as fh:
-            _swap_guest_svc(sandbox, fh.read())
-        for m in mounts or []:
-            m = dict(m)
-            optional = m.pop("required", None) is False
-            if optional:
-                # An optional mount may attach-then-fail or reject inline —
-                # either satisfies the contract that required:false never
-                # blocks boot.
-                try:
-                    client.storage.mounts.attach(sandbox.runtime_id, m)
-                except Exception:
-                    pass
-            else:
-                client.storage.mounts.attach(sandbox.runtime_id, m)
-                _wait_attachment(client, sandbox.runtime_id, m["path"])
     return sandbox
 
 

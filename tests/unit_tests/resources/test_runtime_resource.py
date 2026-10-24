@@ -135,7 +135,6 @@ class TestSyncRuntimeLifecycle:
             env_vars={"NODE_ENV": "production"},
             metadata={"team": "ml"},
             internet_access=True,
-            agent_id="agent-001",
             providers=["provider-uuid-1"],
             network_policy_ids=["policy-uuid-1", "policy-uuid-2"],
         )
@@ -153,6 +152,15 @@ class TestSyncRuntimeLifecycle:
         assert body["internet_access"] is True
         assert body["providers"] == ["provider-uuid-1"]
         assert body["network_policy_ids"] == ["policy-uuid-1", "policy-uuid-2"]
+
+    def test_create_agent_id_is_rejected_client_side(self, client, mock_api):
+        # agent_id was removed from the create contract — the SDK fails
+        # fast instead of shipping a field the API 400s on.
+        import pytest
+
+        with pytest.raises(ValueError, match="agent_id was removed"):
+            client.runtime.create(agent_id="agent-001")
+        assert len(mock_api.calls) == 0
 
     def test_create_timeout_seconds_is_the_same_lifetime(self, client, mock_api):
         mock_api.post(f"{SB}").mock(

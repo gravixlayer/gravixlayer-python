@@ -1,6 +1,96 @@
 # Changelog
 
 ## [Unreleased]
+
+## [0.1.107] - 2026-10-24
+
+### Added
+- `runtime.display.enable(mode="spawn"|"attach"|"auto", display=…)` —
+  attach to the image's session display or spawn a virtual one.
+- `runtime.display.info()` (live geometry, dpi, attached state),
+  `.position()` (live pointer coordinates) and `.keys()` (the key names
+  `press`/`hotkey` accept).
+- `runtime.display.screenshot(format="webp", max_width=…, max_height=…,
+  cursor=True)` — aspect-fit bounds, pointer compositing, and the reply's
+  `scale` factor for coordinate mapping.
+- Pointer actions: `click(click_count=…, modifiers=[…],
+  coordinate_space="screenshot")`, `down()`, `up()`, `drag(to_x, to_y,
+  steps=…, duration_ms=…)`, `scroll(modifiers=[…])`.
+- Keyboard: `press(modifiers=[…])`, `hotkey(modifiers=[…])`, and
+  `type(mode="paste")` — clipboard-staged typing for large text blocks.
+- `runtime.display.get_clipboard()` / `.set_clipboard(text)`.
+- `runtime.display.view(role="watch")` mints a view-only link and returns
+  `view_token` plus `watch_url` — the `browser_url` with `&vt=` already
+  composed, ready to open; `.stop_view()` frees the view port.
+- `runtime.desktop` — `status()`, `component(name, op)` /
+  `start`/`stop`/`restart` helpers, and `logs(name, cursor=…, max_entries=…,
+  priority=…)` journal paging on desktop-template runtimes. Available on
+  the async client as `AsyncRuntimeDesktopResource`.
+- `runtime.display.act(actions, settle_ms=…, timeout_ms=…, observe=…)` —
+  one agent step in a single call: ordered inputs, settle, and the
+  observation shot; replies `{settled, rev, screenshot}`.
+- Frame revisions: `screenshot(if_rev=…)` replies `unchanged` with no
+  image bytes when the frame matches a previous reply's `rev`;
+  `wait_stable` replies carry `rev`.
+- `runtime.display.resize(w, h)` live-resizes and returns the new
+  geometry; `runtime.display.view(window_id=…)` streams one window's
+  pixels.
+- Windows and apps: `.windows(window_class=…)`, `.window_op(id, op)`,
+  `focus_window`/`close_window`/`move_window`/`resize_window` helpers,
+  `.apps()`, `.launch_app(app, uri=…, wait_window=…, timeout_ms=…)`, and
+  `.open(target, wait_window=…)`.
+- `.clipboard_image()` / `.set_clipboard_image(png_bytes)` — PNG payloads
+  alongside the text clipboard. All methods ship on the async resource and
+  the bound `runtime.display` view.
+- `runtime.browser.view()` records now include `watch_url` (and
+  `view_token` when one applies): headed browsers stream through the
+  token-gated display view, so the ready-to-open link composes `&vt=` in;
+  headless screencasts return the bare `browser_url` unchanged.
+- `runtime.browser.view(role="watch")` mints a view-only link — the
+  `view_token`/`watch_url` capability sees frames but can never inject
+  input, matching `display.view`.
+
+### Changed
+- `create(..., agent_id=...)` now raises an explicit deprecation error
+  instead of sending the removed field — the API rejects `agent_id`
+  outright; per-runtime MCP policy attaches via the `mcp` spec.
+
+### Fixed
+- `runtime.browser` percent-encodes `browser_id`, `target_id`, and
+  `download_id` in route paths — an id containing `/`, `?`, or `#`
+  previously corrupted the route.
+- `runtime.display.windows(window_class=...)` URL-encodes the filter —
+  a class containing `&`, `#`, `+` or spaces previously corrupted the
+  query string.
+- `runtime.display.scroll(...)` (bound view) now accepts `dx`/`dy` and
+  forwards them — the wire scrolls on deltas only, so the old `(x, y)`
+  bound signature could never produce a scroll. Positional args are deltas,
+  matching the TypeScript bound call shape; `x`/`y` remain the optional
+  pointer position.
+- `runtime.display.scroll(...)` sends `x`/`y` only when given — the server
+  positions the pointer before the wheel, and `x=0`/`y=0` are now
+  distinguishable from "unset" (previously both serialized as `0`).
+- `runtime.display.enable(...)` defers to the platform display geometry
+  when `width`/`height`/`depth` are left as `0` instead of hard-coding a
+  client-side default; explicit values are sent unchanged.
+- `runtime.display.view(...)` and `runtime.browser.view(...)` accept
+  `rotate_token=True` to mint a fresh auth token for the watch URL
+  (invalidates the previous one); their docstrings now correctly say only
+  `browser_url` carries the token.
+
+### Templates
+- **`base-browser`** (`examples/templates/dockerfiles/base-browser.Dockerfile`) —
+  the 0.1.105 `base-desktop.Dockerfile`, renamed; build steps unchanged.
+  If you built `base-desktop.Dockerfile` for `browser.*` / `display.*`
+  without a desktop session, build `base-browser.Dockerfile` instead.
+- **`base-desktop`** (`examples/templates/dockerfiles/base-desktop.Dockerfile`) —
+  new: a full Ubuntu 22.04 GNOME 42 desktop on a virtual display, up at
+  boot. Ships Firefox ESR, Chromium, VS Code, LibreOffice (Calc, Writer,
+  Impress), Files, Terminal, Text Editor, Document Viewer, Calculator and
+  Image Viewer, with accessibility on for GTK, Qt, Chromium and VS Code.
+  No screen lock, idle dimming, sleep, animations or first-run dialogs.
+  Display, geometry and user are in `/etc/gravixlayer/desktop.json`.
+
 ## [0.1.106] - 2026-10-16
 ### Fixed
 - `test_live_storage` tolerates the post-resume op-stream rebind window on
@@ -29,7 +119,7 @@
   the desktop template: base toolchain + Chromium (Playwright build,
   amd64+arm64) + Xvfb + openbox + fonts + dbus/at-spi2-core/xdg-utils.
   `browser.open` / `display.enable` work out of the box; no GNOME/KDE or
-  VNC — cellcore owns the framebuffer and view stream.
+  VNC — the framebuffer and view stream are served by the runtime itself.
 
 ## [0.1.104] - 2026-10-15
 ### Added

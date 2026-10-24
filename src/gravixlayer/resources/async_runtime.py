@@ -59,6 +59,7 @@ from .runtime_files import AsyncRuntimeFileResource
 from .runtime_pty import AsyncRuntimePtyResource
 from .async_runtime_service import AsyncRuntimeServiceResource
 from .runtime_display import AsyncRuntimeDisplayResource
+from .runtime_desktop import AsyncRuntimeDesktopResource
 from .runtime_browser import AsyncRuntimeBrowserResource
 
 # Timeout for restoring a runtime from a snapshot (3 minutes).
@@ -92,6 +93,7 @@ class AsyncRuntimes:
         self._service_resource: Optional[AsyncRuntimeServiceResource] = None
         self._command_resource: Optional[AsyncRuntimeCommandResource] = None
         self._display_resource: Optional[AsyncRuntimeDisplayResource] = None
+        self._desktop_resource: Optional[AsyncRuntimeDesktopResource] = None
         self._browser_resource: Optional[AsyncRuntimeBrowserResource] = None
 
     @property
@@ -114,6 +116,13 @@ class AsyncRuntimes:
         if self._display_resource is None:
             self._display_resource = AsyncRuntimeDisplayResource(self)
         return self._display_resource
+
+    @property
+    def desktop(self) -> AsyncRuntimeDesktopResource:
+        """Desktop session plane: component ``status``/``start``/``stop``/``restart``, ``logs``."""
+        if self._desktop_resource is None:
+            self._desktop_resource = AsyncRuntimeDesktopResource(self)
+        return self._desktop_resource
 
     @property
     def browser(self) -> AsyncRuntimeBrowserResource:
@@ -198,7 +207,9 @@ class AsyncRuntimes:
             env_vars: Environment variables for the runtime
             metadata: Metadata tags for the runtime
             internet_access: Whether to allow internet access
-            agent_id: Agent ID to associate with the runtime
+            agent_id: Removed — the API rejects ``agent_id`` on create. Attach MCP
+                servers via the ``mcp`` attach spec instead; passing it raises
+                ``ValueError`` instead of a server 400.
             providers: Optional secret provider IDs to attach at creation
             network_policy_ids: Optional network policy IDs to attach at creation
                 (the system default is always attached).
@@ -239,7 +250,10 @@ class AsyncRuntimes:
         if internet_access is not None:
             data["internet_access"] = internet_access
         if agent_id is not None:
-            data["agent_id"] = agent_id
+            raise ValueError(
+                "agent_id was removed from runtime create — attach MCP servers via the "
+                "'mcp' attach spec instead"
+            )
         if providers is not None:
             data["providers"] = providers
         if network_policy_ids is not None:

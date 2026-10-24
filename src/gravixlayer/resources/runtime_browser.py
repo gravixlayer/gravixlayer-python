@@ -11,12 +11,19 @@ Coordinates work too when the surface isn't an element (canvas, WebGL).
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 from ..types.runtime import _validate_runtime_id
 
 if TYPE_CHECKING:
     from .runtime import Runtimes
     from .async_runtime import AsyncRuntimes
+
+
+def _q(seg: Any) -> str:
+    """Percent-encode one URL path segment — caller-supplied ids (browser,
+    target, download) must never carry ``/``, ``?`` or ``#`` into a path."""
+    return quote(str(seg), safe="-_.")
 
 
 def _target(target: Any) -> Optional[Dict[str, Any]]:
@@ -107,7 +114,7 @@ class RuntimeBrowserResource:
 
     def _action(self, runtime_id: str, browser_id: str, verb: str,
                 body: Dict[str, Any]) -> Dict[str, Any]:
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/actions/{verb}", body)
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/actions/{verb}", body)
 
     # -- lifecycle -------------------------------------------------------------
 
@@ -124,7 +131,7 @@ class RuntimeBrowserResource:
         _validate_runtime_id(runtime_id)
         if self._default.get(runtime_id) == browser_id:
             self._default.pop(runtime_id, None)
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/close")
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/close")
 
     def list(self, runtime_id: str) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
@@ -132,7 +139,7 @@ class RuntimeBrowserResource:
 
     def status(self, runtime_id: str, browser_id: str) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        return self._j("GET", f"runtime/{runtime_id}/browser/{browser_id}/status")
+        return self._j("GET", f"runtime/{runtime_id}/browser/{_q(browser_id)}/status")
 
     # -- navigation -------------------------------------------------------------
 
@@ -140,20 +147,20 @@ class RuntimeBrowserResource:
                  wait_until: str = "load", timeout_ms: int = 30_000) -> Dict[str, Any]:
         """Navigate a target; returns once the page settles."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/navigate",
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/navigate",
                        {"target_id": target_id, "url": url,
                         "wait_until": wait_until, "timeout_ms": timeout_ms})
 
     def _command(self, runtime_id: str, browser_id: str, verb: str,
                  target_id: str) -> Dict[str, Any]:
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/{verb}",
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/{verb}",
                        {"target_id": target_id, "verb": verb})
 
     def activate(self, runtime_id: str, browser_id: str, target_id: str) -> Dict[str, Any]:
         """Bring a target (tab) to the front."""
         _validate_runtime_id(runtime_id)
         return self._j("POST",
-                       f"runtime/{runtime_id}/browser/{browser_id}/activate",
+                       f"runtime/{runtime_id}/browser/{_q(browser_id)}/activate",
                        {"target_id": target_id})
 
     def back(self, runtime_id: str, browser_id: str, target_id: str = "") -> Dict[str, Any]:
@@ -177,7 +184,7 @@ class RuntimeBrowserResource:
         """Page screenshot — viewport default; ``full_page`` or ``element`` for a
         scoped clip. ``quality`` applies to JPEG (0–100). Data is base64."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/screenshot",
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/screenshot",
                        _shot_body(target_id, format, full_page, element, quality,
                                   wait_stable_ms, timeout_ms))
 
@@ -187,7 +194,7 @@ class RuntimeBrowserResource:
         """Interactable-element digest ``{ref, role, name, rect, ...}`` — the
         model's ground truth for targeting."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/snapshot",
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/snapshot",
                        {"target_id": target_id, "viewport_only": viewport_only,
                         "diff": diff, "filter_role": filter_role,
                         "filter_name": filter_name})
@@ -198,7 +205,7 @@ class RuntimeBrowserResource:
         """The escape hatch: run JavaScript in the page, get the JSON result.
         ``world`` selects the isolated world (default) or the page's main world."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/evaluate",
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/evaluate",
                        {"target_id": target_id, "expression": expression,
                         "await_promise": await_promise, "timeout_ms": timeout_ms,
                         "world": world})
@@ -298,7 +305,7 @@ class RuntimeBrowserResource:
         dialogs). ``auto_dismiss=True`` instead restores auto-dismiss policy
         and clears any pending dialog."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/dialog",
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/dialog",
                        {"target_id": target_id, "accept": accept,
                         "prompt_text": prompt_text, "auto_dismiss": auto_dismiss})
 
@@ -306,7 +313,7 @@ class RuntimeBrowserResource:
                 activate: bool = True) -> Dict[str, Any]:
         """List targets, or open one (``url`` non-empty → new tab)."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/targets",
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets",
                        {"url": url, "activate": activate})
 
     def downloads(self, runtime_id: str, browser_id: str, wait_name: str = "",
@@ -317,13 +324,13 @@ class RuntimeBrowserResource:
         if wait_name:
             body["wait_name"] = wait_name
             body["timeout_ms"] = timeout_ms or 30_000
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/downloads", body)
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/downloads", body)
 
     def download(self, runtime_id: str, browser_id: str,
                  download_id: str, meta_only: bool = False) -> Dict[str, Any]:
         """Entry + file bytes (base64). ``meta_only`` returns the entry only."""
         _validate_runtime_id(runtime_id)
-        ep = f"runtime/{runtime_id}/browser/{browser_id}/downloads/{download_id}"
+        ep = f"runtime/{runtime_id}/browser/{_q(browser_id)}/downloads/{_q(download_id)}"
         if meta_only:
             ep += "?meta_only=true"
         return self._j("GET", ep)
@@ -348,16 +355,29 @@ class RuntimeBrowserResource:
                 if k in margins_in:
                     body[f"margin_{k}_in"] = margins_in[k]
         return self._j("POST",
-                       f"runtime/{runtime_id}/browser/{browser_id}/targets/{target_id}/pdf",
+                       f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets/{_q(target_id)}/pdf",
                        body)
 
     def view(self, runtime_id: str, browser_id: str, target_id: str = "",
-             fps: int = 0, quality: int = 0) -> Dict[str, Any]:
-        """Live view — returns a shareable watch URL a human can open
-        (``url``/``browser_url`` carry the session's auth)."""
+             fps: int = 0, quality: int = 0, role: str = "",
+             rotate_token: bool = False) -> Dict[str, Any]:
+        """Live view — returns the watch record. ``browser_url`` carries the
+        auth token and is what a human opens; it is minted on the first call
+        for a port, so a repeat call returns a token-less URL unless
+        ``rotate_token=True`` (fresh token — invalidates the previous URL).
+        ``role="watch"`` mints a view-only link: ``view_token``/``watch_url``
+        carry a ``vt=`` capability that sees frames but can never inject
+        input. Headed browsers stream through the display's token-gated
+        view where ``vt=`` is required."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/view",
-                       {"target_id": target_id, "fps": fps, "quality": quality})
+        body: Dict[str, Any] = {"target_id": target_id, "fps": fps, "quality": quality}
+        if role:
+            body["role"] = role
+        if rotate_token:
+            body["rotate_token"] = True
+        from gravixlayer.resources.runtime_display import _with_watch_url
+        return _with_watch_url(
+            self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/view", body))
 
 
 class AsyncRuntimeBrowserResource:
@@ -397,7 +417,7 @@ class AsyncRuntimeBrowserResource:
     async def _action(self, runtime_id: str, browser_id: str, verb: str,
                       body: Dict[str, Any]) -> Dict[str, Any]:
         return await self._j("POST",
-                             f"runtime/{runtime_id}/browser/{browser_id}/actions/{verb}", body)
+                             f"runtime/{runtime_id}/browser/{_q(browser_id)}/actions/{verb}", body)
 
     async def open(self, runtime_id: str, engine: str = "chromium", headless: bool = False,
                    profile_dir: str = "", args: Optional[List[str]] = None,
@@ -410,7 +430,7 @@ class AsyncRuntimeBrowserResource:
         _validate_runtime_id(runtime_id)
         if self._default.get(runtime_id) == browser_id:
             self._default.pop(runtime_id, None)
-        return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/close")
+        return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/close")
 
     async def list(self, runtime_id: str) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
@@ -418,25 +438,25 @@ class AsyncRuntimeBrowserResource:
 
     async def status(self, runtime_id: str, browser_id: str) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        return await self._j("GET", f"runtime/{runtime_id}/browser/{browser_id}/status")
+        return await self._j("GET", f"runtime/{runtime_id}/browser/{_q(browser_id)}/status")
 
     async def navigate(self, runtime_id: str, browser_id: str, url: str,
                        target_id: str = "", wait_until: str = "load",
                        timeout_ms: int = 30_000) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/navigate",
+        return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/navigate",
                              {"target_id": target_id, "url": url,
                               "wait_until": wait_until, "timeout_ms": timeout_ms})
 
     async def _command(self, runtime_id: str, browser_id: str, verb: str,
                        target_id: str) -> Dict[str, Any]:
-        return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/{verb}",
+        return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/{verb}",
                              {"target_id": target_id, "verb": verb})
 
     async def activate(self, runtime_id: str, browser_id: str, target_id: str) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
         return await self._j("POST",
-                             f"runtime/{runtime_id}/browser/{browser_id}/activate",
+                             f"runtime/{runtime_id}/browser/{_q(browser_id)}/activate",
                              {"target_id": target_id})
 
     async def back(self, runtime_id: str, browser_id: str, target_id: str = "") -> Dict[str, Any]:
@@ -456,7 +476,7 @@ class AsyncRuntimeBrowserResource:
                          quality: int = 0, wait_stable_ms: int = 0,
                          timeout_ms: int = 0) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/screenshot",
+        return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/screenshot",
                              _shot_body(target_id, format, full_page, element, quality,
                                         wait_stable_ms, timeout_ms))
 
@@ -464,7 +484,7 @@ class AsyncRuntimeBrowserResource:
                        viewport_only: bool = True, diff: str = "", filter_role: str = "",
                        filter_name: str = "") -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/snapshot",
+        return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/snapshot",
                              {"target_id": target_id, "viewport_only": viewport_only,
                               "diff": diff, "filter_role": filter_role,
                               "filter_name": filter_name})
@@ -474,7 +494,7 @@ class AsyncRuntimeBrowserResource:
                        timeout_ms: int = 30_000,
                        world: str = "isolated") -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/evaluate",
+        return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/evaluate",
                              {"target_id": target_id, "expression": expression,
                               "await_promise": await_promise, "timeout_ms": timeout_ms,
                               "world": world})
@@ -563,14 +583,14 @@ class AsyncRuntimeBrowserResource:
                      prompt_text: str = "", auto_dismiss: bool = False,
                      target_id: str = "") -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/dialog",
+        return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/dialog",
                              {"target_id": target_id, "accept": accept,
                               "prompt_text": prompt_text, "auto_dismiss": auto_dismiss})
 
     async def targets(self, runtime_id: str, browser_id: str, url: str = "",
                       activate: bool = True) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/targets",
+        return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets",
                              {"url": url, "activate": activate})
 
     async def downloads(self, runtime_id: str, browser_id: str, wait_name: str = "",
@@ -581,12 +601,12 @@ class AsyncRuntimeBrowserResource:
             body["wait_name"] = wait_name
             body["timeout_ms"] = timeout_ms or 30_000
         return await self._j("POST",
-                             f"runtime/{runtime_id}/browser/{browser_id}/downloads", body)
+                             f"runtime/{runtime_id}/browser/{_q(browser_id)}/downloads", body)
 
     async def download(self, runtime_id: str, browser_id: str,
                        download_id: str, meta_only: bool = False) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        ep = f"runtime/{runtime_id}/browser/{browser_id}/downloads/{download_id}"
+        ep = f"runtime/{runtime_id}/browser/{_q(browser_id)}/downloads/{_q(download_id)}"
         if meta_only:
             ep += "?meta_only=true"
         return await self._j("GET", ep)
@@ -607,11 +627,27 @@ class AsyncRuntimeBrowserResource:
                 if k in margins_in:
                     body[f"margin_{k}_in"] = margins_in[k]
         return await self._j("POST",
-                             f"runtime/{runtime_id}/browser/{browser_id}/targets/{target_id}/pdf",
+                             f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets/{_q(target_id)}/pdf",
                              body)
 
     async def view(self, runtime_id: str, browser_id: str, target_id: str = "",
-                   fps: int = 0, quality: int = 0) -> Dict[str, Any]:
+                   fps: int = 0, quality: int = 0, role: str = "",
+                   rotate_token: bool = False) -> Dict[str, Any]:
+        """Live view — returns the watch record. ``browser_url`` carries the
+        auth token and is what a human opens; it is minted on the first call
+        for a port, so a repeat call returns a token-less URL unless
+        ``rotate_token=True`` (fresh token — invalidates the previous URL).
+        ``role="watch"`` mints a view-only link: ``view_token``/``watch_url``
+        carry a ``vt=`` capability that sees frames but can never inject
+        input. Headed browsers stream through the display's token-gated
+        view where ``vt=`` is required."""
         _validate_runtime_id(runtime_id)
-        return await self._j("POST", f"runtime/{runtime_id}/browser/{browser_id}/view",
-                             {"target_id": target_id, "fps": fps, "quality": quality})
+        body: Dict[str, Any] = {"target_id": target_id, "fps": fps, "quality": quality}
+        if role:
+            body["role"] = role
+        if rotate_token:
+            body["rotate_token"] = True
+        from gravixlayer.resources.runtime_display import _with_watch_url
+        return _with_watch_url(
+            await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/view",
+                          body))
