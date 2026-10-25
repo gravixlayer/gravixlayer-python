@@ -542,6 +542,35 @@ class TestSyncTemplatesResource:
         assert result.deleted is True
         assert result.template_id == "tmpl-001"
 
+    def test_stream_build_events(self, client, mock_api):
+        from gravixlayer.types.templates import TemplateBuildEvent
+
+        sse_body = (
+            "id: 1\ndata: {\"kind\":\"step\",\"seq\":1,\"step\":\"provisioning\"}\n\n"
+            "id: 2\ndata: {\"kind\":\"stdout\",\"seq\":2,\"message\":\"pulling image\\n\"}\n\n"
+            "id: 3\ndata: {\"kind\":\"status\",\"seq\":3,\"status\":\"completed\"}\n\n"
+            "id: 4\ndata: {\"kind\":\"stream_end\",\"seq\":4}\n\n"
+        )
+        mock_api.get(url__regex=rf"{TMPL_BASE}/builds/build-001/events.*").mock(
+            return_value=httpx.Response(200, content=sse_body.encode())
+        )
+        events = list(client.templates.stream_build_events("build-001"))
+        assert [e.kind for e in events] == ["step", "stdout", "status", "stream_end"]
+        assert [e.seq for e in events] == [1, 2, 3, 4]
+        assert all(isinstance(e, TemplateBuildEvent) for e in events)
+        assert events[1].message == "pulling image\n"
+
+    def test_stream_build_events_resume_param(self, client, mock_api):
+        sse_body = "id: 9\ndata: {\"kind\":\"stream_end\",\"seq\":9}\n\n"
+        mock_api.get(url__regex=rf"{TMPL_BASE}/builds/build-001/events.*").mock(
+            return_value=httpx.Response(200, content=sse_body.encode())
+        )
+        events = list(client.templates.stream_build_events("build-001", after_seq=7))
+        assert len(events) == 1
+        assert events[0].kind == "stream_end"
+        url = str(mock_api.calls.last.request.url)
+        assert "after_seq=7" in url
+
 
 # ===================================================================
 # Sync Templates Resource — build_and_wait
@@ -717,6 +746,28 @@ class TestAsyncTemplatesResource:
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             result = await client.templates.delete("tmpl-001")
             assert result.deleted is True
+
+    @pytest.mark.asyncio
+    async def test_stream_build_events(self, mock_api):
+        from gravixlayer.types.templates import TemplateBuildEvent
+
+        sse_body = (
+            "id: 1\ndata: {\"kind\":\"step\",\"seq\":1,\"step\":\"provisioning\"}\n\n"
+            "id: 2\ndata: {\"kind\":\"stderr\",\"seq\":2,\"message\":\"warn\\n\"}\n\n"
+            "id: 3\ndata: {\"kind\":\"stream_end\",\"seq\":3}\n\n"
+        )
+        mock_api.get(url__regex=rf"{TMPL_BASE}/builds/build-001/events.*").mock(
+            return_value=httpx.Response(200, content=sse_body.encode())
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            events = [
+                e async for e in client.templates.stream_build_events("build-001")
+            ]
+        assert [e.kind for e in events] == ["step", "stderr", "stream_end"]
+        assert [e.seq for e in events] == [1, 2, 3]
+        assert all(isinstance(e, TemplateBuildEvent) for e in events)
+        url = str(mock_api.calls.last.request.url)
+        assert "after_seq=0" in url
 
     @pytest.mark.asyncio
     async def test_build_and_wait_success(self, mock_api):

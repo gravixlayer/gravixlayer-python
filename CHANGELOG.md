@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+### Changed
+- **Bound objects now mirror their resources exactly** —
+  `RuntimeBrowserBound` and `RuntimeDesktopBound` signatures are the
+  resource signatures minus `runtime_id`. Every named parameter
+  (`modifiers`, `coordinate_space`, `click_count`, `mode`, `observe`,
+  `window_id`, `uri`, `wait_window`, `cursor`, `priority`, …) is
+  declared and forwarded instead of being absorbed by `**kwargs`, so
+  positional calls that used to `TypeError` now work and IDE
+  autocompletion lists the real surface. `goto` is explicit too:
+  `goto(url, target_id="", wait_until="load", timeout_ms=30_000)`.
+- **`runtime.desktop` is now the single computer-use surface** — it merges
+  the pixel plane (screenshots, mouse, keyboard, windows, apps, clipboard,
+  `act`, live view) with the session plane (`components`,
+  `start_component`/`stop_component`/`restart_component`, `logs`). The
+  `runtime.display` accessor is removed; all its methods are reachable
+  under `runtime.desktop` unchanged. Simple button conveniences added:
+  `left_click`/`double_click`/`right_click`/`middle_click`,
+  `mouse_press`/`mouse_release`, `move_mouse`, and `write` (the `type`
+  alias that doesn't shadow the builtin). The bound object follows the
+  same shape: `runtime.desktop.*` on a `Runtime` returned by `create()`.
+- **Browser bound fixes** — `rt.browser.fill(bid, target, text)` now takes
+  `text` positionally (same shape as `type`), and `rt.browser.targets()`
+  forwards `url`/`activate` so a bound handle can open a tab. Both were
+  silently keyword-only before.
+
+### Added
+- `RuntimeBrowserBound` and `RuntimeDesktopBound` are now exported from the
+  package root alongside the other bound handles.
+- `runtime.browser.command(verb, target_id="")` — the generic target-verb
+  method (``back``/``forward``/``reload``/``activate``, validated
+  client-side), matching the TypeScript SDK and CLI surfaces. Available on
+  the resource, the async resource, and the bound `rt.browser` handle.
+- `templates.stream_build_events(build_id, after_seq=0)` — iterates the
+  durable build event log (server-sent events): stored events replay first,
+  then live `step`/`stdout`/`stderr`/`status` output until `stream_end`.
+  Pass `after_seq` set to the last received `seq` to resume a disconnected
+  consumer. Available on both `GravixLayer` and `AsyncGravixLayer` (the
+  async variant is an async generator).
+
 ## [0.1.107] - 2026-10-24
 
 ### Added

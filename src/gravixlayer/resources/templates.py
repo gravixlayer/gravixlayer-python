@@ -5,15 +5,17 @@ Provides methods for creating, building, polling, listing, and
 deleting templates via the Gravix Layer API.
 """
 
+import json
 import sys
 import time
 import logging
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Iterator, Optional, Union
 
 from .._cli_progress import PhaseSpinner, fmt_duration, next_display_stage
 from .._resource_utils import build_list_endpoint, parse_paginated_items
 from ..types.templates import (
     TemplateBuilder,
+    TemplateBuildEvent,
     TemplateBuildResponse,
     TemplateBuildStatus,
     TemplateBuildStatusEnum,
@@ -24,6 +26,7 @@ from ..types.templates import (
     BuildLogEntry,
     BuildLogCallback,
     template_build_display_name,
+    _parse_build_event,
     _parse_build_response,
     _parse_build_status,
     _parse_template_info,
@@ -171,6 +174,50 @@ class Templates:
             "GET", f"template/builds/{build_id}/status"
         )
         return _parse_build_status(response.json())
+
+    def stream_build_events(
+        self, build_id: str, after_seq: int = 0
+    ) -> Iterator[TemplateBuildEvent]:
+        """Stream a build's durable event log as server-sent events.
+
+        The stream replays stored events (``seq > after_seq``), then follows
+        live output until the build reaches a terminal state and the stream
+        closes with a ``stream_end`` event. Reconnect with ``after_seq`` set
+        to the last received ``seq`` to resume without losing lines.
+
+        Args:
+            build_id: The build ID returned by build().
+            after_seq: Resume point — only events with seq greater than
+                       this are delivered (default 0, replay everything).
+
+        Yields:
+            TemplateBuildEvent for each frame until ``stream_end``.
+        """
+        response = self._make_agents_request(
+            "GET",
+            f"template/builds/{build_id}/events?after_seq={after_seq}",
+            stream=True,
+            headers={"Accept": "text/event-stream"},
+        )
+        try:
+            last = after_seq
+            data_lines: list = []
+            for line in response.iter_lines():
+                if line.startswith("id: "):
+                    try:
+                        last = max(last, int(line[4:]))
+                    except ValueError:
+                        pass
+                elif line.startswith("data: "):
+                    data_lines.append(line[6:])
+                elif line == "" and data_lines:
+                    event = _parse_build_event(json.loads("\n".join(data_lines)), last)
+                    data_lines.clear()
+                    yield event
+                    if event.kind == "stream_end":
+                        return
+        finally:
+            response.close()
 
     def build_and_wait(
         self,

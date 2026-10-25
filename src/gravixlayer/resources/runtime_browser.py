@@ -38,6 +38,9 @@ def _target(target: Any) -> Optional[Dict[str, Any]]:
     return dict(target)
 
 
+_COMMAND_VERBS = frozenset({"back", "forward", "reload", "activate"})
+
+
 def _open_body(engine: str, headless: bool, profile_dir: str,
                args: Optional[List[str]], url: str) -> Dict[str, Any]:
     body: Dict[str, Any] = {"engine": engine, "headless": headless}
@@ -95,19 +98,23 @@ class RuntimeBrowserResource:
             self._default[runtime_id] = bid
         return bid
 
-    def goto(self, runtime_id: str, url: str, **kwargs) -> Dict[str, Any]:
+    def goto(self, runtime_id: str, url: str, target_id: str = "",
+             wait_until: str = "load", timeout_ms: int = 30_000) -> Dict[str, Any]:
         """Auto-opens a browser if needed and navigates it — the simple path.
         If the remembered browser died, reopen and retry once."""
         _validate_runtime_id(runtime_id)
         from gravixlayer.types.exceptions import GravixLayerError
         bid = self._ensure(runtime_id)
         try:
-            return self.navigate(runtime_id, bid, url, **kwargs)
+            return self.navigate(runtime_id, bid, url, target_id=target_id,
+                                 wait_until=wait_until, timeout_ms=timeout_ms)
         except GravixLayerError as e:
             if e.status != 404 or self._default.get(runtime_id) != bid:
                 raise
             self._default.pop(runtime_id, None)
-            return self.navigate(runtime_id, self._ensure(runtime_id), url, **kwargs)
+            return self.navigate(runtime_id, self._ensure(runtime_id), url,
+                                 target_id=target_id, wait_until=wait_until,
+                                 timeout_ms=timeout_ms)
 
     def _j(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None):
         return self._rt._make_agents_request(method, endpoint, data).json()
@@ -156,12 +163,19 @@ class RuntimeBrowserResource:
         return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/{verb}",
                        {"target_id": target_id, "verb": verb})
 
+    def command(self, runtime_id: str, browser_id: str, verb: str,
+                target_id: str = "") -> Dict[str, Any]:
+        """Generic target verb — ``back``/``forward``/``reload``/``activate``.
+        The named methods cover the same set; this is the escape hatch."""
+        _validate_runtime_id(runtime_id)
+        if verb not in _COMMAND_VERBS:
+            raise ValueError(f"verb must be one of {sorted(_COMMAND_VERBS)}")
+        return self._command(runtime_id, browser_id, verb, target_id)
+
     def activate(self, runtime_id: str, browser_id: str, target_id: str) -> Dict[str, Any]:
         """Bring a target (tab) to the front."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST",
-                       f"runtime/{runtime_id}/browser/{_q(browser_id)}/activate",
-                       {"target_id": target_id})
+        return self._command(runtime_id, browser_id, "activate", target_id)
 
     def back(self, runtime_id: str, browser_id: str, target_id: str = "") -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
@@ -396,19 +410,23 @@ class AsyncRuntimeBrowserResource:
             self._default[runtime_id] = bid
         return bid
 
-    async def goto(self, runtime_id: str, url: str, **kwargs) -> Dict[str, Any]:
+    async def goto(self, runtime_id: str, url: str, target_id: str = "",
+                   wait_until: str = "load", timeout_ms: int = 30_000) -> Dict[str, Any]:
         """Auto-opens a browser if needed and navigates it — the simple path.
         If the remembered browser died, reopen and retry once."""
         _validate_runtime_id(runtime_id)
         from gravixlayer.types.exceptions import GravixLayerError
         bid = await self._ensure(runtime_id)
         try:
-            return await self.navigate(runtime_id, bid, url, **kwargs)
+            return await self.navigate(runtime_id, bid, url, target_id=target_id,
+                                       wait_until=wait_until, timeout_ms=timeout_ms)
         except GravixLayerError as e:
             if e.status != 404 or self._default.get(runtime_id) != bid:
                 raise
             self._default.pop(runtime_id, None)
-            return await self.navigate(runtime_id, await self._ensure(runtime_id), url, **kwargs)
+            return await self.navigate(runtime_id, await self._ensure(runtime_id),
+                                       url, target_id=target_id,
+                                       wait_until=wait_until, timeout_ms=timeout_ms)
 
     async def _j(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None):
         r = await self._rt._make_agents_request(method, endpoint, data)
@@ -453,11 +471,18 @@ class AsyncRuntimeBrowserResource:
         return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/{verb}",
                              {"target_id": target_id, "verb": verb})
 
+    async def command(self, runtime_id: str, browser_id: str, verb: str,
+                      target_id: str = "") -> Dict[str, Any]:
+        """Generic target verb — ``back``/``forward``/``reload``/``activate``.
+        The named methods cover the same set; this is the escape hatch."""
+        _validate_runtime_id(runtime_id)
+        if verb not in _COMMAND_VERBS:
+            raise ValueError(f"verb must be one of {sorted(_COMMAND_VERBS)}")
+        return await self._command(runtime_id, browser_id, verb, target_id)
+
     async def activate(self, runtime_id: str, browser_id: str, target_id: str) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
-        return await self._j("POST",
-                             f"runtime/{runtime_id}/browser/{_q(browser_id)}/activate",
-                             {"target_id": target_id})
+        return await self._command(runtime_id, browser_id, "activate", target_id)
 
     async def back(self, runtime_id: str, browser_id: str, target_id: str = "") -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
@@ -524,8 +549,8 @@ class AsyncRuntimeBrowserResource:
 
     async def hover(self, runtime_id: str, browser_id: str, target: Any,
                     target_id: str = "", settle: bool = True, force: bool = False,
-              settle_timeout_ms: int = 0,
-              target_timeout_ms: int = 0) -> Dict[str, Any]:
+                    settle_timeout_ms: int = 0,
+                    target_timeout_ms: int = 0) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
         return await self._action(runtime_id, browser_id, "hover",
                                   _act("hover", target_id, target, settle, {}, force=force, settle_timeout_ms=settle_timeout_ms, target_timeout_ms=target_timeout_ms))

@@ -1,7 +1,7 @@
 """
-Display plane — pixel-level control of the runtime's screen.
+Pixel plane — implementation of the ``client.runtime.desktop`` surface.
 
-``client.runtime.display`` drives the virtual display shared by every headed
+``client.runtime.desktop`` drives the virtual display shared by every headed
 surface in the runtime (browser windows, file dialogs, native UI). Use it for
 work the browser plane can't see — OS dialogs, canvas, WebGL, non-browser apps —
 and for ``screenshot`` when pixels are the answer.
@@ -68,7 +68,7 @@ def _with_watch_url(r: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class RuntimeDisplayResource:
-    """Display operations under ``client.runtime.display``."""
+    """Pixel-plane implementation — surfaced under ``client.runtime.desktop``."""
 
     __slots__ = ("_rt",)
 
@@ -432,7 +432,7 @@ class RuntimeDisplayResource:
 
 
 class AsyncRuntimeDisplayResource:
-    """Async display operations under ``client.runtime.display``."""
+    """Async pixel-plane implementation — surfaced under ``client.runtime.desktop``."""
 
     __slots__ = ("_rt",)
 

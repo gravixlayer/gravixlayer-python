@@ -58,7 +58,6 @@ from .runtime_git import AsyncRuntimeGitResource
 from .runtime_files import AsyncRuntimeFileResource
 from .runtime_pty import AsyncRuntimePtyResource
 from .async_runtime_service import AsyncRuntimeServiceResource
-from .runtime_display import AsyncRuntimeDisplayResource
 from .runtime_desktop import AsyncRuntimeDesktopResource
 from .runtime_browser import AsyncRuntimeBrowserResource
 
@@ -92,7 +91,6 @@ class AsyncRuntimes:
         self._pty_resource: Optional[AsyncRuntimePtyResource] = None
         self._service_resource: Optional[AsyncRuntimeServiceResource] = None
         self._command_resource: Optional[AsyncRuntimeCommandResource] = None
-        self._display_resource: Optional[AsyncRuntimeDisplayResource] = None
         self._desktop_resource: Optional[AsyncRuntimeDesktopResource] = None
         self._browser_resource: Optional[AsyncRuntimeBrowserResource] = None
 
@@ -109,13 +107,6 @@ class AsyncRuntimes:
         if self._pty_resource is None:
             self._pty_resource = AsyncRuntimePtyResource(self)
         return self._pty_resource
-
-    @property
-    def display(self) -> AsyncRuntimeDisplayResource:
-        """Display plane: ``screenshot``, mouse, keyboard, ``view`` — pixels + input."""
-        if self._display_resource is None:
-            self._display_resource = AsyncRuntimeDisplayResource(self)
-        return self._display_resource
 
     @property
     def desktop(self) -> AsyncRuntimeDesktopResource:

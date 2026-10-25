@@ -1,21 +1,22 @@
 """
-Desktop session plane — component lifecycle on desktop-template runtimes.
+Desktop — the runtime's computer-use surface.
 
-``client.runtime.desktop`` inspects and controls the components a desktop
-image declares (the display server, the session, the window manager) and
-reads their journal logs. On runtimes without a desktop image the calls
-return not-found errors.
+``client.runtime.desktop`` is the single entry point for driving a runtime's
+desktop: pixel input and screenshots, windows, apps, clipboard, live view,
+agent ``act`` batches, and the session plane (component lifecycle and journal
+logs) on desktop-template images. ``client.runtime.browser`` stays the
+semantic plane for in-page element work.
+
+Browser-coordinate clicks/types belong on ``client.runtime.browser`` (they
+settle against the DOM); desktop input is raw pixel input for everything else.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional
 
 from ..types.runtime import _validate_runtime_id
-
-if TYPE_CHECKING:
-    from .runtime import Runtimes
-    from .async_runtime import AsyncRuntimes
+from .runtime_display import RuntimeDisplayResource, AsyncRuntimeDisplayResource
 
 
 def _logs_body(name: str, cursor: str, max_entries: int, priority: str) -> Dict[str, Any]:
@@ -29,18 +30,18 @@ def _logs_body(name: str, cursor: str, max_entries: int, priority: str) -> Dict[
     return body
 
 
-class RuntimeDesktopResource:
-    """Desktop session operations under ``client.runtime.desktop``."""
+class RuntimeDesktopResource(RuntimeDisplayResource):
+    """All desktop operations under ``client.runtime.desktop``.
 
-    __slots__ = ("_rt",)
+    Inherits the pixel plane from the display implementation and adds the
+    session plane (components, logs) plus simple button/scroll conveniences.
+    """
 
-    def __init__(self, runtimes: "Runtimes"):
-        self._rt = runtimes
+    __slots__ = ()
 
-    def _j(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None):
-        return self._rt._make_agents_request(method, endpoint, data).json()
+    # ── session plane (desktop-template component lifecycle) ──────────────
 
-    def status(self, runtime_id: str) -> Dict[str, Any]:
+    def components(self, runtime_id: str) -> Dict[str, Any]:
         """Component states: ``{present, display, user, components: [...]}``."""
         _validate_runtime_id(runtime_id)
         return self._j("GET", f"runtime/{runtime_id}/desktop/status")
@@ -52,13 +53,13 @@ class RuntimeDesktopResource:
         return self._j("POST", f"runtime/{runtime_id}/desktop/component",
                        {"name": name, "op": op})
 
-    def start(self, runtime_id: str, name: str) -> Dict[str, Any]:
+    def start_component(self, runtime_id: str, name: str) -> Dict[str, Any]:
         return self.component(runtime_id, name, "start")
 
-    def stop(self, runtime_id: str, name: str) -> Dict[str, Any]:
+    def stop_component(self, runtime_id: str, name: str) -> Dict[str, Any]:
         return self.component(runtime_id, name, "stop")
 
-    def restart(self, runtime_id: str, name: str) -> Dict[str, Any]:
+    def restart_component(self, runtime_id: str, name: str) -> Dict[str, Any]:
         return self.component(runtime_id, name, "restart")
 
     def logs(self, runtime_id: str, name: str, cursor: str = "",
@@ -69,20 +70,52 @@ class RuntimeDesktopResource:
         return self._j("POST", f"runtime/{runtime_id}/desktop/logs",
                        _logs_body(name, cursor, max_entries, priority))
 
+    # ── simple mouse/keyboard conveniences ────────────────────────────────
 
-class AsyncRuntimeDesktopResource:
-    """Async desktop session operations under ``client.runtime.desktop``."""
+    def left_click(self, runtime_id: str, x: Optional[int] = None,
+                   y: Optional[int] = None, **kw: Any) -> Dict[str, Any]:
+        return self.click(runtime_id, x, y, "left", **kw)
 
-    __slots__ = ("_rt",)
+    def double_click(self, runtime_id: str, x: Optional[int] = None,
+                     y: Optional[int] = None, **kw: Any) -> Dict[str, Any]:
+        return self.click(runtime_id, x, y, "left", click_count=2, **kw)
 
-    def __init__(self, runtimes: "AsyncRuntimes"):
-        self._rt = runtimes
+    def right_click(self, runtime_id: str, x: Optional[int] = None,
+                    y: Optional[int] = None, **kw: Any) -> Dict[str, Any]:
+        return self.click(runtime_id, x, y, "right", **kw)
 
-    async def _j(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None):
-        r = await self._rt._make_agents_request(method, endpoint, data)
-        return r.json()
+    def middle_click(self, runtime_id: str, x: Optional[int] = None,
+                     y: Optional[int] = None, **kw: Any) -> Dict[str, Any]:
+        return self.click(runtime_id, x, y, "middle", **kw)
 
-    async def status(self, runtime_id: str) -> Dict[str, Any]:
+    def mouse_press(self, runtime_id: str, button: str = "left",
+                    x: Optional[int] = None, y: Optional[int] = None,
+                    **kw: Any) -> Dict[str, Any]:
+        return self.down(runtime_id, x, y, button, **kw)
+
+    def mouse_release(self, runtime_id: str, button: str = "left",
+                      x: Optional[int] = None, y: Optional[int] = None,
+                      **kw: Any) -> Dict[str, Any]:
+        return self.up(runtime_id, button, x, y, **kw)
+
+    def move_mouse(self, runtime_id: str, x: int, y: int,
+                   **kw: Any) -> Dict[str, Any]:
+        return self.move(runtime_id, x, y, **kw)
+
+    def write(self, runtime_id: str, text: str, delay_ms: int = 0,
+              mode: str = "") -> Dict[str, Any]:
+        """Type text — same as ``type`` without shadowing the builtin."""
+        return self.type(runtime_id, text, delay_ms, mode)
+
+
+class AsyncRuntimeDesktopResource(AsyncRuntimeDisplayResource):
+    """Async desktop operations under ``client.runtime.desktop``."""
+
+    __slots__ = ()
+
+    # ── session plane ─────────────────────────────────────────────────────
+
+    async def components(self, runtime_id: str) -> Dict[str, Any]:
         """Component states: ``{present, display, user, components: [...]}``."""
         _validate_runtime_id(runtime_id)
         return await self._j("GET", f"runtime/{runtime_id}/desktop/status")
@@ -93,13 +126,13 @@ class AsyncRuntimeDesktopResource:
         return await self._j("POST", f"runtime/{runtime_id}/desktop/component",
                              {"name": name, "op": op})
 
-    async def start(self, runtime_id: str, name: str) -> Dict[str, Any]:
+    async def start_component(self, runtime_id: str, name: str) -> Dict[str, Any]:
         return await self.component(runtime_id, name, "start")
 
-    async def stop(self, runtime_id: str, name: str) -> Dict[str, Any]:
+    async def stop_component(self, runtime_id: str, name: str) -> Dict[str, Any]:
         return await self.component(runtime_id, name, "stop")
 
-    async def restart(self, runtime_id: str, name: str) -> Dict[str, Any]:
+    async def restart_component(self, runtime_id: str, name: str) -> Dict[str, Any]:
         return await self.component(runtime_id, name, "restart")
 
     async def logs(self, runtime_id: str, name: str, cursor: str = "",
@@ -109,3 +142,40 @@ class AsyncRuntimeDesktopResource:
         _validate_runtime_id(runtime_id)
         return await self._j("POST", f"runtime/{runtime_id}/desktop/logs",
                              _logs_body(name, cursor, max_entries, priority))
+
+    # ── simple mouse/keyboard conveniences ────────────────────────────────
+
+    async def left_click(self, runtime_id: str, x: Optional[int] = None,
+                         y: Optional[int] = None, **kw: Any) -> Dict[str, Any]:
+        return await self.click(runtime_id, x, y, "left", **kw)
+
+    async def double_click(self, runtime_id: str, x: Optional[int] = None,
+                           y: Optional[int] = None, **kw: Any) -> Dict[str, Any]:
+        return await self.click(runtime_id, x, y, "left", click_count=2, **kw)
+
+    async def right_click(self, runtime_id: str, x: Optional[int] = None,
+                          y: Optional[int] = None, **kw: Any) -> Dict[str, Any]:
+        return await self.click(runtime_id, x, y, "right", **kw)
+
+    async def middle_click(self, runtime_id: str, x: Optional[int] = None,
+                           y: Optional[int] = None, **kw: Any) -> Dict[str, Any]:
+        return await self.click(runtime_id, x, y, "middle", **kw)
+
+    async def mouse_press(self, runtime_id: str, button: str = "left",
+                          x: Optional[int] = None, y: Optional[int] = None,
+                          **kw: Any) -> Dict[str, Any]:
+        return await self.down(runtime_id, x, y, button, **kw)
+
+    async def mouse_release(self, runtime_id: str, button: str = "left",
+                            x: Optional[int] = None, y: Optional[int] = None,
+                            **kw: Any) -> Dict[str, Any]:
+        return await self.up(runtime_id, button, x, y, **kw)
+
+    async def move_mouse(self, runtime_id: str, x: int, y: int,
+                         **kw: Any) -> Dict[str, Any]:
+        return await self.move(runtime_id, x, y, **kw)
+
+    async def write(self, runtime_id: str, text: str, delay_ms: int = 0,
+                    mode: str = "") -> Dict[str, Any]:
+        """Type text — same as ``type`` without shadowing the builtin."""
+        return await self.type(runtime_id, text, delay_ms, mode)

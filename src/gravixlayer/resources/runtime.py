@@ -55,7 +55,6 @@ from .runtime_git import RuntimeGitResource
 from .runtime_files import RuntimeFileResource
 from .runtime_pty import RuntimePtyResource
 from .runtime_service import RuntimeServiceResource
-from .runtime_display import RuntimeDisplayResource
 from .runtime_desktop import RuntimeDesktopResource
 from .runtime_browser import RuntimeBrowserResource
 
@@ -76,7 +75,6 @@ class Runtimes:
         self._pty_resource: Optional[RuntimePtyResource] = None
         self._service_resource: Optional[RuntimeServiceResource] = None
         self._command_resource: Optional[RuntimeCommandResource] = None
-        self._display_resource: Optional[RuntimeDisplayResource] = None
         self._desktop_resource: Optional[RuntimeDesktopResource] = None
         self._browser_resource: Optional[RuntimeBrowserResource] = None
         self._mounts_resource: Optional["RuntimeMounts"] = None
@@ -96,15 +94,10 @@ class Runtimes:
         return self._pty_resource
 
     @property
-    def display(self) -> RuntimeDisplayResource:
-        """Display plane: ``screenshot``, mouse, keyboard, ``view`` — pixels + input."""
-        if self._display_resource is None:
-            self._display_resource = RuntimeDisplayResource(self)
-        return self._display_resource
-
-    @property
     def desktop(self) -> RuntimeDesktopResource:
-        """Desktop session plane: component ``status``/``start``/``stop``/``restart``, ``logs``."""
+        """Desktop: ``screenshot``, mouse, keyboard, ``view``, windows, apps,
+        clipboard, ``act`` — plus session components (``components``,
+        ``start_component``/``stop_component``/``restart_component``, ``logs``)."""
         if self._desktop_resource is None:
             self._desktop_resource = RuntimeDesktopResource(self)
         return self._desktop_resource

@@ -212,6 +212,35 @@ BuildLogCallback = Callable[[BuildLogEntry], None]
 """Callback type for receiving build log entries during polling."""
 
 
+@dataclass
+class TemplateBuildEvent:
+    """One durable build event from the server-sent events stream.
+
+    `kind` is one of ``step`` (a named phase boundary), ``stdout`` /
+    ``stderr`` (captured output), ``status`` (phase/progress updates), or
+    ``stream_end`` (the build reached a terminal state). ``seq`` is the
+    durable sequence number — pass it back via ``after_seq`` to resume a
+    disconnected consumer without losing lines.
+    """
+    seq: int = 0
+    kind: str = ""
+    step: str = ""
+    status: str = ""
+    message: str = ""
+    progress: int = 0
+
+
+def _parse_build_event(data: Dict[str, Any], seq: int) -> TemplateBuildEvent:
+    return TemplateBuildEvent(
+        seq=int(data.get("seq") or seq),
+        kind=str(data.get("kind", "")),
+        step=str(data.get("step", "")),
+        status=str(data.get("status", "")),
+        message=str(data.get("message", "")),
+        progress=int(data.get("progress") or 0),
+    )
+
+
 # ---------------------------------------------------------------------------
 # API response parsers (shared by sync and async resource modules)
 # ---------------------------------------------------------------------------
