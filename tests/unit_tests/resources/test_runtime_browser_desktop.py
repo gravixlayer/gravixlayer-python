@@ -1429,10 +1429,10 @@ class TestBrowserContextsStorage:
         )
         state = {"cookies": [], "origins": []}
         client.runtime.browser.create_context(
-            VALID_UUID, BID, proxy={"server": "http://p"}, storage_state=state
+            VALID_UUID, BID, proxy="http://p:8080", storage_state=state
         )
         body = json.loads(mock_api.calls[-1].request.content)
-        assert body["proxy"] == {"server": "http://p"} and body["storage_state"] == state
+        assert body["proxy"] == "http://p:8080" and body["storage_state"] == state
 
     def test_targets_in_context(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/targets").mock(

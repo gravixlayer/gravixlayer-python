@@ -490,15 +490,16 @@ class RuntimeBrowserResource:
             response.close()
 
     def create_context(self, runtime_id: str, browser_id: str,
-                       proxy: Optional[Dict[str, Any]] = None,
+                       proxy: str = "",
                        storage_state: Optional[Dict[str, Any]] = None
                        ) -> Dict[str, Any]:
         """Open an isolated browser context (separate cookie/storage jars)
-        → ``{context_id}``. ``storage_state`` seeds the context's cookies
-        and origins in the Playwright-compatible export shape."""
+        → ``{context_id}``. ``proxy`` is a proxy server URL;
+        ``storage_state`` seeds the context's cookies and origins in the
+        Playwright-compatible export shape."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
-        if proxy is not None:
+        if proxy:
             body["proxy"] = proxy
         if storage_state is not None:
             body["storage_state"] = storage_state
@@ -854,14 +855,14 @@ class AsyncRuntimeBrowserResource:
             await response.aclose()
 
     async def create_context(self, runtime_id: str, browser_id: str,
-                             proxy: Optional[Dict[str, Any]] = None,
+                             proxy: str = "",
                              storage_state: Optional[Dict[str, Any]] = None
                              ) -> Dict[str, Any]:
         """Open an isolated browser context (separate cookie/storage jars)
-        → ``{context_id}``."""
+        → ``{context_id}``. ``proxy`` is a proxy server URL."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
-        if proxy is not None:
+        if proxy:
             body["proxy"] = proxy
         if storage_state is not None:
             body["storage_state"] = storage_state
