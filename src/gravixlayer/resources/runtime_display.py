@@ -430,6 +430,142 @@ class RuntimeDisplayResource:
         return self._j("POST", f"runtime/{runtime_id}/display/clipboard",
                        {"op": "set", "png": base64.b64encode(png).decode()})
 
+    # -- accessibility plane --------------------------------------------------
+
+    def a11y_snapshot(self, runtime_id: str, scope: str = "", app: str = "",
+                      pid: int = 0, max_depth: int = 0, limit: int = 0,
+                      visible_only: Optional[bool] = None,
+                      roles: Optional[List[str]] = None, name: str = "",
+                      diff: bool = False, rev: int = 0) -> Dict[str, Any]:
+        """Flat accessibility digest of the desktop tree → ``{rev, elements,
+        truncated}``. Elements carry a ``d{n}`` ref (stable within a
+        revision), role/name/value/bounds/states/actions, parent ref, app,
+        pid and depth.
+
+        ``scope``: ``""``/``"full"`` every application, ``"app"`` narrows to
+        one app matched by ``app`` (name substring) or ``pid``, ``"focus"``
+        the subtree holding keyboard focus. The server returns only
+        showing+visible elements unless ``visible_only`` is ``False``;
+        ``diff=True`` returns nodes changed since ``rev`` (or the last-known
+        tree when ``rev`` is 0)."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {}
+        _put(body, "scope", scope or None)
+        _put(body, "app", app or None)
+        if pid:
+            body["pid"] = pid
+        if max_depth:
+            body["max_depth"] = max_depth
+        if limit:
+            body["limit"] = limit
+        _put(body, "visible_only", visible_only)
+        _put(body, "roles", roles)
+        _put(body, "name", name or None)
+        if diff:
+            body["diff"] = True
+            if rev:
+                body["rev"] = rev
+        return self._j("POST", f"runtime/{runtime_id}/display/a11y/snapshot", body)
+
+    def a11y_find(self, runtime_id: str, role: str = "", name: str = "",
+                  ref: str = "", max: int = 0) -> Dict[str, Any]:
+        """Search the accessibility tree → ``{elements, rev}``. ``role`` and
+        ``name`` (case-insensitive substring) combine; ``ref`` scopes the
+        search below one element (``""`` = whole tree); ``max`` caps
+        results."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {}
+        _put(body, "role", role or None)
+        _put(body, "name", name or None)
+        _put(body, "ref", ref or None)
+        if max:
+            body["max"] = max
+        return self._j("POST", f"runtime/{runtime_id}/display/a11y/find", body)
+
+    def a11y_action(self, runtime_id: str, op: str, ref: str, action: str = "",
+                    action_index: int = 0, text: str = "",
+                    value: Optional[float] = None,
+                    timeout_ms: int = 0) -> Dict[str, Any]:
+        """Ref-addressed accessibility action → ``{ok, settled, rev}``.
+
+        ``op``: ``click`` | ``focus`` | ``invoke`` | ``set_value`` |
+        ``type``. ``invoke`` names an ``action`` (e.g. ``"press"``) or falls
+        back to ``action_index``; ``type``/``set_value`` take ``text``;
+        ``set_value`` may also take a numeric ``value``. The reply settles
+        damage-driven like :meth:`act`, bounded by ``timeout_ms``."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {"op": op, "ref": ref}
+        _put(body, "action", action or None)
+        if action_index:
+            body["action_index"] = action_index
+        _put(body, "text", text or None)
+        _put(body, "value", value)
+        if timeout_ms:
+            body["timeout_ms"] = timeout_ms
+        return self._j("POST", f"runtime/{runtime_id}/display/a11y/action", body)
+
+    # -- recordings + takeover -------------------------------------------------
+
+    def start_recording(self, runtime_id: str,
+                        include: Optional[List[str]] = None,
+                        label: str = "", window_id: int = 0) -> Dict[str, Any]:
+        """Start a display recording → ``{rec_id, path, trajectory_path,
+        status, ...}``.
+
+        ``include`` selects components — ``"video"`` (MP4), ``"input"``
+        (pointer/keyboard trajectory), ``"window"`` (lifecycle),
+        ``"app"`` (launches); empty/``None`` records everything.
+        ``window_id`` scopes capture to one window's rect. The returned
+        paths are guest files readable through the files plane."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {}
+        _put(body, "include", include)
+        _put(body, "label", label or None)
+        if window_id:
+            body["window_id"] = window_id
+        return self._j("POST", f"runtime/{runtime_id}/display/recordings", body)
+
+    def recordings(self, runtime_id: str) -> Dict[str, Any]:
+        """List recordings → ``{recordings}`` (active first, then completed
+        newest-first)."""
+        _validate_runtime_id(runtime_id)
+        return self._j("GET", f"runtime/{runtime_id}/display/recordings")
+
+    def recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
+        """One recording's metadata with live progress merged in."""
+        _validate_runtime_id(runtime_id)
+        return self._j("GET", f"runtime/{runtime_id}/display/recordings/{rec_id}")
+
+    def stop_recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
+        """Finalize the MP4 and seal the trajectory → ``{status}``."""
+        _validate_runtime_id(runtime_id)
+        return self._j("POST",
+                       f"runtime/{runtime_id}/display/recordings/{rec_id}/stop", {})
+
+    def mark_recording(self, runtime_id: str, rec_id: str,
+                       label: str) -> Dict[str, Any]:
+        """Stamp a named mark into the recording's metadata + trajectory."""
+        _validate_runtime_id(runtime_id)
+        return self._j("POST",
+                       f"runtime/{runtime_id}/display/recordings/{rec_id}/mark",
+                       {"label": label})
+
+    def delete_recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
+        """Delete a recording's artifacts → ``{deleted}`` (rejects while
+        recording)."""
+        _validate_runtime_id(runtime_id)
+        return self._j("DELETE",
+                       f"runtime/{runtime_id}/display/recordings/{rec_id}")
+
+    def set_control_mode(self, runtime_id: str, mode: str) -> Dict[str, Any]:
+        """Live-view takeover mode ``shared`` | ``human`` | ``agent`` →
+        ``{mode}``. Under ``human`` the pixel plane keeps answering
+        screenshots/status but rejects agent input until the mode returns
+        to ``shared``/``agent``."""
+        _validate_runtime_id(runtime_id)
+        return self._j("POST", f"runtime/{runtime_id}/display/view/control",
+                       {"mode": mode})
+
 
 class AsyncRuntimeDisplayResource:
     """Async pixel-plane implementation — surfaced under ``client.runtime.desktop``."""
@@ -752,3 +888,112 @@ class AsyncRuntimeDisplayResource:
         import base64
         return await self._j("POST", f"runtime/{runtime_id}/display/clipboard",
                              {"op": "set", "png": base64.b64encode(png).decode()})
+
+    # -- accessibility plane --------------------------------------------------
+
+    async def a11y_snapshot(self, runtime_id: str, scope: str = "", app: str = "",
+                            pid: int = 0, max_depth: int = 0, limit: int = 0,
+                            visible_only: Optional[bool] = None,
+                            roles: Optional[List[str]] = None, name: str = "",
+                            diff: bool = False, rev: int = 0) -> Dict[str, Any]:
+        """Flat accessibility digest → ``{rev, elements, truncated}`` —
+        async variant of the sync method (same scope/filters/diff)."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {}
+        _put(body, "scope", scope or None)
+        _put(body, "app", app or None)
+        if pid:
+            body["pid"] = pid
+        if max_depth:
+            body["max_depth"] = max_depth
+        if limit:
+            body["limit"] = limit
+        _put(body, "visible_only", visible_only)
+        _put(body, "roles", roles)
+        _put(body, "name", name or None)
+        if diff:
+            body["diff"] = True
+            if rev:
+                body["rev"] = rev
+        return await self._j("POST", f"runtime/{runtime_id}/display/a11y/snapshot", body)
+
+    async def a11y_find(self, runtime_id: str, role: str = "", name: str = "",
+                        ref: str = "", max: int = 0) -> Dict[str, Any]:
+        """Search the accessibility tree → ``{elements, rev}``."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {}
+        _put(body, "role", role or None)
+        _put(body, "name", name or None)
+        _put(body, "ref", ref or None)
+        if max:
+            body["max"] = max
+        return await self._j("POST", f"runtime/{runtime_id}/display/a11y/find", body)
+
+    async def a11y_action(self, runtime_id: str, op: str, ref: str,
+                          action: str = "", action_index: int = 0,
+                          text: str = "", value: Optional[float] = None,
+                          timeout_ms: int = 0) -> Dict[str, Any]:
+        """Ref-addressed action ``click`` | ``focus`` | ``invoke`` |
+        ``set_value`` | ``type`` → ``{ok, settled, rev}``."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {"op": op, "ref": ref}
+        _put(body, "action", action or None)
+        if action_index:
+            body["action_index"] = action_index
+        _put(body, "text", text or None)
+        _put(body, "value", value)
+        if timeout_ms:
+            body["timeout_ms"] = timeout_ms
+        return await self._j("POST", f"runtime/{runtime_id}/display/a11y/action", body)
+
+    # -- recordings + takeover -------------------------------------------------
+
+    async def start_recording(self, runtime_id: str,
+                              include: Optional[List[str]] = None,
+                              label: str = "", window_id: int = 0) -> Dict[str, Any]:
+        """Start a display recording → ``{rec_id, path, trajectory_path,
+        status, ...}``. ``include``: ``"video"`` | ``"input"`` |
+        ``"window"`` | ``"app"``; empty records everything."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {}
+        _put(body, "include", include)
+        _put(body, "label", label or None)
+        if window_id:
+            body["window_id"] = window_id
+        return await self._j("POST", f"runtime/{runtime_id}/display/recordings", body)
+
+    async def recordings(self, runtime_id: str) -> Dict[str, Any]:
+        """List recordings → ``{recordings}``."""
+        _validate_runtime_id(runtime_id)
+        return await self._j("GET", f"runtime/{runtime_id}/display/recordings")
+
+    async def recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
+        """One recording's metadata with live progress."""
+        _validate_runtime_id(runtime_id)
+        return await self._j("GET", f"runtime/{runtime_id}/display/recordings/{rec_id}")
+
+    async def stop_recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
+        """Finalize the MP4 and seal the trajectory."""
+        _validate_runtime_id(runtime_id)
+        return await self._j("POST",
+                             f"runtime/{runtime_id}/display/recordings/{rec_id}/stop", {})
+
+    async def mark_recording(self, runtime_id: str, rec_id: str,
+                             label: str) -> Dict[str, Any]:
+        """Stamp a named mark into the recording."""
+        _validate_runtime_id(runtime_id)
+        return await self._j("POST",
+                             f"runtime/{runtime_id}/display/recordings/{rec_id}/mark",
+                             {"label": label})
+
+    async def delete_recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
+        """Delete a recording's artifacts (rejects while recording)."""
+        _validate_runtime_id(runtime_id)
+        return await self._j("DELETE",
+                             f"runtime/{runtime_id}/display/recordings/{rec_id}")
+
+    async def set_control_mode(self, runtime_id: str, mode: str) -> Dict[str, Any]:
+        """Takeover mode ``shared`` | ``human`` | ``agent`` → ``{mode}``."""
+        _validate_runtime_id(runtime_id)
+        return await self._j("POST", f"runtime/{runtime_id}/display/view/control",
+                             {"mode": mode})

@@ -10,7 +10,8 @@ Coordinates work too when the surface isn't an element (canvas, WebGL).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+import json
+from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple
 from urllib.parse import quote
 
 from ..types.runtime import _validate_runtime_id
@@ -24,6 +25,68 @@ def _q(seg: Any) -> str:
     """Percent-encode one URL path segment — caller-supplied ids (browser,
     target, download) must never carry ``/``, ``?`` or ``#`` into a path."""
     return quote(str(seg), safe="-_.")
+
+
+def _iter_event_frames(lines: Any) -> Iterator[Dict[str, Any]]:
+    """Fold an SSE line iterator into ``{seq, kind, data}`` dicts.
+
+    Each frame is ``id: {seq}`` + ``event: {kind}`` + ``data: {entry}``;
+    comment keep-alives and blank lines are skipped. ``data`` is JSON
+    decoded when it parses, otherwise carried verbatim."""
+    seq: Optional[int] = None
+    kind = "message"
+    for raw in lines:
+        if not raw:
+            continue
+        line = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
+        if line.startswith(":"):
+            continue
+        field, _, value = line.partition(":")
+        value = value.lstrip(" ")
+        if field == "id":
+            try:
+                seq = int(value)
+            except ValueError:
+                pass
+        elif field == "event":
+            kind = value or "message"
+        elif field == "data":
+            try:
+                data: Any = json.loads(value)
+            except json.JSONDecodeError:
+                data = value
+            yield {"seq": seq, "kind": kind, "data": data}
+            seq = None
+            kind = "message"
+
+
+async def _aiter_event_frames(lines: Any) -> AsyncIterator[Dict[str, Any]]:
+    """Async counterpart of :func:`_iter_event_frames`."""
+    seq: Optional[int] = None
+    kind = "message"
+    async for raw in lines:
+        if not raw:
+            continue
+        line = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
+        if line.startswith(":"):
+            continue
+        field, _, value = line.partition(":")
+        value = value.lstrip(" ")
+        if field == "id":
+            try:
+                seq = int(value)
+            except ValueError:
+                pass
+        elif field == "event":
+            kind = value or "message"
+        elif field == "data":
+            try:
+                data: Any = json.loads(value)
+            except json.JSONDecodeError:
+                data = value
+            yield {"seq": seq, "kind": kind, "data": data}
+            seq = None
+            kind = "message"
 
 
 def _target(target: Any) -> Optional[Dict[str, Any]]:
@@ -324,11 +387,15 @@ class RuntimeBrowserResource:
                         "prompt_text": prompt_text, "auto_dismiss": auto_dismiss})
 
     def targets(self, runtime_id: str, browser_id: str, url: str = "",
-                activate: bool = True) -> Dict[str, Any]:
-        """List targets, or open one (``url`` non-empty → new tab)."""
+                activate: bool = True, context_id: str = "") -> Dict[str, Any]:
+        """List targets, or open one (``url`` non-empty → new tab).
+        ``context_id`` opens the target inside an isolated context from
+        :meth:`create_context` — ``""`` is the default context."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets",
-                       {"url": url, "activate": activate})
+        body: Dict[str, Any] = {"url": url, "activate": activate}
+        if context_id:
+            body["context_id"] = context_id
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets", body)
 
     def downloads(self, runtime_id: str, browser_id: str, wait_name: str = "",
                   timeout_ms: int = 0) -> Dict[str, Any]:
@@ -392,6 +459,87 @@ class RuntimeBrowserResource:
         from gravixlayer.resources.runtime_display import _with_watch_url
         return _with_watch_url(
             self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/view", body))
+
+    # -- events, contexts, storage state --------------------------------------
+
+    def events(self, runtime_id: str, browser_id: str, since: int = 0,
+               wait_ms: int = 0) -> Iterator[Dict[str, Any]]:
+        """Yield browser events ``{seq, kind, data}`` until the current
+        long-poll page ends.
+
+        ``since`` resumes strictly after that sequence number (sent as the
+        ``Last-Event-ID`` header); ``wait_ms`` bounds the page (server
+        default 25 s, cap 30 s). An idle page ends after one keep-alive.
+        Chain pages by passing the last yielded ``seq`` back as ``since`` —
+        a fabric error arrives as a terminal ``kind="error"`` frame."""
+        _validate_runtime_id(runtime_id)
+        params: Dict[str, Any] = {}
+        if since:
+            params["since"] = since
+        if wait_ms:
+            params["wait_ms"] = wait_ms
+        headers = {"Accept": "text/event-stream"}
+        if since:
+            headers["Last-Event-ID"] = str(since)
+        response = self._rt._make_agents_request(
+            "GET", f"runtime/{runtime_id}/browser/{_q(browser_id)}/events",
+            params=params, stream=True, headers=headers)
+        try:
+            yield from _iter_event_frames(response.iter_lines())
+        finally:
+            response.close()
+
+    def create_context(self, runtime_id: str, browser_id: str,
+                       proxy: Optional[Dict[str, Any]] = None,
+                       storage_state: Optional[Dict[str, Any]] = None
+                       ) -> Dict[str, Any]:
+        """Open an isolated browser context (separate cookie/storage jars)
+        → ``{context_id}``. ``storage_state`` seeds the context's cookies
+        and origins in the Playwright-compatible export shape."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {}
+        if proxy is not None:
+            body["proxy"] = proxy
+        if storage_state is not None:
+            body["storage_state"] = storage_state
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/context", body)
+
+    def contexts(self, runtime_id: str, browser_id: str) -> Dict[str, Any]:
+        """Caller-created contexts → ``{contexts: [...]}``; the implicit
+        default context does not list."""
+        _validate_runtime_id(runtime_id)
+        return self._j("GET", f"runtime/{runtime_id}/browser/{_q(browser_id)}/contexts")
+
+    def delete_context(self, runtime_id: str, browser_id: str,
+                       context_id: str) -> Dict[str, Any]:
+        """Delete an isolated context and its jars. The default context
+        rejects guest-side."""
+        _validate_runtime_id(runtime_id)
+        return self._j(
+            "DELETE",
+            f"runtime/{runtime_id}/browser/{_q(browser_id)}/context/{_q(context_id)}")
+
+    def export_storage(self, runtime_id: str, browser_id: str,
+                       context_id: str = "") -> Dict[str, Any]:
+        """Export a context's cookies and local storage → ``{storage_state}``
+        (Playwright-compatible ``cookies``/``origins`` shape). An empty
+        ``context_id`` addresses the default context."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {"context_id": context_id} if context_id else {}
+        return self._j("POST",
+                       f"runtime/{runtime_id}/browser/{_q(browser_id)}/storage/export", body)
+
+    def import_storage(self, runtime_id: str, browser_id: str,
+                       storage_state: Any, context_id: str = "") -> Dict[str, Any]:
+        """Load cookies/origins into a context. ``storage_state`` may be the
+        exported object or a pre-serialized JSON string; ``context_id``
+        behaves as in :meth:`export_storage`."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {"storage_state": storage_state}
+        if context_id:
+            body["context_id"] = context_id
+        return self._j("POST",
+                       f"runtime/{runtime_id}/browser/{_q(browser_id)}/storage/import", body)
 
 
 class AsyncRuntimeBrowserResource:
@@ -613,10 +761,13 @@ class AsyncRuntimeBrowserResource:
                               "prompt_text": prompt_text, "auto_dismiss": auto_dismiss})
 
     async def targets(self, runtime_id: str, browser_id: str, url: str = "",
-                      activate: bool = True) -> Dict[str, Any]:
+                      activate: bool = True, context_id: str = "") -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {"url": url, "activate": activate}
+        if context_id:
+            body["context_id"] = context_id
         return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets",
-                             {"url": url, "activate": activate})
+                             body)
 
     async def downloads(self, runtime_id: str, browser_id: str, wait_name: str = "",
                         timeout_ms: int = 0) -> Dict[str, Any]:
@@ -676,3 +827,75 @@ class AsyncRuntimeBrowserResource:
         return _with_watch_url(
             await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/view",
                           body))
+
+    # -- events, contexts, storage state --------------------------------------
+
+    async def events(self, runtime_id: str, browser_id: str, since: int = 0,
+                     wait_ms: int = 0) -> AsyncIterator[Dict[str, Any]]:
+        """Async variant of the sync ``events`` — yields ``{seq, kind,
+        data}`` until the long-poll page ends; chain by passing the last
+        ``seq`` back as ``since``."""
+        _validate_runtime_id(runtime_id)
+        params: Dict[str, Any] = {}
+        if since:
+            params["since"] = since
+        if wait_ms:
+            params["wait_ms"] = wait_ms
+        headers = {"Accept": "text/event-stream"}
+        if since:
+            headers["Last-Event-ID"] = str(since)
+        response = await self._rt._make_agents_request(
+            "GET", f"runtime/{runtime_id}/browser/{_q(browser_id)}/events",
+            params=params, stream=True, headers=headers)
+        try:
+            async for frame in _aiter_event_frames(response.aiter_lines()):
+                yield frame
+        finally:
+            await response.aclose()
+
+    async def create_context(self, runtime_id: str, browser_id: str,
+                             proxy: Optional[Dict[str, Any]] = None,
+                             storage_state: Optional[Dict[str, Any]] = None
+                             ) -> Dict[str, Any]:
+        """Open an isolated browser context (separate cookie/storage jars)
+        → ``{context_id}``."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {}
+        if proxy is not None:
+            body["proxy"] = proxy
+        if storage_state is not None:
+            body["storage_state"] = storage_state
+        return await self._j(
+            "POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/context", body)
+
+    async def contexts(self, runtime_id: str, browser_id: str) -> Dict[str, Any]:
+        """Caller-created contexts → ``{contexts: [...]}``."""
+        _validate_runtime_id(runtime_id)
+        return await self._j(
+            "GET", f"runtime/{runtime_id}/browser/{_q(browser_id)}/contexts")
+
+    async def delete_context(self, runtime_id: str, browser_id: str,
+                             context_id: str) -> Dict[str, Any]:
+        """Delete an isolated context and its jars."""
+        _validate_runtime_id(runtime_id)
+        return await self._j(
+            "DELETE",
+            f"runtime/{runtime_id}/browser/{_q(browser_id)}/context/{_q(context_id)}")
+
+    async def export_storage(self, runtime_id: str, browser_id: str,
+                             context_id: str = "") -> Dict[str, Any]:
+        """Export a context's cookies and local storage → ``{storage_state}``."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {"context_id": context_id} if context_id else {}
+        return await self._j(
+            "POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/storage/export", body)
+
+    async def import_storage(self, runtime_id: str, browser_id: str,
+                             storage_state: Any, context_id: str = "") -> Dict[str, Any]:
+        """Load cookies/origins into a context — object or JSON string."""
+        _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {"storage_state": storage_state}
+        if context_id:
+            body["context_id"] = context_id
+        return await self._j(
+            "POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/storage/import", body)

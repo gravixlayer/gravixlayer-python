@@ -23,7 +23,8 @@
 #     /var/lib/desktop/Xauthority.
 #   - desktop-session.service runs the GNOME session as `agent` in a
 #     logind session. desktop-session.path starts it as soon as the X
-#     socket exists; the session's X connection waits for the server.
+#     socket exists; its ExecStartPre handshake gate waits until the
+#     server accepts authorized connections.
 #   - /etc/gravixlayer/desktop.json describes the display. Its presence
 #     makes a template a desktop template.
 #   - `chromium` on PATH for the browser plane.
@@ -124,6 +125,7 @@ FROM devtools AS desktop
 RUN apt-get update && apt-get install -y --no-install-recommends \
         xvfb \
         xauth \
+        x11-utils \
         libgl1-mesa-dri \
         libglx-mesa0 \
         ubuntu-session \
@@ -301,6 +303,7 @@ RUN printf '%s\n' \
         'Description=Desktop session' \
         'BindsTo=desktop-x.service' \
         'After=desktop-x.service systemd-logind.service systemd-user-sessions.service' \
+        'StartLimitIntervalSec=0' \
         '' \
         '[Service]' \
         'User=agent' \
@@ -310,6 +313,12 @@ RUN printf '%s\n' \
         'Environment=XDG_SESSION_TYPE=x11 XDG_SESSION_CLASS=user XDG_SESSION_DESKTOP=ubuntu' \
         'Environment=XDG_CURRENT_DESKTOP=ubuntu:GNOME DESKTOP_SESSION=ubuntu GNOME_SHELL_SESSION_MODE=ubuntu' \
         'Environment=LANG=en_US.UTF-8 GNOME_ACCESSIBILITY=1 QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 ACCESSIBILITY_ENABLED=1' \
+        '# The socket file precedes an accepting, authorized server by a' \
+        '# beat — gnome-session fails fast instead of waiting, so gate' \
+        '# start on a full handshake. A refused attempt trips the' \
+        '# on-failure restart (uncapped by StartLimitIntervalSec=0)' \
+        '# until Xvfb answers.' \
+        'ExecStartPre=/usr/bin/xdpyinfo -display :0' \
         'ExecStart=/usr/bin/gnome-session --session=ubuntu' \
         'Restart=on-failure' \
         'RestartSec=1' \

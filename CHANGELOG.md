@@ -40,6 +40,28 @@
   Pass `after_seq` set to the last received `seq` to resume a disconnected
   consumer. Available on both `GravixLayer` and `AsyncGravixLayer` (the
   async variant is an async generator).
+- **`runtime.desktop` accessibility plane** — `a11y_snapshot()` returns a
+  flat digest of the desktop tree (`{rev, elements, truncated}`) with
+  `d{n}` refs, role/name/value/bounds/states/actions, parent refs and
+  `scope`/`visible_only`/`roles`/`name` filters plus `diff` mode against
+  a prior `rev`; `a11y_find()` searches by role/name/ref scope;
+  `a11y_action()` performs ref-addressed `click` | `focus` | `invoke` |
+  `set_value` | `type` and returns `{ok, settled, rev}`.
+- **`runtime.desktop` recordings + takeover** — `start_recording(include=…,
+  label=…, window_id=…)`, `recordings()`, `recording(rec_id)`,
+  `stop_recording()`, `mark_recording()`, `delete_recording()`; artifact
+  paths read through the files plane. `set_control_mode("shared"|"human"|
+  "agent")` gates agent input under human control while screenshots and
+  status stay available.
+- **`runtime.browser` events, contexts and storage state** —
+  `events(since=…, wait_ms=…)` yields `{seq, kind, data}` frames off the
+  SSE long-poll page (chain by passing the last `seq` back; also sent as
+  `Last-Event-ID`); `create_context(proxy=…, storage_state=…)`,
+  `contexts()`, `delete_context(cid)` manage isolated cookie/storage
+  jars; `export_storage()`/`import_storage()` round-trip the
+  Playwright-compatible `cookies`/`origins` shape; `targets()` accepts
+  `context_id` to open tabs inside an isolated context. All available on
+  both sync and async resources.
 
 ## [0.1.107] - 2026-10-24
 

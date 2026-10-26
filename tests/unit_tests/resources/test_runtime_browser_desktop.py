@@ -1226,3 +1226,281 @@ class TestBoundDesktopMirror:
         b = json.loads(mock_api.calls[-1].request.content)
         assert b["target_id"] == "t1" and b["wait_until"] == "commit"
         assert b["timeout_ms"] == 5000
+
+
+# ===================================================================
+# Desktop — accessibility plane (CU3)
+# ===================================================================
+
+
+class TestDesktopA11y:
+    def test_a11y_snapshot_defaults(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/a11y/snapshot").mock(
+            return_value=httpx.Response(
+                200, json={"rev": 3, "elements": [{"ref": "d1"}], "truncated": False}
+            )
+        )
+        r = client.runtime.desktop.a11y_snapshot(VALID_UUID)
+        assert r["rev"] == 3 and r["elements"][0]["ref"] == "d1"
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body == {}
+
+    def test_a11y_snapshot_filters_and_diff(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/a11y/snapshot").mock(
+            return_value=httpx.Response(200, json={"rev": 4, "elements": []})
+        )
+        client.runtime.desktop.a11y_snapshot(
+            VALID_UUID, scope="app", app="files", pid=12, max_depth=8,
+            limit=100, visible_only=False, roles=["push button"],
+            name="Save", diff=True, rev=3,
+        )
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["scope"] == "app" and body["app"] == "files"
+        assert body["pid"] == 12 and body["max_depth"] == 8
+        assert body["limit"] == 100 and body["visible_only"] is False
+        assert body["roles"] == ["push button"] and body["name"] == "Save"
+        assert body["diff"] is True and body["rev"] == 3
+
+    def test_a11y_find(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/a11y/find").mock(
+            return_value=httpx.Response(
+                200, json={"elements": [{"ref": "d9", "role": "push button"}], "rev": 2}
+            )
+        )
+        r = client.runtime.desktop.a11y_find(
+            VALID_UUID, role="push button", name="save", ref="d2", max=5
+        )
+        assert r["elements"][0]["ref"] == "d9"
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body == {"role": "push button", "name": "save", "ref": "d2", "max": 5}
+
+    def test_a11y_action_invoke(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/a11y/action").mock(
+            return_value=httpx.Response(200, json={"ok": True, "settled": True, "rev": 5})
+        )
+        r = client.runtime.desktop.a11y_action(
+            VALID_UUID, "invoke", "d9", action="press", timeout_ms=800
+        )
+        assert r["ok"] is True and r["rev"] == 5
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body == {"op": "invoke", "ref": "d9", "action": "press",
+                        "timeout_ms": 800}
+
+    def test_a11y_action_set_value(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/a11y/action").mock(
+            return_value=httpx.Response(200, json={"ok": True, "settled": True, "rev": 6})
+        )
+        client.runtime.desktop.a11y_action(
+            VALID_UUID, "set_value", "d3", text="hello", value=1.5
+        )
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["text"] == "hello" and body["value"] == 1.5
+
+
+# ===================================================================
+# Desktop — recordings + takeover (CU4)
+# ===================================================================
+
+
+class TestDesktopRecording:
+    def test_start_recording_selectors(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/recordings").mock(
+            return_value=httpx.Response(
+                200, json={"rec_id": "r1", "path": "/tmp/r.mp4",
+                           "trajectory_path": "/tmp/r.jsonl", "status": "recording"}
+            )
+        )
+        r = client.runtime.desktop.start_recording(
+            VALID_UUID, include=["video", "input"], label="e2e", window_id=7
+        )
+        assert r["rec_id"] == "r1" and r["path"].endswith(".mp4")
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body == {"include": ["video", "input"], "label": "e2e",
+                        "window_id": 7}
+
+    def test_start_recording_empty_body(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/recordings").mock(
+            return_value=httpx.Response(200, json={"rec_id": "r2"})
+        )
+        client.runtime.desktop.start_recording(VALID_UUID)
+        assert json.loads(mock_api.calls[-1].request.content) == {}
+
+    def test_recordings_list_get(self, client, mock_api):
+        mock_api.get(f"{SB}/{VALID_UUID}/display/recordings").mock(
+            return_value=httpx.Response(200, json={"recordings": [{"rec_id": "r1"}]})
+        )
+        assert client.runtime.desktop.recordings(VALID_UUID)["recordings"][0]["rec_id"] == "r1"
+        mock_api.get(f"{SB}/{VALID_UUID}/display/recordings/r1").mock(
+            return_value=httpx.Response(200, json={"rec_id": "r1", "bytes": 10})
+        )
+        assert client.runtime.desktop.recording(VALID_UUID, "r1")["bytes"] == 10
+
+    def test_stop_mark_delete(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/recordings/r1/stop").mock(
+            return_value=httpx.Response(200, json={"status": "stopped"})
+        )
+        assert client.runtime.desktop.stop_recording(VALID_UUID, "r1")["status"] == "stopped"
+        mock_api.post(f"{SB}/{VALID_UUID}/display/recordings/r1/mark").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
+        client.runtime.desktop.mark_recording(VALID_UUID, "r1", "midpoint")
+        assert json.loads(mock_api.calls[-1].request.content) == {"label": "midpoint"}
+        mock_api.delete(f"{SB}/{VALID_UUID}/display/recordings/r1").mock(
+            return_value=httpx.Response(200, json={"deleted": True})
+        )
+        assert client.runtime.desktop.delete_recording(VALID_UUID, "r1")["deleted"] is True
+
+    def test_set_control_mode(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/view/control").mock(
+            return_value=httpx.Response(200, json={"mode": "human"})
+        )
+        r = client.runtime.desktop.set_control_mode(VALID_UUID, "human")
+        assert r["mode"] == "human"
+        assert json.loads(mock_api.calls[-1].request.content) == {"mode": "human"}
+
+
+# ===================================================================
+# Browser — events SSE, contexts, storage state
+# ===================================================================
+
+
+SSE_PAGE = (
+    ": ka\n"
+    "\n"
+    "id: 41\n"
+    "event: navigated\n"
+    'data: {"url": "https://example.com", "seq": 41}\n'
+    "\n"
+    "id: 42\n"
+    "event: console\n"
+    'data: {"text": "hi", "seq": 42}\n'
+    "\n"
+)
+
+
+class TestBrowserEvents:
+    def test_events_parse_frames(self, client, mock_api):
+        mock_api.get(f"{SB}/{VALID_UUID}/browser/{BID}/events").mock(
+            return_value=httpx.Response(
+                200, text=SSE_PAGE, headers={"content-type": "text/event-stream"}
+            )
+        )
+        frames = list(client.runtime.browser.events(VALID_UUID, BID))
+        assert [f["seq"] for f in frames] == [41, 42]
+        assert frames[0]["kind"] == "navigated"
+        assert frames[0]["data"]["url"] == "https://example.com"
+        assert mock_api.calls[-1].request.headers["Accept"] == "text/event-stream"
+
+    def test_events_resume_params(self, client, mock_api):
+        mock_api.get(f"{SB}/{VALID_UUID}/browser/{BID}/events").mock(
+            return_value=httpx.Response(
+                200, text=": ka\n\n", headers={"content-type": "text/event-stream"}
+            )
+        )
+        frames = list(client.runtime.browser.events(VALID_UUID, BID, since=41, wait_ms=8000))
+        assert frames == []
+        req = mock_api.calls[-1].request
+        assert req.headers["Last-Event-ID"] == "41"
+        assert "since=41" in str(req.url) and "wait_ms=8000" in str(req.url)
+
+
+class TestBrowserContextsStorage:
+    def test_context_create_list_delete(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/context").mock(
+            return_value=httpx.Response(200, json={"context_id": "c1"})
+        )
+        r = client.runtime.browser.create_context(VALID_UUID, BID)
+        assert r["context_id"] == "c1"
+        assert json.loads(mock_api.calls[-1].request.content) == {}
+
+        mock_api.get(f"{SB}/{VALID_UUID}/browser/{BID}/contexts").mock(
+            return_value=httpx.Response(200, json={"contexts": [{"context_id": "c1"}]})
+        )
+        assert client.runtime.browser.contexts(VALID_UUID, BID)["contexts"][0]["context_id"] == "c1"
+
+        mock_api.delete(f"{SB}/{VALID_UUID}/browser/{BID}/context/c1").mock(
+            return_value=httpx.Response(200, json={"deleted": True})
+        )
+        assert client.runtime.browser.delete_context(VALID_UUID, BID, "c1")["deleted"] is True
+
+    def test_context_create_seeded(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/context").mock(
+            return_value=httpx.Response(200, json={"context_id": "c2"})
+        )
+        state = {"cookies": [], "origins": []}
+        client.runtime.browser.create_context(
+            VALID_UUID, BID, proxy={"server": "http://p"}, storage_state=state
+        )
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["proxy"] == {"server": "http://p"} and body["storage_state"] == state
+
+    def test_targets_in_context(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/targets").mock(
+            return_value=httpx.Response(200, json={"target_id": "t9"})
+        )
+        client.runtime.browser.targets(VALID_UUID, BID, url="https://x", context_id="c1")
+        body = json.loads(mock_api.calls[-1].request.content)
+        assert body["context_id"] == "c1" and body["url"] == "https://x"
+
+    def test_storage_export_import(self, client, mock_api):
+        state = {"cookies": [{"name": "NID"}], "origins": []}
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/storage/export").mock(
+            return_value=httpx.Response(200, json={"storage_state": state})
+        )
+        r = client.runtime.browser.export_storage(VALID_UUID, BID, context_id="c1")
+        assert r["storage_state"]["cookies"][0]["name"] == "NID"
+        assert json.loads(mock_api.calls[-1].request.content) == {"context_id": "c1"}
+
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/storage/import").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
+        client.runtime.browser.import_storage(VALID_UUID, BID, state)
+        assert json.loads(mock_api.calls[-1].request.content) == {"storage_state": state}
+
+
+# ===================================================================
+# Async mirrors — a11y, recording, events, contexts, storage
+# ===================================================================
+
+
+class TestAsyncNewPlanes:
+    @pytest.mark.asyncio
+    async def test_a11y_and_recording(self, mock_api):
+        from gravixlayer import AsyncGravixLayer
+
+        mock_api.post(f"{SB}/{VALID_UUID}/display/a11y/action").mock(
+            return_value=httpx.Response(200, json={"ok": True, "rev": 2})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/display/recordings").mock(
+            return_value=httpx.Response(200, json={"rec_id": "r1"})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/display/recordings/r1/stop").mock(
+            return_value=httpx.Response(200, json={"status": "stopped"})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/display/view/control").mock(
+            return_value=httpx.Response(200, json={"mode": "shared"})
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as c:
+            assert (await c.runtime.desktop.a11y_action(VALID_UUID, "focus", "d1"))["ok"] is True
+            assert (await c.runtime.desktop.start_recording(VALID_UUID))["rec_id"] == "r1"
+            assert (await c.runtime.desktop.stop_recording(VALID_UUID, "r1"))["status"] == "stopped"
+            assert (await c.runtime.desktop.set_control_mode(VALID_UUID, "shared"))["mode"] == "shared"
+
+    @pytest.mark.asyncio
+    async def test_events_and_storage(self, mock_api):
+        from gravixlayer import AsyncGravixLayer
+
+        mock_api.get(f"{SB}/{VALID_UUID}/browser/{BID}/events").mock(
+            return_value=httpx.Response(
+                200, text=SSE_PAGE, headers={"content-type": "text/event-stream"}
+            )
+        )
+        state = {"cookies": [], "origins": []}
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/storage/export").mock(
+            return_value=httpx.Response(200, json={"storage_state": state})
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as c:
+            frames = [f async for f in c.runtime.browser.events(VALID_UUID, BID)]
+            assert [f["seq"] for f in frames] == [41, 42]
+            assert frames[1]["kind"] == "console"
+            assert (await c.runtime.browser.export_storage(VALID_UUID, BID))["storage_state"] == state
