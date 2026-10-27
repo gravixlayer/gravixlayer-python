@@ -1,10 +1,8 @@
 """Storage mount types.
 
-A *bucket* is managed object storage the platform provisions for the
-account. A *bucket link* binds an S3-compatible bucket the account already
-owns — credentials are referenced by secret-provider key names and never
-pass through the API. A *mount* attaches a bucket, link, or git repository
-to a runtime at a guest path.
+A *bucket* is S3 or S3-compatible object storage. The platform can provision
+it, or it can connect to a bucket the account already owns. A *mount* attaches
+a bucket or git repository to a runtime at a guest path.
 """
 
 from __future__ import annotations
@@ -12,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-LINK_PROVIDERS = ("s3", "s3_compatible")
+BUCKET_PROVIDERS = ("s3", "s3_compatible")
 
 # Mount modes.
 MOUNT_RO = "ro"
@@ -28,7 +26,6 @@ _MOUNT_FIELDS = frozenset(
         "mode",
         "required",
         "bucket",
-        "link",
         "url",
         "git_ref",
         "depth",
@@ -43,15 +40,22 @@ MOUNT_FAILED = "failed"
 
 @dataclass
 class StorageBucket:
-    """A managed bucket provisioned by the platform."""
+    """An S3 or S3-compatible bucket, managed or externally connected."""
 
     id: str
     name: str
+    source: str  # "managed" | "external"
     provider: str
     region: str
-    bucket: str = ""  # provider-side name once provisioned
+    bucket: str = ""  # provider-side bucket name
+    prefix: str = ""
+    endpoint: Optional[str] = None
+    path_style: bool = False
+    auth_mode: str = ""
     status: str = ""
     error: Optional[str] = None
+    verify_error: Optional[str] = None
+    last_verified_at: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -60,50 +64,20 @@ class StorageBucket:
         return cls(
             id=data["id"],
             name=data.get("name", ""),
+            source=data.get("source", "managed"),
             provider=data.get("provider", ""),
             region=data.get("region", ""),
-            bucket=data.get("bucket", ""),
-            status=data.get("status", ""),
-            error=data.get("error") or None,
-            created_at=data.get("created_at"),
-            updated_at=data.get("updated_at"),
-        )
-
-
-@dataclass
-class BucketLink:
-    """A link to a bucket the account owns (S3 or S3-compatible)."""
-
-    id: str
-    name: str
-    provider: str
-    bucket: str
-    prefix: str = ""
-    region: str = ""
-    endpoint: Optional[str] = None
-    path_style: bool = False
-    auth_mode: str = "static"
-    status: str = ""
-    verify_error: Optional[str] = None
-    last_verified_at: Optional[str] = None
-    created_at: Optional[str] = None
-
-    @classmethod
-    def from_api(cls, data: Dict[str, Any]) -> "BucketLink":
-        return cls(
-            id=data["id"],
-            name=data.get("name", ""),
-            provider=data.get("provider", ""),
             bucket=data.get("bucket", ""),
             prefix=data.get("prefix", ""),
-            region=data.get("region", ""),
             endpoint=data.get("endpoint") or None,
             path_style=bool(data.get("path_style", False)),
-            auth_mode=data.get("auth_mode", "static"),
+            auth_mode=data.get("auth_mode", ""),
             status=data.get("status", ""),
+            error=data.get("error") or None,
             verify_error=data.get("verify_error") or None,
             last_verified_at=data.get("last_verified_at"),
             created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
         )
 
 
@@ -151,12 +125,6 @@ class StorageBucketList:
 
 
 @dataclass
-class BucketLinkList:
-    links: List[BucketLink] = field(default_factory=list)
-    total: int = 0
-
-
-@dataclass
 class RuntimeMountList:
     mounts: List[RuntimeMount] = field(default_factory=list)
 
@@ -185,9 +153,7 @@ def build_mount_spec(mount: Dict[str, Any]) -> Dict[str, Any]:
         or ".." in path.split("/")
         or "\x00" in path
     ):
-        raise ValueError(
-            f"mount path must be a normalized absolute path below the guest root, got {path!r}"
-        )
+        raise ValueError(f"mount path must be a normalized absolute path below the guest root, got {path!r}")
 
     body: Dict[str, Any] = {"kind": kind, "path": path}
 
@@ -204,22 +170,24 @@ def build_mount_spec(mount: Dict[str, Any]) -> Dict[str, Any]:
         body["required"] = bool(mount["required"])
 
     if kind == "bucket":
-        for stray in ("url", "git_ref", "depth", "refresh_seconds"):
+        for stray in (
+            "url",
+            "git_ref",
+            "depth",
+            "refresh_seconds",
+            "credential_provider",
+            "credential_secret",
+        ):
             if mount.get(stray) is not None:
                 raise ValueError(f"{stray!r} is for git mounts, not bucket")
-        bucket, link = mount.get("bucket"), mount.get("link")
-        if bucket and link:
-            raise ValueError("a bucket mount takes bucket or link, not both")
-        if not bucket and not link:
-            raise ValueError("a bucket mount needs bucket or link (id or name)")
-        if bucket:
-            body["bucket"] = bucket
-        if link:
-            body["link"] = link
+        bucket = mount.get("bucket")
+        if not bucket:
+            raise ValueError("a bucket mount needs bucket (id or name)")
+        body["bucket"] = bucket
         return body
 
-    if mount.get("bucket") is not None or mount.get("link") is not None:
-        raise ValueError("bucket/link are for bucket mounts, not git")
+    if mount.get("bucket") is not None:
+        raise ValueError("bucket is for bucket mounts, not git")
     url = str(mount.get("url") or "")
     if not url.lower().startswith("https://"):
         raise ValueError("git mount url must be an https:// clone URL")

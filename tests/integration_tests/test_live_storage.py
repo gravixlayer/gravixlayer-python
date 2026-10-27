@@ -1,6 +1,6 @@
 """
-Live integration tests for the storage-mount surface — buckets, bucket links,
-git mounts, lifecycle, and credential hygiene. Runs against a LIVE deployment.
+Live integration tests for the storage-mount surface — buckets, git mounts,
+lifecycle, and credential hygiene. Runs against a LIVE deployment.
 No mocking.
 
 Required:
@@ -8,10 +8,10 @@ Required:
     GRAVIXLAYER_BASE_URL     - API origin (e.g. https://api.staging.example.com)
 
 Storage test config — either env vars or ~/.config/gravix-test/aws.env:
-    TEST_S3_BUCKET           - bucket for link tests (default:
+    TEST_S3_BUCKET           - bucket for external-bucket tests (default:
                                demo-gl-157541785332-ap-south-1-an)
     TEST_S3_REGION           - bucket region (default: ap-south-1)
-    AWS_ACCESS_KEY_ID        - IAM creds scoped to TEST_S3_BUCKET (link auth)
+    AWS_ACCESS_KEY_ID        - IAM creds scoped to TEST_S3_BUCKET (external auth)
     AWS_SECRET_ACCESS_KEY
     PUBLIC_REPO              - public https git repo URL
     PRIVATE_REPO             - private https git repo URL (optional)
@@ -81,18 +81,16 @@ RUN_ID = uuid.uuid4().hex[:8]
 log.info("RUN_ID=%s", RUN_ID)
 
 live = pytest.mark.skipif(not API_KEY, reason="GRAVIXLAYER_API_KEY not set")
-needs_link_creds = pytest.mark.skipif(
-    not (AWS_KEY and AWS_SECRET), reason="AWS creds for link test not set"
+needs_external_bucket_creds = pytest.mark.skipif(
+    not (AWS_KEY and AWS_SECRET), reason="AWS creds for external-bucket test not set"
 )
 needs_public_repo = pytest.mark.skipif(not PUBLIC_REPO, reason="PUBLIC_REPO not set")
-needs_private_repo = pytest.mark.skipif(
-    not (PRIVATE_REPO and GIT_TOKEN), reason="PRIVATE_REPO/GIT_TOKEN not set"
-)
+needs_private_repo = pytest.mark.skipif(not (PRIVATE_REPO and GIT_TOKEN), reason="PRIVATE_REPO/GIT_TOKEN not set")
 
 MOUNT_BUCKET = "/mnt/bucket"
 MOUNT_BUCKET_RO = "/mnt/bucket-ro"
-MOUNT_LINK = "/mnt/byo"
-MOUNT_LINK_PREFIX = "/mnt/byo-prefixed"
+MOUNT_EXTERNAL_BUCKET = "/mnt/byo"
+MOUNT_EXTERNAL_BUCKET_PREFIX = "/mnt/byo-prefixed"
 MOUNT_GIT = "/mnt/repo"
 MOUNT_GIT_PRIVATE = "/mnt/repo-private"
 MOUNT_GIT_BAD = "/mnt/repo-bad"
@@ -125,12 +123,12 @@ def _shw(sandbox, cmd: str) -> tuple[int, str, str]:
     """Like `_sh` but runs as root — mount dirs are owned by the desktop user
     (uid 1000) while the exec user is agent (uid 999); writes need sudo."""
     import base64
+
     enc = base64.b64encode(cmd.encode()).decode()
     return _sh(sandbox, f"echo {enc} | sudo base64 -d | sudo sh")
 
 
-def _wait_status(client: GravixLayer, runtime_id: str, want: str = "running",
-                 timeout_s: int = 240) -> str:
+def _wait_status(client: GravixLayer, runtime_id: str, want: str = "running", timeout_s: int = 240) -> str:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         st = client.runtime.get(runtime_id).status
@@ -142,8 +140,7 @@ def _wait_status(client: GravixLayer, runtime_id: str, want: str = "running",
     raise TimeoutError(f"runtime {runtime_id} not {want} within {timeout_s}s")
 
 
-def _wait_bucket_status(client: GravixLayer, bucket_id: str, want: str = "active",
-                        timeout_s: int = 240) -> str:
+def _wait_bucket_status(client: GravixLayer, bucket_id: str, want: str = "active", timeout_s: int = 240) -> str:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         b = client.storage.buckets.get(bucket_id)
@@ -155,8 +152,9 @@ def _wait_bucket_status(client: GravixLayer, bucket_id: str, want: str = "active
     raise TimeoutError(f"bucket {bucket_id} not {want} within {timeout_s}s")
 
 
-def _wait_attachment(client: GravixLayer, runtime_id: str, mount_path: str,
-                     want: str = "attached", timeout_s: int = 180):
+def _wait_attachment(
+    client: GravixLayer, runtime_id: str, mount_path: str, want: str = "attached", timeout_s: int = 180
+):
     """Poll mounts until the path's attachment reaches ``want``."""
     deadline = time.time() + timeout_s
     while time.time() < deadline:
@@ -169,14 +167,13 @@ def _wait_attachment(client: GravixLayer, runtime_id: str, mount_path: str,
 
 class _Cleanup:
     """Every created resource registers here; teardown kills runtimes first
-    (mounts detach), then links/buckets/providers (delete order matters —
-    links/buckets refuse delete while mounted)."""
+    (mounts detach), then buckets/providers (buckets refuse delete while
+    mounted)."""
 
     def __init__(self, client: GravixLayer):
         self.client = client
         self.runtimes: list[str] = []
         self.buckets: list[str] = []
-        self.links: list[str] = []
         self.providers: list[str] = []
 
     def run_all(self) -> None:
@@ -186,11 +183,6 @@ class _Cleanup:
             except Exception as e:  # noqa: BLE001 — teardown best-effort
                 log.warning("kill %s: %s", rid, e)
         time.sleep(2)
-        for lid in self.links:
-            try:
-                self.client.storage.links.delete(lid)
-            except Exception as e:  # noqa: BLE001
-                log.warning("delete link %s: %s", lid, e)
         for bid in self.buckets:
             try:
                 self.client.storage.buckets.delete(bid)
@@ -214,8 +206,7 @@ def client():
         pytest.skip("GRAVIXLAYER_API_KEY not set")
     # Live create/snapshot ops outrun the default 60s read timeout on a cold
     # fabric (warm-pool refill, snapshot writes) — keep the budget generous.
-    c = GravixLayer(api_key=API_KEY, base_url=BASE_URL, cloud=CLOUD, region=REGION,
-                    timeout=600)
+    c = GravixLayer(api_key=API_KEY, base_url=BASE_URL, cloud=CLOUD, region=REGION, timeout=600)
     log.info("client base_url=%s region=%s template=%s", BASE_URL, REGION, TEMPLATE)
     yield c
     c.close()
@@ -241,7 +232,7 @@ def managed_bucket(client, cleanup):
 
 
 @pytest.fixture(scope="module")
-def link_secret_provider(client, cleanup):
+def external_bucket_secret_provider(client, cleanup):
     """Secret provider holding the AWS creds (as secrets, never raw in mounts)."""
     if not (AWS_KEY and AWS_SECRET):
         pytest.skip("AWS creds not set")
@@ -259,22 +250,22 @@ def link_secret_provider(client, cleanup):
 
 
 @pytest.fixture(scope="module")
-def bucket_link(client, cleanup, link_secret_provider):
-    """A static-credential link to TEST_BUCKET."""
-    l = client.storage.links.create(
-        f"e2e-link-{RUN_ID}",
+def external_bucket(client, cleanup, external_bucket_secret_provider):
+    """A static-credential external bucket connection to TEST_BUCKET."""
+    b = client.storage.buckets.connect(
+        f"e2e-external-{RUN_ID}",
         TEST_BUCKET,
         provider="s3",
         region=TEST_BUCKET_REGION,
         auth_mode="static",
-        secret_provider_id=link_secret_provider.id,
+        secret_provider_id=external_bucket_secret_provider.id,
         access_key_secret="AWS_ACCESS_KEY_ID",
         secret_key_secret="AWS_SECRET_ACCESS_KEY",
         **({"project_id": PROJECT_ID} if PROJECT_ID else {}),
     )
-    cleanup.links.append(l.id)
-    log.info("created link id=%s status=%s", l.id, l.status)
-    return l
+    cleanup.buckets.append(b.id)
+    log.info("connected bucket id=%s status=%s", b.id, b.status)
+    return b
 
 
 # ===========================================================================
@@ -287,21 +278,25 @@ class TestManagedBucket:
     def test_create_list_get(self, client, managed_bucket):
         b = client.storage.buckets.get(managed_bucket.id)
         assert b.provider == "s3" and b.status == "active"
-        listed = client.storage.buckets.list(
-            **({"project_id": PROJECT_ID} if PROJECT_ID else {})
-        )
+        listed = client.storage.buckets.list(**({"project_id": PROJECT_ID} if PROJECT_ID else {}))
         assert any(x.id == b.id for x in listed.buckets)
         assert client.storage.buckets.get(b.id).id == b.id
         # by name
         assert client.storage.buckets.get(b.name).bucket == b.bucket
 
     def test_create_time_mount_readwrite(self, client, cleanup, managed_bucket):
-        sandbox = _mk_runtime(client, cleanup, 
+        sandbox = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{
-                "kind": "bucket", "path": MOUNT_BUCKET,
-                "bucket": managed_bucket.id, "mode": "rw",
-            }],
+            mounts=[
+                {
+                    "kind": "bucket",
+                    "path": MOUNT_BUCKET,
+                    "bucket": managed_bucket.id,
+                    "mode": "rw",
+                }
+            ],
             timeout_seconds=900,
         )
         _wait_status(client, sandbox.runtime_id)
@@ -327,12 +322,18 @@ class TestManagedBucket:
         # object really landed in S3, not just the guest cache.
         rc, _, _ = _shw(sandbox, f"echo 'probe2-{RUN_ID}' > {MOUNT_BUCKET}/p2.txt && sync")
         assert rc == 0
-        s2 = _mk_runtime(client, cleanup, 
+        s2 = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{
-                "kind": "bucket", "path": MOUNT_BUCKET_RO,
-                "bucket": managed_bucket.id, "mode": "ro",
-            }],
+            mounts=[
+                {
+                    "kind": "bucket",
+                    "path": MOUNT_BUCKET_RO,
+                    "bucket": managed_bucket.id,
+                    "mode": "ro",
+                }
+            ],
             timeout_seconds=900,
         )
         _wait_status(client, s2.runtime_id)
@@ -349,16 +350,18 @@ class TestManagedBucket:
         sandbox = _mk_runtime(client, cleanup, template=TEMPLATE, timeout_seconds=900)
         _wait_status(client, sandbox.runtime_id)
 
-        m = sandbox.mounts.attach({
-            "kind": "bucket", "path": MOUNT_BUCKET, "bucket": managed_bucket.name,
-            "mode": "rw",
-        })
+        m = sandbox.mounts.attach(
+            {
+                "kind": "bucket",
+                "path": MOUNT_BUCKET,
+                "bucket": managed_bucket.name,
+                "mode": "rw",
+            }
+        )
         assert m.state in ("attaching", "attached")
         _wait_attachment(client, sandbox.runtime_id, MOUNT_BUCKET)
 
-        rc, out, err = _shw(
-            sandbox, f"echo x > {MOUNT_BUCKET}/hot.txt && cat {MOUNT_BUCKET}/hot.txt"
-        )
+        rc, out, err = _shw(sandbox, f"echo x > {MOUNT_BUCKET}/hot.txt && cat {MOUNT_BUCKET}/hot.txt")
         assert rc == 0, err
 
         names = [x.mount_path for x in sandbox.mounts.list().mounts]
@@ -378,10 +381,11 @@ class TestManagedBucket:
         while client.storage.buckets.get(bucket.id).status != "active" and time.time() < deadline:
             time.sleep(3)
 
-        sandbox = _mk_runtime(client, cleanup, 
+        sandbox = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{"kind": "bucket", "path": MOUNT_BUCKET,
-                     "bucket": bucket.id}],
+            mounts=[{"kind": "bucket", "path": MOUNT_BUCKET, "bucket": bucket.id}],
             timeout_seconds=900,
         )
         _wait_status(client, sandbox.runtime_id)
@@ -399,37 +403,41 @@ class TestManagedBucket:
 
 
 # ===========================================================================
-# B. Bucket link (customer-owned S3, static creds)
+# B. External bucket (customer-owned S3, static creds)
 # ===========================================================================
 
 
 @live
-@needs_link_creds
-class TestBucketLink:
-    def test_verify_and_mount(self, client, cleanup, bucket_link):
-        l = client.storage.links.verify(bucket_link.id)
-        assert l.status in ("active", "verified") or not l.verify_error, (
-            f"verify failed: {l.verify_error}"
-        )
+@needs_external_bucket_creds
+class TestExternalBucket:
+    def test_verify_and_mount(self, client, cleanup, external_bucket):
+        l = client.storage.buckets.verify(external_bucket.id)
+        assert l.status in ("active", "verified") or not l.verify_error, f"verify failed: {l.verify_error}"
 
-        sandbox = _mk_runtime(client, cleanup, 
+        sandbox = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{
-                "kind": "bucket", "path": MOUNT_LINK,
-                "link": bucket_link.id, "mode": "rw",
-            }],
+            mounts=[
+                {
+                    "kind": "bucket",
+                    "path": MOUNT_EXTERNAL_BUCKET,
+                    "bucket": external_bucket.id,
+                    "mode": "rw",
+                }
+            ],
             timeout_seconds=900,
         )
         _wait_status(client, sandbox.runtime_id)
-        _wait_attachment(client, sandbox.runtime_id, MOUNT_LINK)
+        _wait_attachment(client, sandbox.runtime_id, MOUNT_EXTERNAL_BUCKET)
 
         rc, out, err = _shw(
             sandbox,
-            f"echo 'link-{RUN_ID}' > {MOUNT_LINK}/via-link.txt && sync && "
-            f"cat {MOUNT_LINK}/via-link.txt",
+            f"echo 'external-{RUN_ID}' > {MOUNT_EXTERNAL_BUCKET}/via-bucket.txt && sync && "
+            f"cat {MOUNT_EXTERNAL_BUCKET}/via-bucket.txt",
         )
         assert rc == 0, err
-        assert f"link-{RUN_ID}" in out
+        assert f"external-{RUN_ID}" in out
 
         # creds never enter the guest
         rc, out, _ = _sh(
@@ -437,36 +445,38 @@ class TestBucketLink:
             "env; cat /proc/*/environ 2>/dev/null | tr '\\0' '\\n'; "
             "cat ~/.aws/credentials ~/.aws/config 2>/dev/null; true",
         )
-        assert AWS_KEY not in out and AWS_SECRET not in out, (
-            "AWS credential material leaked into the guest"
-        )
+        assert AWS_KEY not in out and AWS_SECRET not in out, "AWS credential material leaked into the guest"
 
-    def test_prefix_isolation(self, client, cleanup, link_secret_provider):
+    def test_prefix_isolation(self, client, cleanup, external_bucket_secret_provider):
         prefix = f"e2e-{RUN_ID}/only"
-        l = client.storage.links.create(
-            f"e2e-link-prefixed-{RUN_ID}", TEST_BUCKET,
-            provider="s3", region=TEST_BUCKET_REGION, auth_mode="static",
-            secret_provider_id=link_secret_provider.id,
+        l = client.storage.buckets.connect(
+            f"e2e-bucket-prefixed-{RUN_ID}",
+            TEST_BUCKET,
+            provider="s3",
+            region=TEST_BUCKET_REGION,
+            auth_mode="static",
+            secret_provider_id=external_bucket_secret_provider.id,
             access_key_secret="AWS_ACCESS_KEY_ID",
             secret_key_secret="AWS_SECRET_ACCESS_KEY",
             prefix=prefix,
             **({"project_id": PROJECT_ID} if PROJECT_ID else {}),
         )
-        cleanup.links.append(l.id)
+        cleanup.buckets.append(l.id)
 
-        sandbox = _mk_runtime(client, cleanup, 
+        sandbox = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{"kind": "bucket", "path": MOUNT_LINK_PREFIX,
-                     "link": l.id, "mode": "rw"}],
+            mounts=[{"kind": "bucket", "path": MOUNT_EXTERNAL_BUCKET_PREFIX, "bucket": l.id, "mode": "rw"}],
             timeout_seconds=900,
         )
         _wait_status(client, sandbox.runtime_id)
-        _wait_attachment(client, sandbox.runtime_id, MOUNT_LINK_PREFIX)
+        _wait_attachment(client, sandbox.runtime_id, MOUNT_EXTERNAL_BUCKET_PREFIX)
 
         # the guest sees only the prefix root — write lands under prefix/…
         rc, out, err = _shw(
             sandbox,
-            f"echo p > {MOUNT_LINK_PREFIX}/pf.txt && sync && ls {MOUNT_LINK_PREFIX}",
+            f"echo p > {MOUNT_EXTERNAL_BUCKET_PREFIX}/pf.txt && sync && ls {MOUNT_EXTERNAL_BUCKET_PREFIX}",
         )
         assert rc == 0, err
         assert "pf.txt" in out
@@ -481,12 +491,19 @@ class TestBucketLink:
 @needs_public_repo
 class TestGitMount:
     def test_public_repo_materializes_readonly(self, client, cleanup):
-        sandbox = _mk_runtime(client, cleanup, 
+        sandbox = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{
-                "kind": "git", "path": MOUNT_GIT, "url": PUBLIC_REPO,
-                "depth": 1, "refresh_seconds": 300,
-            }],
+            mounts=[
+                {
+                    "kind": "git",
+                    "path": MOUNT_GIT,
+                    "url": PUBLIC_REPO,
+                    "depth": 1,
+                    "refresh_seconds": 300,
+                }
+            ],
             timeout_seconds=900,
         )
         _wait_status(client, sandbox.runtime_id)
@@ -516,13 +533,18 @@ class TestGitMount:
         assert gone, "tree still visible after detach"
 
     def test_bad_url_required_false_still_boots(self, client, cleanup):
-        sandbox = _mk_runtime(client, cleanup, 
+        sandbox = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{
-                "kind": "git", "path": MOUNT_GIT_BAD,
-                "url": "https://invalid.invalid/definitely-not-a-repo.git",
-                "required": False,
-            }],
+            mounts=[
+                {
+                    "kind": "git",
+                    "path": MOUNT_GIT_BAD,
+                    "url": "https://invalid.invalid/definitely-not-a-repo.git",
+                    "required": False,
+                }
+            ],
             timeout_seconds=900,
         )
         _wait_status(client, sandbox.runtime_id)
@@ -539,19 +561,22 @@ class TestGitMount:
         assert failed.error
 
     @needs_private_repo
-    def test_private_repo_with_credential_refs(self, client, cleanup,
-                                               link_secret_provider):
+    def test_private_repo_with_credential_refs(self, client, cleanup, external_bucket_secret_provider):
         # reuse the provider for the git token — add a GIT_TOKEN secret
-        client.identity.providers.add_secret(
-            link_secret_provider.id, key="GIT_TOKEN", value=GIT_TOKEN
-        )
-        sandbox = _mk_runtime(client, cleanup, 
+        client.identity.providers.add_secret(external_bucket_secret_provider.id, key="GIT_TOKEN", value=GIT_TOKEN)
+        sandbox = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{
-                "kind": "git", "path": MOUNT_GIT_PRIVATE, "url": PRIVATE_REPO,
-                "credential_provider": link_secret_provider.id,
-                "credential_secret": "GIT_TOKEN",
-            }],
+            mounts=[
+                {
+                    "kind": "git",
+                    "path": MOUNT_GIT_PRIVATE,
+                    "url": PRIVATE_REPO,
+                    "credential_provider": external_bucket_secret_provider.id,
+                    "credential_secret": "GIT_TOKEN",
+                }
+            ],
             timeout_seconds=900,
         )
         _wait_status(client, sandbox.runtime_id)
@@ -573,10 +598,11 @@ class TestGitMount:
 @live
 class TestMountLifecycle:
     def test_pause_resume_keeps_mount(self, client, cleanup, managed_bucket):
-        sandbox = _mk_runtime(client, cleanup, 
+        sandbox = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{"kind": "bucket", "path": MOUNT_BUCKET,
-                     "bucket": managed_bucket.id, "mode": "rw"}],
+            mounts=[{"kind": "bucket", "path": MOUNT_BUCKET, "bucket": managed_bucket.id, "mode": "rw"}],
             timeout_seconds=900,
         )
         _wait_status(client, sandbox.runtime_id)
@@ -598,15 +624,14 @@ class TestMountLifecycle:
             if rc == 0 and f"pause-{RUN_ID}" in out:
                 break
             time.sleep(5)
-        assert rc == 0 and f"pause-{RUN_ID}" in out, (
-            f"mount dead after pause/resume: {err}"
-        )
+        assert rc == 0 and f"pause-{RUN_ID}" in out, f"mount dead after pause/resume: {err}"
 
     def test_fork_inherits_mounts(self, client, cleanup, managed_bucket):
-        parent = _mk_runtime(client, cleanup, 
+        parent = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{"kind": "bucket", "path": MOUNT_BUCKET,
-                     "bucket": managed_bucket.id, "mode": "rw"}],
+            mounts=[{"kind": "bucket", "path": MOUNT_BUCKET, "bucket": managed_bucket.id, "mode": "rw"}],
             timeout_seconds=900,
         )
         _wait_status(client, parent.runtime_id)
@@ -631,15 +656,14 @@ class TestMountLifecycle:
             if rc == 0 and f"fork-{RUN_ID}" in out:
                 break
             time.sleep(5)
-        assert rc == 0 and f"fork-{RUN_ID}" in out, (
-            f"fork child lacks mount content: {err}"
-        )
+        assert rc == 0 and f"fork-{RUN_ID}" in out, f"fork child lacks mount content: {err}"
 
     def test_kill_detaches_attachments(self, client, cleanup, managed_bucket):
-        sandbox = _mk_runtime(client, cleanup, 
+        sandbox = _mk_runtime(
+            client,
+            cleanup,
             template=TEMPLATE,
-            mounts=[{"kind": "bucket", "path": MOUNT_BUCKET,
-                     "bucket": managed_bucket.id}],
+            mounts=[{"kind": "bucket", "path": MOUNT_BUCKET, "bucket": managed_bucket.id}],
             timeout_seconds=900,
         )
         _wait_status(client, sandbox.runtime_id)
@@ -649,8 +673,7 @@ class TestMountLifecycle:
         cleanup.runtimes.remove(sandbox.runtime_id)
         deadline = time.time() + 90
         while time.time() < deadline:
-            states = {m.state for m in
-                      client.storage.mounts.list(sandbox.runtime_id).mounts}
+            states = {m.state for m in client.storage.mounts.list(sandbox.runtime_id).mounts}
             if states and states <= {"detached", "failed"}:
                 return
             time.sleep(3)

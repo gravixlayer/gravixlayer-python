@@ -872,7 +872,7 @@ class RuntimeMountsBound:
         return r.runtime_id, r._client
 
     def attach(self, mount: Dict[str, Any]) -> RuntimeMount:
-        """Attach a bucket/link/git mount at a guest path."""
+        """Attach a bucket or git mount at a guest path."""
         rid, client = self._rc()
         return client.storage.mounts.attach(rid, mount)
 

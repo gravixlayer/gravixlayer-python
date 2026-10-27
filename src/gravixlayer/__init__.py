@@ -124,21 +124,18 @@ from .resources.async_agents import (
 from .resources.async_secret_providers import AsyncProviders
 from .resources.async_identity import AsyncIdentity
 from .resources.async_network_policies import AsyncNetworkPolicies
-from .resources.storage import Storage, StorageBuckets, BucketLinks, RuntimeMounts
+from .resources.storage import Storage, StorageBuckets, RuntimeMounts
 from .resources.async_storage import (
     AsyncStorage,
     AsyncStorageBuckets,
-    AsyncBucketLinks,
     AsyncRuntimeMounts,
 )
 from .types.storage import (
     StorageBucket,
     StorageBucketList,
-    BucketLink,
-    BucketLinkList,
     RuntimeMount,
     RuntimeMountList,
-    LINK_PROVIDERS,
+    BUCKET_PROVIDERS,
     MOUNT_RO,
     MOUNT_RW,
     MOUNT_ATTACHED,
@@ -316,17 +313,13 @@ __all__ = [
     "AsyncStorage",
     "StorageBuckets",
     "AsyncStorageBuckets",
-    "BucketLinks",
-    "AsyncBucketLinks",
     "RuntimeMounts",
     "AsyncRuntimeMounts",
     "StorageBucket",
     "StorageBucketList",
-    "BucketLink",
-    "BucketLinkList",
     "RuntimeMount",
     "RuntimeMountList",
-    "LINK_PROVIDERS",
+    "BUCKET_PROVIDERS",
     "MOUNT_RO",
     "MOUNT_RW",
     "MOUNT_ATTACHED",

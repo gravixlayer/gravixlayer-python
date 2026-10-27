@@ -185,8 +185,8 @@ can only narrow access.
 
 ## Storage mounts
 
-Managed buckets, links to buckets you already own, and git repositories can
-mount into a sandbox at boot or while it runs:
+Managed buckets, buckets you already own, and git repositories can mount into
+a sandbox at boot or while it runs:
 
 ```python
 bucket = client.storage.buckets.create("datasets")
@@ -198,17 +198,17 @@ sandbox = client.runtime.create(mounts=[
 
 # Hot-attach, inspect, detach on a running sandbox.
 mount = sandbox.mounts.attach(
-    {"kind": "bucket", "path": "/mnt/more", "link": "byo-data"}
+    {"kind": "bucket", "path": "/mnt/more", "bucket": "byo-data"}
 )
 print(mount.state, mount.provenance)
 sandbox.mounts.detach(mount.id)
 ```
 
-Bring your own bucket with a *link* — credentials live in a secret provider
-and are referenced by name, never passed through the SDK:
+Connect an existing bucket — credentials live in a secret provider and are
+referenced by name, never passed through the SDK:
 
 ```python
-link = client.storage.links.create(
+bucket = client.storage.buckets.connect(
     "byo-data", "acme-data",
     provider="s3_compatible",
     endpoint="https://objects.example.com",

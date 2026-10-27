@@ -1,8 +1,18 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.109] - 2026-10-27
 
 ### Changed
+- **Storage buckets are one public resource.** `storage.buckets.create`
+  provisions a managed bucket, `storage.buckets.connect` connects an existing
+  S3/S3-compatible bucket, and `list`/`get`/`verify`/`delete` operate on both
+  through `source: "managed" | "external"`. Mounts take only
+  `{kind: "bucket", bucket: "<id-or-name>"}`; `storage.links` and the mount
+  `link` field are removed.
+- **Mount validation rejects credential fields on bucket mounts.**
+  `credential_provider`/`credential_secret` are git-mount fields; a bucket
+  mount carrying them now fails locally instead of being silently ignored —
+  matching the other stray-field refusals and the TS SDK and CLI.
 - **Bound objects now mirror their resources exactly** —
   `RuntimeBrowserBound` and `RuntimeDesktopBound` signatures are the
   resource signatures minus `runtime_id`. Every named parameter
@@ -163,7 +173,7 @@
   of racing a single attempt).
 ### Tests
 - `tests/integration_tests/test_live_storage.py` — opt-in live suite for the
-  storage-mount surface: managed buckets, static-credential bucket links,
+  storage-mount surface: managed buckets, static-credential external buckets,
   public/private git mounts, pause/resume, fork inheritance, kill-detach,
   read-only enforcement, and guest credential hygiene. Skips unless
   `GRAVIXLAYER_API_KEY` is set; reads `~/.config/gravix-test/aws.env` for
