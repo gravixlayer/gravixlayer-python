@@ -2188,10 +2188,43 @@ class RuntimeBrowserBound:
                                              target_id=target_id)
 
     def targets(self, browser_id: str, url: str = "",
-                activate: bool = True) -> Any:
+                activate: bool = True, context_id: str = "") -> Any:
         rid, client = self._rc()
         return client.runtime.browser.targets(rid, browser_id, url=url,
-                                              activate=activate)
+                                              activate=activate,
+                                              context_id=context_id)
+
+    def events(self, browser_id: str, since: int = 0,
+               wait_ms: int = 0) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.events(rid, browser_id, since=since,
+                                             wait_ms=wait_ms)
+
+    def create_context(self, browser_id: str, proxy: str = "",
+                       storage_state: Any = None) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.create_context(
+            rid, browser_id, proxy=proxy, storage_state=storage_state)
+
+    def contexts(self, browser_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.contexts(rid, browser_id)
+
+    def delete_context(self, browser_id: str, context_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.delete_context(rid, browser_id,
+                                                     context_id)
+
+    def export_storage(self, browser_id: str, context_id: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.export_storage(rid, browser_id,
+                                                     context_id=context_id)
+
+    def import_storage(self, browser_id: str, storage_state: Any,
+                       context_id: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.import_storage(
+            rid, browser_id, storage_state, context_id=context_id)
 
     def downloads(self, browser_id: str, wait_name: str = "",
                   timeout_ms: int = 0) -> Any:
@@ -2492,3 +2525,61 @@ class RuntimeDesktopBound:
     def set_clipboard_image(self, png: bytes) -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.set_clipboard_image(rid, png)
+
+    # -- accessibility, recordings, takeover -----------------------------------
+
+    def a11y_snapshot(self, scope: str = "", app: str = "", pid: int = 0,
+                      max_depth: int = 0, limit: int = 0,
+                      visible_only: Optional[bool] = None,
+                      roles: Optional[List[str]] = None, name: str = "",
+                      diff: bool = False, rev: int = 0) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.a11y_snapshot(
+            rid, scope=scope, app=app, pid=pid, max_depth=max_depth,
+            limit=limit, visible_only=visible_only, roles=roles, name=name,
+            diff=diff, rev=rev)
+
+    def a11y_find(self, role: str = "", name: str = "", ref: str = "",
+                  max: int = 0) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.a11y_find(rid, role=role, name=name,
+                                                ref=ref, max=max)
+
+    def a11y_action(self, op: str, ref: str, action: str = "",
+                    action_index: int = 0, text: str = "",
+                    value: Optional[float] = None,
+                    timeout_ms: int = 0) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.a11y_action(
+            rid, op, ref, action=action, action_index=action_index,
+            text=text, value=value, timeout_ms=timeout_ms)
+
+    def start_recording(self, include: Optional[List[str]] = None,
+                        label: str = "", window_id: int = 0) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.start_recording(
+            rid, include=include, label=label, window_id=window_id)
+
+    def recordings(self) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.recordings(rid)
+
+    def recording(self, rec_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.recording(rid, rec_id)
+
+    def stop_recording(self, rec_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.stop_recording(rid, rec_id)
+
+    def mark_recording(self, rec_id: str, label: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.mark_recording(rid, rec_id, label)
+
+    def delete_recording(self, rec_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.delete_recording(rid, rec_id)
+
+    def set_control_mode(self, mode: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.desktop.set_control_mode(rid, mode)

@@ -1504,3 +1504,104 @@ class TestAsyncNewPlanes:
             assert [f["seq"] for f in frames] == [41, 42]
             assert frames[1]["kind"] == "console"
             assert (await c.runtime.browser.export_storage(VALID_UUID, BID))["storage_state"] == state
+
+
+class TestBoundNewSurfaces:
+    """Bound handles mirror the new resource methods minus runtime_id."""
+
+    def test_bound_a11y_and_recording(self, client, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/display/a11y/snapshot").mock(
+            return_value=httpx.Response(200, json={"rev": 3, "elements": [{"ref": "d1", "role": "frame"}]})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/display/a11y/find").mock(
+            return_value=httpx.Response(200, json={"rev": 3, "elements": []})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/display/a11y/action").mock(
+            return_value=httpx.Response(200, json={"ok": True, "settled": True, "rev": 4})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/display/recordings").mock(
+            return_value=httpx.Response(200, json={"rec_id": "r1", "status": "recording"})
+        )
+        mock_api.get(f"{SB}/{VALID_UUID}/display/recordings").mock(
+            return_value=httpx.Response(200, json={"recordings": [{"rec_id": "r1"}]})
+        )
+        mock_api.get(f"{SB}/{VALID_UUID}/display/recordings/r1").mock(
+            return_value=httpx.Response(200, json={"rec_id": "r1", "status": "recording"})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/display/recordings/r1/mark").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/display/recordings/r1/stop").mock(
+            return_value=httpx.Response(200, json={"status": "stopped"})
+        )
+        mock_api.delete(f"{SB}/{VALID_UUID}/display/recordings/r1").mock(
+            return_value=httpx.Response(200, json={"deleted": True})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/display/view/control").mock(
+            return_value=httpx.Response(200, json={"mode": "human"})
+        )
+
+        from gravixlayer.types.runtime import Runtime
+        r = Runtime(runtime_id=VALID_UUID, status="running")
+        r._client = client
+        assert r.desktop.a11y_snapshot(scope="focus")["rev"] == 3
+        assert r.desktop.a11y_find(role="push button", name="OK")["rev"] == 3
+        assert r.desktop.a11y_action("focus", "d1")["ok"] is True
+        assert r.desktop.start_recording(include=["input"], label="t")["rec_id"] == "r1"
+        assert r.desktop.recordings()["recordings"][0]["rec_id"] == "r1"
+        assert r.desktop.recording("r1")["status"] == "recording"
+        r.desktop.mark_recording("r1", "checkpoint")
+        assert r.desktop.stop_recording("r1")["status"] == "stopped"
+        r.desktop.delete_recording("r1")
+        assert r.desktop.set_control_mode("human")["mode"] == "human"
+
+        bodies = [json.loads(c.request.content) for c in mock_api.calls if c.request.content]
+        assert bodies[0]["scope"] == "focus"
+        assert bodies[3] == {"label": "t", "include": ["input"]}
+        assert bodies[4] == {"label": "checkpoint"}
+        assert bodies[6] == {"mode": "human"}
+
+    def test_bound_browser_contexts_and_storage(self, client, mock_api):
+        state = {"cookies": [{"name": "s", "value": "v", "domain": "x.io", "path": "/"}], "origins": []}
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/context").mock(
+            return_value=httpx.Response(200, json={"context_id": "c9"})
+        )
+        mock_api.get(f"{SB}/{VALID_UUID}/browser/{BID}/contexts").mock(
+            return_value=httpx.Response(200, json={"contexts": [{"context_id": "c9"}]})
+        )
+        mock_api.delete(f"{SB}/{VALID_UUID}/browser/{BID}/context/c9").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/storage/export").mock(
+            return_value=httpx.Response(200, json={"storage_state": state})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/storage/import").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/targets").mock(
+            return_value=httpx.Response(200, json={"target_id": "t9"})
+        )
+        mock_api.get(f"{SB}/{VALID_UUID}/browser/{BID}/events").mock(
+            return_value=httpx.Response(200, text=SSE_PAGE, headers={"content-type": "text/event-stream"})
+        )
+
+        from gravixlayer.types.runtime import Runtime
+        r = Runtime(runtime_id=VALID_UUID, status="running")
+        r._client = client
+        assert r.browser.create_context(BID, proxy="http://p:8080")["context_id"] == "c9"
+        assert r.browser.contexts(BID)["contexts"][0]["context_id"] == "c9"
+        r.browser.delete_context(BID, "c9")
+        assert r.browser.export_storage(BID)["storage_state"] == state
+        r.browser.import_storage(BID, state, context_id="c9")
+        r.browser.targets(BID, url="https://x.io", context_id="c9")
+        frames = list(r.browser.events(BID))
+        assert [f["seq"] for f in frames] == [41, 42]
+
+        calls = mock_api.calls
+        ctx_body = json.loads(calls[0].request.content)
+        assert ctx_body["proxy"] == "http://p:8080"
+        imp_body = json.loads(calls[4].request.content)
+        assert imp_body["storage_state"] == state and imp_body["context_id"] == "c9"
+        tgt_body = json.loads(calls[5].request.content)
+        assert tgt_body["context_id"] == "c9"
+        assert "since" in calls[6].request.url.params or calls[6].request.url.query == b""
