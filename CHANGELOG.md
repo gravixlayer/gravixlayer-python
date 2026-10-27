@@ -61,7 +61,11 @@
   jars; `export_storage()`/`import_storage()` round-trip the
   Playwright-compatible `cookies`/`origins` shape; `targets()` accepts
   `context_id` to open tabs inside an isolated context. All available on
-  both sync and async resources.
+  both sync and async resources. The bound handles expose the same
+  surface minus `runtime_id`: `rt.browser.events/contexts/storage` and
+  `rt.desktop.a11y_*/start_recording/stop_recording/mark_recording/
+  delete_recording/recordings/recording/set_control_mode`, plus
+  `rt.browser.targets(context_id=…)`.
 
 ## [0.1.107] - 2026-10-24
 
