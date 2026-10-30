@@ -511,6 +511,38 @@ class TestSyncTemplatesResource:
         assert len(result.templates) == 1
         assert result.templates[0].name == "base-small"
 
+    def test_list_include_inactive_sends_flag(self, client, mock_api):
+        # Unpublished templates hold names — the flag widens the list so
+        # failed builds are visible (and deletable) instead of silently
+        # reserved; their latest_build_status carries the reason.
+        mock_api.get(url__regex=rf"{TMPL_BASE}\?.*include_inactive=true").mock(
+            return_value=httpx.Response(200, json={
+                "templates": [{
+                    **make_template_info(),
+                    "is_active": False,
+                    "latest_build_id": "build-9",
+                    "latest_build_status": "failed",
+                }],
+                "limit": 100,
+                "offset": 0,
+            })
+        )
+        result = client.templates.list(include_inactive=True)
+        assert result.templates[0].is_active is False
+        assert result.templates[0].latest_build_id == "build-9"
+        assert result.templates[0].latest_build_status == "failed"
+
+    def test_list_default_omits_include_inactive(self, client, mock_api):
+        # The flag must not leak into the plain list — the control plane
+        # defaults to published templates only.
+        mock_api.get(url__regex=rf"{TMPL_BASE}\?limit=100&offset=0&kind=sandbox$").mock(
+            return_value=httpx.Response(200, json={
+                "templates": [], "limit": 100, "offset": 0,
+            })
+        )
+        result = client.templates.list()
+        assert result.templates == []
+
     def test_get(self, client, mock_api):
         mock_api.get(f"{TMPL_BASE}/tmpl-001").mock(
             return_value=httpx.Response(200, json=make_template_info())

@@ -337,6 +337,7 @@ class AsyncTemplates:
         limit: int = 100,
         offset: int = 0,
         project_id: Optional[str] = None,
+        include_inactive: bool = False,
     ) -> TemplateListResponse:
         """List available templates.
 
@@ -344,6 +345,10 @@ class AsyncTemplates:
             limit: Max number of templates to return (default 100).
             offset: Pagination offset (default 0).
             project_id: Optional project filter.
+            include_inactive: Also return the account's unpublished
+                templates — rows whose builds are pending, running, or
+                failed and still hold their name — for retry or delete.
+                Their ``latest_build_status`` field carries the reason.
 
         Returns:
             TemplateListResponse containing template list and pagination info.
@@ -352,7 +357,11 @@ class AsyncTemplates:
             "template",
             limit=limit,
             offset=offset,
-            extra_params={"project_id": project_id, "kind": "sandbox"},
+            extra_params={
+                "project_id": project_id,
+                "kind": "sandbox",
+                "include_inactive": "true" if include_inactive else None,
+            },
         )
 
         response = await self._make_agents_request("GET", endpoint)

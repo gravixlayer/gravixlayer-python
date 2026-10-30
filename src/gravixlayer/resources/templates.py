@@ -366,17 +366,28 @@ class Templates:
         limit: int = 100,
         offset: int = 0,
         project_id: Optional[str] = None,
+        include_inactive: bool = False,
     ) -> TemplateListResponse:
         """List available sandbox/runtime templates.
 
         Agent templates are not included; use the agents API for those.
         Kind is set by the build endpoint — callers do not pass it.
+
+        Args:
+            include_inactive: Also return the account's unpublished
+                templates — rows whose builds are pending, running, or
+                failed and still hold their name — for retry or delete.
+                Their ``latest_build_status`` field carries the reason.
         """
         endpoint = build_list_endpoint(
             "template",
             limit=limit,
             offset=offset,
-            extra_params={"project_id": project_id, "kind": "sandbox"},
+            extra_params={
+                "project_id": project_id,
+                "kind": "sandbox",
+                "include_inactive": "true" if include_inactive else None,
+            },
         )
 
         response = self._make_agents_request("GET", endpoint)

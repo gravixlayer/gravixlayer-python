@@ -165,6 +165,11 @@ class TemplateInfo:
     cloud: Optional[str] = None
     region: Optional[str] = None
     kind: Optional[str] = None  # sandbox | agent
+    # Present when the row is unpublished and the list was requested with
+    # include_inactive — the latest build's id/status explains the state.
+    is_active: Optional[bool] = None
+    latest_build_id: Optional[str] = None
+    latest_build_status: Optional[str] = None
 
 
 @dataclass
@@ -281,6 +286,9 @@ def _parse_template_info(data: Dict[str, Any]) -> TemplateInfo:
         cloud=data.get("cloud") or data.get("provider"),
         region=data.get("region"),
         kind=data.get("kind"),
+        is_active=data.get("is_active"),
+        latest_build_id=data.get("latest_build_id"),
+        latest_build_status=data.get("latest_build_status"),
     )
 
 

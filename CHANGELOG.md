@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **`templates.list(include_inactive=True)`** on the sync and async
+  resources. Unpublished templates — rows whose builds are pending,
+  running, or failed — keep their name reserved; the flag surfaces them
+  for retry or delete. `TemplateInfo` gains `is_active`,
+  `latest_build_id`, and `latest_build_status` so the row explains its
+  own state.
+
 ## [0.1.110] - 2026-10-29
 
 ### Added
