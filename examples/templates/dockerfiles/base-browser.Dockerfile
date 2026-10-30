@@ -95,12 +95,16 @@ FROM devtools AS desktop
 #   fonts-*       — text renders; emoji set prevents tofu on modern pages
 RUN apt-get update && apt-get install -y --no-install-recommends \
         xvfb \
+        xauth \
         openbox \
         dbus-x11 \
         at-spi2-core \
         xdg-utils \
         fontconfig \
+        fonts-dejavu-core \
         fonts-liberation \
+        fonts-noto-core \
+        fonts-noto-cjk \
         fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 

@@ -2580,6 +2580,16 @@ class RuntimeDesktopBound:
         rid, client = self._rc()
         return client.runtime.desktop.delete_recording(rid, rec_id)
 
+    def recording_video(self, rec_id: str) -> bytes:
+        """The recording's MP4 bytes (playable while still recording)."""
+        rid, client = self._rc()
+        return client.runtime.desktop.recording_video(rid, rec_id)
+
+    def recording_trajectory(self, rec_id: str) -> bytes:
+        """The recording's event trajectory (ndjson) as bytes."""
+        rid, client = self._rc()
+        return client.runtime.desktop.recording_trajectory(rid, rec_id)
+
     def set_control_mode(self, mode: str) -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.set_control_mode(rid, mode)

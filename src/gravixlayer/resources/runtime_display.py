@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ..types.runtime import _validate_runtime_id
+from .runtime_browser import _q
 
 if TYPE_CHECKING:
     from .runtime import Runtimes
@@ -534,20 +535,20 @@ class RuntimeDisplayResource:
     def recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
         """One recording's metadata with live progress merged in."""
         _validate_runtime_id(runtime_id)
-        return self._j("GET", f"runtime/{runtime_id}/display/recordings/{rec_id}")
+        return self._j("GET", f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}")
 
     def stop_recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
         """Finalize the MP4 and seal the trajectory → ``{status}``."""
         _validate_runtime_id(runtime_id)
         return self._j("POST",
-                       f"runtime/{runtime_id}/display/recordings/{rec_id}/stop", {})
+                       f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}/stop", {})
 
     def mark_recording(self, runtime_id: str, rec_id: str,
                        label: str) -> Dict[str, Any]:
         """Stamp a named mark into the recording's metadata + trajectory."""
         _validate_runtime_id(runtime_id)
         return self._j("POST",
-                       f"runtime/{runtime_id}/display/recordings/{rec_id}/mark",
+                       f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}/mark",
                        {"label": label})
 
     def delete_recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
@@ -555,7 +556,7 @@ class RuntimeDisplayResource:
         recording)."""
         _validate_runtime_id(runtime_id)
         return self._j("DELETE",
-                       f"runtime/{runtime_id}/display/recordings/{rec_id}")
+                       f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}")
 
     def set_control_mode(self, runtime_id: str, mode: str) -> Dict[str, Any]:
         """Live-view takeover mode ``shared`` | ``human`` | ``agent`` →
@@ -565,6 +566,24 @@ class RuntimeDisplayResource:
         _validate_runtime_id(runtime_id)
         return self._j("POST", f"runtime/{runtime_id}/display/view/control",
                        {"mode": mode})
+
+    def recording_video(self, runtime_id: str, rec_id: str) -> bytes:
+        """The recording's MP4 bytes. fMP4 fragments decode as a prefix, so
+        a still-running recording downloads a playable file. 404 when the
+        artifact is not on disk."""
+        _validate_runtime_id(runtime_id)
+        r = self._rt._make_agents_request(
+            "GET",
+            f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}/video")
+        return r.content
+
+    def recording_trajectory(self, runtime_id: str, rec_id: str) -> bytes:
+        """The recording's event trajectory (ndjson lines) as bytes."""
+        _validate_runtime_id(runtime_id)
+        r = self._rt._make_agents_request(
+            "GET",
+            f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}/trajectory")
+        return r.content
 
 
 class AsyncRuntimeDisplayResource:
@@ -970,30 +989,46 @@ class AsyncRuntimeDisplayResource:
     async def recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
         """One recording's metadata with live progress."""
         _validate_runtime_id(runtime_id)
-        return await self._j("GET", f"runtime/{runtime_id}/display/recordings/{rec_id}")
+        return await self._j("GET", f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}")
 
     async def stop_recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
         """Finalize the MP4 and seal the trajectory."""
         _validate_runtime_id(runtime_id)
         return await self._j("POST",
-                             f"runtime/{runtime_id}/display/recordings/{rec_id}/stop", {})
+                             f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}/stop", {})
 
     async def mark_recording(self, runtime_id: str, rec_id: str,
                              label: str) -> Dict[str, Any]:
         """Stamp a named mark into the recording."""
         _validate_runtime_id(runtime_id)
         return await self._j("POST",
-                             f"runtime/{runtime_id}/display/recordings/{rec_id}/mark",
+                             f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}/mark",
                              {"label": label})
 
     async def delete_recording(self, runtime_id: str, rec_id: str) -> Dict[str, Any]:
         """Delete a recording's artifacts (rejects while recording)."""
         _validate_runtime_id(runtime_id)
         return await self._j("DELETE",
-                             f"runtime/{runtime_id}/display/recordings/{rec_id}")
+                             f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}")
 
     async def set_control_mode(self, runtime_id: str, mode: str) -> Dict[str, Any]:
         """Takeover mode ``shared`` | ``human`` | ``agent`` → ``{mode}``."""
         _validate_runtime_id(runtime_id)
         return await self._j("POST", f"runtime/{runtime_id}/display/view/control",
                              {"mode": mode})
+
+    async def recording_video(self, runtime_id: str, rec_id: str) -> bytes:
+        """The recording's MP4 bytes — playable while still recording."""
+        _validate_runtime_id(runtime_id)
+        r = await self._rt._make_agents_request(
+            "GET",
+            f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}/video")
+        return r.content
+
+    async def recording_trajectory(self, runtime_id: str, rec_id: str) -> bytes:
+        """The recording's event trajectory (ndjson lines) as bytes."""
+        _validate_runtime_id(runtime_id)
+        r = await self._rt._make_agents_request(
+            "GET",
+            f"runtime/{runtime_id}/display/recordings/{_q(rec_id)}/trajectory")
+        return r.content

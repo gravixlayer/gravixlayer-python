@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.110] - 2026-10-29
+
+### Added
+- **Recording artifact downloads.** `runtime.desktop.recording_video(rec_id)`
+  and `runtime.desktop.recording_trajectory(rec_id)` return the recording's
+  MP4 / ndjson artifact bytes directly — `GET .../recordings/{rec}/video` and
+  `/trajectory` — on both the sync and async resources and the bound
+  `Runtime` object.
+
+### Changed
+- **Desktop template is Ubuntu 24.04.** `base-desktop.Dockerfile` builds on
+  `ubuntu:24.04` (GNOME 46); `base-browser.Dockerfile` gains `xauth` and a
+  fuller font set. New `base-osworld.Dockerfile` ships the OSWorld research
+  desktop image.
+
 ## [0.1.109] - 2026-10-27
 
 ### Changed

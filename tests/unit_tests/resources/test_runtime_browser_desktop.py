@@ -1358,6 +1358,27 @@ class TestDesktopRecording:
         assert r["mode"] == "human"
         assert json.loads(mock_api.calls[-1].request.content) == {"mode": "human"}
 
+    def test_recording_video_returns_raw_bytes(self, client, mock_api):
+        mock_api.get(
+            f"{SB}/{VALID_UUID}/display/recordings/r1/video"
+        ).mock(return_value=httpx.Response(200, content=b"MP4DATA"))
+        assert client.runtime.desktop.recording_video(VALID_UUID, "r1") == b"MP4DATA"
+
+    def test_recording_trajectory_returns_raw_bytes(self, client, mock_api):
+        mock_api.get(
+            f"{SB}/{VALID_UUID}/display/recordings/r1/trajectory"
+        ).mock(return_value=httpx.Response(200, content=b'{"a":1}\n'))
+        assert client.runtime.desktop.recording_trajectory(
+            VALID_UUID, "r1"
+        ) == b'{"a":1}\n'
+
+    def test_recording_artifacts_raise_on_404(self, client, mock_api):
+        mock_api.get(
+            f"{SB}/{VALID_UUID}/display/recordings/r9/video"
+        ).mock(return_value=httpx.Response(404, json={"message": "file not found"}))
+        with pytest.raises(Exception):
+            client.runtime.desktop.recording_video(VALID_UUID, "r9")
+
 
 # ===================================================================
 # Browser — events SSE, contexts, storage state

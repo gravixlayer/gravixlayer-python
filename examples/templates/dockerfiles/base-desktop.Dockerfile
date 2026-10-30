@@ -2,7 +2,7 @@
 #
 # GravixLayer base-desktop template
 #
-# A full Ubuntu 22.04 desktop: GNOME 42 (Ubuntu session) on a virtual
+# A full Ubuntu 24.04 desktop: GNOME 46 (Ubuntu session) on a virtual
 # display with real applications, plus the base toolchain
 # (Python 3.14.6 · Node 24.18.0).
 # Applications: Files · Terminal · Text Editor · Document Viewer ·
@@ -43,7 +43,7 @@
 #     accessibility tree covers GTK, Qt, Firefox, Chromium and Electron
 #     windows.
 
-FROM ubuntu:22.04 AS system
+FROM ubuntu:24.04 AS system
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -108,7 +108,7 @@ FROM devtools AS desktop
 #                            CPU, the guest has no GPU
 #   ubuntu-session, gnome-shell, gnome-shell-extension-*, yaru-theme-*,
 #   ubuntu-settings, fonts-ubuntu
-#                          — GNOME 42 with the Ubuntu session, dock, theme,
+#                          — GNOME 46 with the Ubuntu session, dock, theme,
 #                            font and wallpaper
 #   librsvg2-common        — SVG icons: every symbolic icon in the shell
 #   nautilus, gnome-terminal, gedit, evince, gnome-calculator, eog
@@ -200,8 +200,12 @@ RUN FF_VERSION=153.5.1esr \
            FF_SHA256=e566ecb209917c0b4d11813212c5afae4383f28ca554c4ad651df044cb255cde ;; \
          *) echo "unsupported Firefox arch: $(uname -m)" >&2; exit 1 ;; \
        esac \
-    && curl -fsSL -o /tmp/firefox.tar.xz \
+    && for url in \
         "https://ftp.mozilla.org/pub/firefox/releases/${FF_VERSION}/${FF_ARCH}/en-US/firefox-${FF_VERSION}.tar.xz" \
+        "https://archive.mozilla.org/pub/firefox/releases/${FF_VERSION}/${FF_ARCH}/en-US/firefox-${FF_VERSION}.tar.xz"; do \
+         curl -fSL --retry 5 --retry-all-errors --connect-timeout 20 \
+            -o /tmp/firefox.tar.xz "$url" && break; \
+       done \
     && echo "${FF_SHA256}  /tmp/firefox.tar.xz" | sha256sum -c - \
     && tar -xJf /tmp/firefox.tar.xz -C /opt \
     && rm /tmp/firefox.tar.xz \
