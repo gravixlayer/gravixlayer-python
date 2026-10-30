@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.111] - 2026-10-30
 
 ### Added
 - **`templates.list(include_inactive=True)`** on the sync and async
