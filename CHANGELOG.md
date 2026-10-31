@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **`view()` docstrings on the sync and async display resources** described
+  pre-rotation minting ("repeat calls return a token-less URL unless
+  `rotate_token=True`"). The API now rotates on every call — the docs say so:
+  every `view()` returns a working link, each mint invalidates the previous
+  token, and `rotate_token` is accepted but no longer needed.
+
 ## [0.1.111] - 2026-10-30
 
 ### Added

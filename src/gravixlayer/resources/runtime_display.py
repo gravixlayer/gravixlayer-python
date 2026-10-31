@@ -283,14 +283,15 @@ class RuntimeDisplayResource:
     def view(self, runtime_id: str, fps: int = 0, quality: int = 0,
              rotate_token: bool = False, role: str = "",
              window_id: int = 0) -> Dict[str, Any]:
-        """Live view — returns the watch record. ``browser_url`` carries the
-        auth token and is what a human opens; it is minted on the first call
-        for a port, so a repeat call returns a token-less URL unless
-        ``rotate_token=True`` (fresh token — invalidates the previous URL).
-        ``role="watch"`` mints a view-only link (no input injection).
-        ``watch_url`` is ``browser_url`` with the role token already
-        composed — the ready-to-open link. ``window_id`` streams just that
-        window's pixels."""
+        """Live view — returns the watch record. ``browser_url`` carries a
+        fresh auth token and is what a human opens; every call mints one, so
+        repeat calls always return a working link (each mint invalidates the
+        previous token — already-open viewers keep their live sockets).
+        ``rotate_token`` is accepted but no longer needed. ``role="watch"``
+        mints a view-only link (no input injection). ``watch_url`` is
+        ``browser_url`` with the role token already composed — the
+        ready-to-open link. ``window_id`` streams just that window's
+        pixels."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {"fps": fps, "quality": quality}
         if rotate_token:
@@ -774,14 +775,15 @@ class AsyncRuntimeDisplayResource:
     async def view(self, runtime_id: str, fps: int = 0, quality: int = 0,
                    rotate_token: bool = False, role: str = "",
                    window_id: int = 0) -> Dict[str, Any]:
-        """Live view — returns the watch record. ``browser_url`` carries the
-        auth token and is what a human opens; it is minted on the first call
-        for a port, so a repeat call returns a token-less URL unless
-        ``rotate_token=True`` (fresh token — invalidates the previous URL).
-        ``role="watch"`` mints a view-only link (no input injection).
-        ``watch_url`` is ``browser_url`` with the role token already
-        composed — the ready-to-open link. ``window_id`` streams just that
-        window's pixels."""
+        """Live view — returns the watch record. ``browser_url`` carries a
+        fresh auth token and is what a human opens; every call mints one, so
+        repeat calls always return a working link (each mint invalidates the
+        previous token — already-open viewers keep their live sockets).
+        ``rotate_token`` is accepted but no longer needed. ``role="watch"``
+        mints a view-only link (no input injection). ``watch_url`` is
+        ``browser_url`` with the role token already composed — the
+        ready-to-open link. ``window_id`` streams just that window's
+        pixels."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {"fps": fps, "quality": quality}
         if rotate_token:
