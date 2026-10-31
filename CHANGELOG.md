@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+- **`dpi`/`dir` options on the bound `runtime.desktop` handle.** The
+  resource-level `display.enable`/`resize`/`start_recording` accepted the
+  new options but the `runtime.desktop` convenience wrapper dropped them;
+  both surfaces now take `dpi=` and `dir=` respectively.
+
 ### Added
 - **`dpi` option on `display.enable()` and `display.resize()`** (sync and
   async resources). `enable(dpi=...)` sets the screen's logical density at

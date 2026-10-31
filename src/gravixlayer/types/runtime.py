@@ -2272,11 +2272,13 @@ class RuntimeDesktopBound:
         return r.runtime_id, r._client
 
     def enable(self, width: int = 0, height: int = 0, depth: int = 0,
-               wm: str = "", display: str = "", mode: str = "") -> Any:
+               wm: str = "", display: str = "", mode: str = "",
+               dpi: int = 0) -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.enable(rid, width=width, height=height,
                                              depth=depth, wm=wm,
-                                             display=display, mode=mode)
+                                             display=display, mode=mode,
+                                             dpi=dpi)
 
     def disable(self) -> Any:
         rid, client = self._rc()
@@ -2410,9 +2412,9 @@ class RuntimeDesktopBound:
 
     # -- geometry / windows / apps ------------------------------------------
 
-    def resize(self, width: int, height: int) -> Any:
+    def resize(self, width: int, height: int, dpi: int = 0) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.resize(rid, width, height)
+        return client.runtime.desktop.resize(rid, width, height, dpi=dpi)
 
     def windows(self, window_class: str = "") -> Any:
         rid, client = self._rc()
@@ -2555,10 +2557,11 @@ class RuntimeDesktopBound:
             text=text, value=value, timeout_ms=timeout_ms)
 
     def start_recording(self, include: Optional[List[str]] = None,
-                        label: str = "", window_id: int = 0) -> Any:
+                        label: str = "", window_id: int = 0,
+                        dir: str = "") -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.start_recording(
-            rid, include=include, label=label, window_id=window_id)
+            rid, include=include, label=label, window_id=window_id, dir=dir)
 
     def recordings(self) -> Any:
         rid, client = self._rc()
