@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+- **`dpi` option on `display.enable()` and `display.resize()`** (sync and
+  async resources). `enable(dpi=...)` sets the screen's logical density at
+  create time; `resize(dpi=...)` keeps an explicit density across a RandR
+  resize instead of preserving the prior value. `dpi=0` keeps the current
+  behavior. Values above 1000 are rejected.
+- **`dir` option on `display.start_recording()`** (sync and async
+  resources). An absolute guest path overrides the recording output
+  directory for the MP4 artifact and the trajectory JSONL; recording
+  metadata sidecars still live in the default directory so
+  `list_recording`/`get_recording` keep working unchanged. Empty string
+  keeps the default.
+
 ### Fixed
 - **`view()` docstrings on the sync and async display and browser
   resources** described pre-rotation minting ("repeat calls return a

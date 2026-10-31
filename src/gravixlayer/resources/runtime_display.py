@@ -81,12 +81,14 @@ class RuntimeDisplayResource:
 
     def enable(self, runtime_id: str, width: int = 0, height: int = 0,
                depth: int = 0, wm: str = "", display: str = "",
-               mode: str = "") -> Dict[str, Any]:
+               mode: str = "", dpi: int = 0) -> Dict[str, Any]:
         """Enable the display; returns ``{enabled, width, height, display, …}``.
         Zero/empty values defer to the platform defaults (1920×1080, depth 24).
         ``mode``: ``""``/``"auto"`` attaches to the session's display when the
         image ships one and spawns a virtual display otherwise; ``"spawn"``
         forces a new virtual display; ``"attach"`` requires a session display.
+        ``dpi``: 0 keeps the server default (96); a positive value sets the
+        display's dots-per-inch.
         """
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
@@ -102,6 +104,8 @@ class RuntimeDisplayResource:
             body["display"] = display
         if mode:
             body["mode"] = mode
+        if dpi:
+            body["dpi"] = dpi
         return self._j("POST", f"runtime/{runtime_id}/display/enable", body)
 
     def disable(self, runtime_id: str) -> Dict[str, Any]:
@@ -339,11 +343,16 @@ class RuntimeDisplayResource:
 
     # -- geometry / windows / apps ------------------------------------------
 
-    def resize(self, runtime_id: str, width: int, height: int) -> Dict[str, Any]:
-        """Live-resize the display; returns the new live geometry."""
+    def resize(self, runtime_id: str, width: int, height: int,
+               dpi: int = 0) -> Dict[str, Any]:
+        """Live-resize the display; returns the new live geometry.
+        ``dpi``: 0 keeps the display's current density; a positive value
+        re-declares it."""
         _validate_runtime_id(runtime_id)
-        return self._j("POST", f"runtime/{runtime_id}/display/resize",
-                       {"width": width, "height": height})
+        body: Dict[str, Any] = {"width": width, "height": height}
+        if dpi:
+            body["dpi"] = dpi
+        return self._j("POST", f"runtime/{runtime_id}/display/resize", body)
 
     def windows(self, runtime_id: str, window_class: str = "") -> Dict[str, Any]:
         """Top-level windows ``{windows: [...], focused}`` — each entry
@@ -510,19 +519,23 @@ class RuntimeDisplayResource:
 
     def start_recording(self, runtime_id: str,
                         include: Optional[List[str]] = None,
-                        label: str = "", window_id: int = 0) -> Dict[str, Any]:
+                        label: str = "", window_id: int = 0,
+                        dir: str = "") -> Dict[str, Any]:
         """Start a display recording → ``{rec_id, path, trajectory_path,
         status, ...}``.
 
         ``include`` selects components — ``"video"`` (MP4), ``"input"``
         (pointer/keyboard trajectory), ``"window"`` (lifecycle),
         ``"app"`` (launches); empty/``None`` records everything.
-        ``window_id`` scopes capture to one window's rect. The returned
-        paths are guest files readable through the files plane."""
+        ``window_id`` scopes capture to one window's rect. ``dir`` sets
+        the guest directory artifacts land in (must be absolute; the
+        platform default is used when empty). The returned paths are
+        guest files readable through the files plane."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
         _put(body, "include", include)
         _put(body, "label", label or None)
+        _put(body, "dir", dir or None)
         if window_id:
             body["window_id"] = window_id
         return self._j("POST", f"runtime/{runtime_id}/display/recordings", body)
@@ -601,10 +614,12 @@ class AsyncRuntimeDisplayResource:
 
     async def enable(self, runtime_id: str, width: int = 0, height: int = 0,
                      depth: int = 0, wm: str = "", display: str = "",
-                     mode: str = "") -> Dict[str, Any]:
+                     mode: str = "", dpi: int = 0) -> Dict[str, Any]:
         """Enable the display. Zero/empty values defer to the platform
         defaults (1920×1080, depth 24). ``mode``: ``"spawn"`` forces a new
-        virtual display, ``"attach"`` requires a session display."""
+        virtual display, ``"attach"`` requires a session display. ``dpi``:
+        0 keeps the server default (96); a positive value sets the
+        display's dots-per-inch."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
         if width:
@@ -619,6 +634,8 @@ class AsyncRuntimeDisplayResource:
             body["display"] = display
         if mode:
             body["mode"] = mode
+        if dpi:
+            body["dpi"] = dpi
         return await self._j("POST", f"runtime/{runtime_id}/display/enable", body)
 
     async def disable(self, runtime_id: str) -> Dict[str, Any]:
@@ -821,11 +838,16 @@ class AsyncRuntimeDisplayResource:
 
     # -- geometry / windows / apps ------------------------------------------
 
-    async def resize(self, runtime_id: str, width: int, height: int) -> Dict[str, Any]:
-        """Live-resize the display; returns the new live geometry."""
+    async def resize(self, runtime_id: str, width: int, height: int,
+                     dpi: int = 0) -> Dict[str, Any]:
+        """Live-resize the display; returns the new live geometry. ``dpi``:
+        0 keeps the display's current density; a positive value re-declares
+        it."""
         _validate_runtime_id(runtime_id)
-        return await self._j("POST", f"runtime/{runtime_id}/display/resize",
-                             {"width": width, "height": height})
+        body: Dict[str, Any] = {"width": width, "height": height}
+        if dpi:
+            body["dpi"] = dpi
+        return await self._j("POST", f"runtime/{runtime_id}/display/resize", body)
 
     async def windows(self, runtime_id: str, window_class: str = "") -> Dict[str, Any]:
         """Top-level windows ``{windows: [...], focused}``."""
@@ -971,14 +993,18 @@ class AsyncRuntimeDisplayResource:
 
     async def start_recording(self, runtime_id: str,
                               include: Optional[List[str]] = None,
-                              label: str = "", window_id: int = 0) -> Dict[str, Any]:
+                              label: str = "", window_id: int = 0,
+                              dir: str = "") -> Dict[str, Any]:
         """Start a display recording → ``{rec_id, path, trajectory_path,
         status, ...}``. ``include``: ``"video"`` | ``"input"`` |
-        ``"window"`` | ``"app"``; empty records everything."""
+        ``"window"`` | ``"app"``; empty records everything. ``dir`` sets
+        the guest directory artifacts land in (must be absolute; the
+        platform default is used when empty)."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
         _put(body, "include", include)
         _put(body, "label", label or None)
+        _put(body, "dir", dir or None)
         if window_id:
             body["window_id"] = window_id
         return await self._j("POST", f"runtime/{runtime_id}/display/recordings", body)
