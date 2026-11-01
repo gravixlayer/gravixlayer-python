@@ -3,11 +3,13 @@
 ``httpx`` multiplexes every request for an origin over a single HTTP/2
 connection. Whatever the peer serialises per connection — request
 dispatch, response parsing, socket I/O — then applies to every request in
-a burst. This transport keeps up to :data:`H2_LANES` connections instead,
-each inside its own pool: the first request to find every live lane
-already carrying :data:`H2_LANE_DEPTH` in-flight requests fills the pool
-at once, so a burst lands on fresh connections whose handshakes run in
-parallel, while sequential callers reuse the first lane forever.
+a burst. This transport keeps up to :data:`H2_LANES` warm connections
+instead, each inside its own pool: a request that finds its least-loaded
+lane already carrying :data:`H2_LANE_DEPTH` in-flight requests fills the
+warm pool at once, so a burst lands on fresh connections whose handshakes
+run in parallel, while sequential callers reuse the first lane forever.
+Bursts that outgrow the warm set open extra lanes on demand up to
+:data:`H2_MAX_LANES`.
 
 A lane whose connection fails is dropped and redialled; a request that was
 never sent (the dial itself failed) is safe to put on another lane, but a
@@ -27,14 +29,21 @@ from typing import AsyncIterator, Callable, Dict, Iterator, List, Optional, Tupl
 
 import httpx
 
-# Connection budget per origin. Four lanes is enough to spread a burst over
-# the server's connection-bound work without paying four handshakes for
-# callers that never need them.
+# Warm connection budget per origin. Four lanes is enough to spread a
+# burst over the server's connection-bound work without paying four
+# handshakes for callers that never need them.
 H2_LANES = 4
 
-# In-flight depth on the least-loaded live lane that proves a burst and
-# fills the pool at once.
-H2_LANE_DEPTH = 4
+# Hard lane cap per origin — matches the shared HTTP/1.1 fallback pool's
+# connection ceiling, so a burst that outgrows the warm set still gets
+# pool-equivalent parallelism instead of queueing on live lanes.
+H2_MAX_LANES = 20
+
+# In-flight depth that saturates a lane for placement: one. A request
+# waiting on its response already occupies the lane's socket read — the
+# peer's per-connection serialisation applies to every stream on it —
+# so any in-flight request is a full lane for the next caller.
+H2_LANE_DEPTH = 1
 
 # One connection per lane — the lane is the unit of parallelism, so a lane's
 # own pool never grows past the single connection it exists to hold.
@@ -255,9 +264,10 @@ class LanesTransport(httpx.BaseTransport):
     def _acquire(self, origin: Tuple[str, str, int]) -> Tuple[_Pool, _Lane]:
         """Pool lookup plus the least-loaded lane pick, under one lock.
 
-        A live lane at :data:`H2_LANE_DEPTH` in-flight proves a burst and
-        fills the rest of the pool at once — staggering the opens would hand
-        each following request its own fresh handshake.
+        A live lane at :data:`H2_LANE_DEPTH` in-flight is saturated: the
+        warm set fills at once — staggering the opens would hand each
+        following request its own fresh handshake — and bursts past it
+        grow one lane per waiting request up to :data:`H2_MAX_LANES`.
         """
         with self._lock:
             pool = self._pools.get(origin)
@@ -266,10 +276,12 @@ class LanesTransport(httpx.BaseTransport):
             lane = min(pool.lanes, key=_BY_INFLIGHT, default=None)
             if lane is None:
                 lane = self._open(pool)
-            elif len(pool.lanes) < H2_LANES and lane.inflight >= H2_LANE_DEPTH:
-                lane = self._open(pool)
+            elif lane.inflight >= H2_LANE_DEPTH:
                 while len(pool.lanes) < H2_LANES:
                     self._open(pool)
+                lane = min(pool.lanes, key=_BY_INFLIGHT)
+                if lane.inflight >= H2_LANE_DEPTH and len(pool.lanes) < H2_MAX_LANES:
+                    lane = self._open(pool)
             lane.inflight += 1
             return pool, lane
 
@@ -430,8 +442,9 @@ class AsyncLanesTransport(httpx.AsyncBaseTransport):
     def _acquire(self, origin: Tuple[str, str, int]) -> Tuple[_Pool, _Lane]:
         """Pool lookup plus the least-loaded lane pick — a synchronous
         section, so coroutines cannot interleave inside it and no lock is
-        needed. A live lane at :data:`H2_LANE_DEPTH` in-flight proves a
-        burst and fills the rest of the pool at once.
+        needed. A live lane at :data:`H2_LANE_DEPTH` in-flight is
+        saturated: the warm set fills at once, and bursts past it grow one
+        lane per waiting request up to :data:`H2_MAX_LANES`.
         """
         pool = self._pools.get(origin)
         if pool is None:
@@ -439,10 +452,12 @@ class AsyncLanesTransport(httpx.AsyncBaseTransport):
         lane = min(pool.lanes, key=_BY_INFLIGHT, default=None)
         if lane is None:
             lane = self._open(pool)
-        elif len(pool.lanes) < H2_LANES and lane.inflight >= H2_LANE_DEPTH:
-            lane = self._open(pool)
+        elif lane.inflight >= H2_LANE_DEPTH:
             while len(pool.lanes) < H2_LANES:
                 self._open(pool)
+            lane = min(pool.lanes, key=_BY_INFLIGHT)
+            if lane.inflight >= H2_LANE_DEPTH and len(pool.lanes) < H2_MAX_LANES:
+                lane = self._open(pool)
         lane.inflight += 1
         return pool, lane
 

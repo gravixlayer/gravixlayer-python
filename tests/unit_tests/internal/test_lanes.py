@@ -133,10 +133,7 @@ class TestSyncLanes:
 
         transport = _sync_lanes(factory)
         with ThreadPoolExecutor(max_workers=H2_LANE_DEPTH + 2) as executor:
-            futures = [
-                executor.submit(transport.handle_request, _request())
-                for _ in range(H2_LANE_DEPTH + 2)
-            ]
+            futures = [executor.submit(transport.handle_request, _request()) for _ in range(H2_LANE_DEPTH + 2)]
             gate.wait(0.2)
             gate.set()
             for future in futures:
@@ -148,6 +145,30 @@ class TestSyncLanes:
         # lanes opened by the burst carried the rest.
         assert sum(len(c) for c in lane_calls) == H2_LANE_DEPTH + 2
         assert len(lane_calls) == H2_LANES
+        transport.close()
+
+    def test_in_flight_request_never_shares_a_lane(self):
+        """A parked request holds its lane's socket read for the whole
+        response wait — a second request on the same lane would starve
+        behind it, so concurrent callers always land on their own lane."""
+        gate = threading.Event()
+        lane_calls: List[List[httpx.Request]] = []
+
+        def factory():
+            seen: List[httpx.Request] = []
+            lane_calls.append(seen)
+            return _GateSyncTransport(seen, gate)
+
+        transport = _sync_lanes(factory)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(transport.handle_request, _request()) for _ in range(2)]
+            gate.wait(0.2)
+            gate.set()
+            for future in futures:
+                future.result().read()
+        busy = [c for c in lane_calls if c]
+        assert len(busy) == 2
+        assert all(len(c) == 1 for c in busy)
         transport.close()
 
     def test_connect_failure_redials_on_a_live_lane(self):
@@ -303,10 +324,7 @@ class TestAsyncLanes:
             return _GateAsyncTransport(seen, gate)
 
         transport = _async_lanes(factory)
-        tasks = [
-            asyncio.create_task(transport.handle_async_request(_request()))
-            for _ in range(H2_LANE_DEPTH + 2)
-        ]
+        tasks = [asyncio.create_task(transport.handle_async_request(_request())) for _ in range(H2_LANE_DEPTH + 2)]
         await asyncio.sleep(0)
         await asyncio.sleep(0)
         gate.set()
@@ -318,6 +336,31 @@ class TestAsyncLanes:
         assert len(pool.lanes) == H2_LANES
         assert sum(len(c) for c in lane_calls) == H2_LANE_DEPTH + 2
         assert len(lane_calls) == H2_LANES
+        await transport.aclose()
+
+    async def test_in_flight_request_never_shares_a_lane(self):
+        """A request parked waiting on its response holds the lane's socket
+        read — a second request on the same lane would starve behind it,
+        so concurrent callers always land on their own lane."""
+        gate = asyncio.Event()
+        lane_calls: List[List[httpx.Request]] = []
+
+        def factory():
+            seen: List[httpx.Request] = []
+            lane_calls.append(seen)
+            return _GateAsyncTransport(seen, gate)
+
+        transport = _async_lanes(factory)
+        tasks = [asyncio.create_task(transport.handle_async_request(_request())) for _ in range(2)]
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        gate.set()
+        for task in tasks:
+            resp = await task
+            await resp.aread()
+        busy = [c for c in lane_calls if c]
+        assert len(busy) == 2
+        assert all(len(c) == 1 for c in busy)
         await transport.aclose()
 
     async def test_connect_failure_redials_on_a_live_lane(self):
@@ -416,9 +459,7 @@ class TestAsyncLanes:
             lambda: _OkAsyncTransport([]),
             fallback=_OkAsyncTransport(fallback_calls),
         )
-        resp = await transport.handle_async_request(
-            _request(url="http://api.test/v1/x")
-        )
+        resp = await transport.handle_async_request(_request(url="http://api.test/v1/x"))
         await resp.aread()
         assert len(fallback_calls) == 1
         assert not transport._pools
@@ -465,8 +506,12 @@ class TestProxyGate:
         from tests.utils import TEST_API_KEY, TEST_BASE_URL
 
         for name in (
-            "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
-            "http_proxy", "https_proxy", "all_proxy",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
         ):
             monkeypatch.delenv(name, raising=False)
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)

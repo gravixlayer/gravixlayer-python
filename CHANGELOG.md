@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Fixed
+- **Concurrent requests no longer starve on a shared HTTP/2 lane.** The
+  lanes transport let up to four in-flight requests share one connection,
+  but a peer only guarantees per-connection ordering — a request parked
+  on its response (a held stream or a long-running call) made every
+  sibling on that connection wait until it finished. A lane is now
+  saturated by a single in-flight request; bursts land on their own
+  connections, the warm pool still fills at once for a burst, and
+  oversized bursts grow lanes on demand up to 20 (the same ceiling as
+  the plain HTTP/1.1 pool). Sync and async clients alike.
+
+### Fixed
 - **`dpi`/`dir` options on the bound `runtime.desktop` handle.** The
   resource-level `display.enable`/`resize`/`start_recording` accepted the
   new options but the `runtime.desktop` convenience wrapper dropped them;
