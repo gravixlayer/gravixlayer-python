@@ -2597,8 +2597,11 @@ class RuntimeBrowserBound:
         timezone: str = "",
         locale: str = "",
         user_agent: str = "",
+        mobile: Optional[bool] = None,
         touch: Optional[bool] = None,
         color_scheme: str = "",
+        context_id: str = "",
+        clear: bool = False,
     ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.emulate(
@@ -2610,24 +2613,39 @@ class RuntimeBrowserBound:
             timezone=timezone,
             locale=locale,
             user_agent=user_agent,
+            mobile=mobile,
             touch=touch,
             color_scheme=color_scheme,
+            context_id=context_id,
+            clear=clear,
         )
 
     def intercept(self, browser_id: str, rules: List[Dict[str, Any]], target_id: str = "") -> Any:
         rid, client = self._rc()
         return client.runtime.browser.intercept(rid, browser_id, rules, target_id=target_id)
 
-    def intercept_clear(self, browser_id: str, rule_ids: Optional[List[str]] = None) -> Any:
+    def intercept_clear(self, browser_id: str, rule_ids: Optional[List[str]] = None, target_id: str = "") -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.intercept_clear(rid, browser_id, rule_ids=rule_ids)
+        return client.runtime.browser.intercept_clear(rid, browser_id, rule_ids=rule_ids, target_id=target_id)
 
     def auth(
-        self, browser_id: str, username: str = "", password: str = "", secret_ref: str = "", clear: bool = False
+        self,
+        browser_id: str,
+        username: str = "",
+        password: str = "",
+        secret_ref: str = "",
+        clear: bool = False,
+        target_id: str = "",
     ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.auth(
-            rid, browser_id, username=username, password=password, secret_ref=secret_ref, clear=clear
+            rid,
+            browser_id,
+            username=username,
+            password=password,
+            secret_ref=secret_ref,
+            clear=clear,
+            target_id=target_id,
         )
 
     def extension_load(self, browser_id: str, path: str) -> Any:
@@ -2654,13 +2672,13 @@ class RuntimeBrowserBound:
         rid, client = self._rc()
         return client.runtime.browser.approval_resolve(rid, browser_id, approval_id, approved, note=note)
 
-    def content(self, browser_id: str, target_id: str, format: str = "") -> Any:
+    def content(self, browser_id: str, target_id: str = "", format: str = "") -> Any:
         rid, client = self._rc()
         return client.runtime.browser.content(rid, browser_id, target_id, format=format)
 
-    def cookies(self, browser_id: str, context_id: str = "") -> Any:
+    def cookies(self, browser_id: str, context_id: str = "", url: str = "") -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.cookies(rid, browser_id, context_id=context_id)
+        return client.runtime.browser.cookies(rid, browser_id, context_id=context_id, url=url)
 
     def set_cookie(
         self,
@@ -2688,9 +2706,9 @@ class RuntimeBrowserBound:
         rid, client = self._rc()
         return client.runtime.browser.download_delete(rid, browser_id, download_id, delete_file=delete_file)
 
-    def recording_start(self, browser_id: str, target_id: str) -> Any:
+    def recording_start(self, browser_id: str, target_id: str, fps: int = 0, quality: int = 0) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.recording_start(rid, browser_id, target_id)
+        return client.runtime.browser.recording_start(rid, browser_id, target_id, fps=fps, quality=quality)
 
     def recording_stop(self, browser_id: str, target_id: str) -> Any:
         rid, client = self._rc()
@@ -2708,13 +2726,22 @@ class RuntimeBrowserBound:
         rid, client = self._rc()
         return client.runtime.browser.profile_import(rid, browser_id, archive_path)
 
-    def replay(self, browser_id: str, steps: List[Dict[str, Any]], stop_on_fail: bool = False) -> Any:
+    def replay(
+        self,
+        browser_id: str,
+        steps: List[Dict[str, Any]],
+        stop_on_fail: bool = False,
+        step_timeout_ms: int = 0,
+        target_id: str = "",
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.replay(rid, browser_id, steps, stop_on_fail=stop_on_fail)
+        return client.runtime.browser.replay(
+            rid, browser_id, steps, stop_on_fail=stop_on_fail, step_timeout_ms=step_timeout_ms, target_id=target_id
+        )
 
-    def fork(self, browser_id: str, count: int = 1, url: str = "") -> Any:
+    def fork(self, browser_id: str, count: int = 1, url: str = "", target_id: str = "") -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.fork(rid, browser_id, count=count, url=url)
+        return client.runtime.browser.fork(rid, browser_id, count=count, url=url, target_id=target_id)
 
 
 class RuntimeDesktopBound:

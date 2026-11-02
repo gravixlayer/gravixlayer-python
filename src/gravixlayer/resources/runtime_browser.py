@@ -1035,31 +1035,53 @@ class RuntimeBrowserResource:
         timezone: str = "",
         locale: str = "",
         user_agent: str = "",
+        mobile: Optional[bool] = None,
         touch: Optional[bool] = None,
         color_scheme: str = "",
+        context_id: str = "",
+        clear: bool = False,
     ) -> Dict[str, Any]:
-        """Apply emulation overrides to a target — viewport ``{width, height,
-        scale}``, ``geolocation`` ``{latitude, longitude, accuracy?}``,
-        ``timezone`` (IANA), ``locale`` (also sets accept-language),
-        ``user_agent``, ``touch``, ``color_scheme`` (``light``/``dark``).
-        Only the keys carried are overridden; overrides persist across
-        target re-attach."""
+        """Apply emulation overrides to a target — ``viewport``
+        ``{width, height, scale}``, ``geolocation`` ``{latitude, longitude,
+        accuracy?}``, ``timezone`` (IANA), ``locale`` (also sets
+        accept-language), ``user_agent``, ``mobile``, ``touch``,
+        ``color_scheme`` (``light``/``dark``). Only the keys carried are
+        overridden; overrides persist across target re-attach. ``clear``
+        drops every override on the scope."""
         _validate_runtime_id(runtime_id)
-        body: Dict[str, Any] = {"target_id": target_id}
+        body: Dict[str, Any] = {}
+        if target_id:
+            body["target_id"] = target_id
+        if context_id:
+            body["context_id"] = context_id
         if viewport is not None:
-            body["viewport"] = viewport
+            if viewport.get("width"):
+                body["width"] = viewport["width"]
+            if viewport.get("height"):
+                body["height"] = viewport["height"]
+            if viewport.get("scale"):
+                body["device_scale_factor"] = viewport["scale"]
         if geolocation is not None:
-            body["geolocation"] = geolocation
+            if geolocation.get("latitude") is not None:
+                body["geolocation_lat"] = geolocation["latitude"]
+            if geolocation.get("longitude") is not None:
+                body["geolocation_lon"] = geolocation["longitude"]
+            if geolocation.get("accuracy") is not None:
+                body["geolocation_accuracy"] = geolocation["accuracy"]
         for key, value in (
-            ("timezone", timezone),
+            ("timezone_id", timezone),
             ("locale", locale),
             ("user_agent", user_agent),
             ("color_scheme", color_scheme),
         ):
             if value:
                 body[key] = value
+        if mobile is not None:
+            body["mobile"] = mobile
         if touch is not None:
             body["touch"] = touch
+        if clear:
+            body["clear"] = True
         return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/emulate", body)
 
     def intercept(
@@ -1074,13 +1096,17 @@ class RuntimeBrowserResource:
             "POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/intercept", {"target_id": target_id, "rules": rules}
         )
 
-    def intercept_clear(self, runtime_id: str, browser_id: str, rule_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    def intercept_clear(
+        self, runtime_id: str, browser_id: str, rule_ids: Optional[List[str]] = None, target_id: str = ""
+    ) -> Dict[str, Any]:
         """Remove interception rules — ``rule_ids`` for specific rules, empty
         clears all."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
         if rule_ids:
             body["rule_ids"] = rule_ids
+        if target_id:
+            body["target_id"] = target_id
         return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/intercept/clear", body)
 
     def auth(
@@ -1091,6 +1117,7 @@ class RuntimeBrowserResource:
         password: str = "",
         secret_ref: str = "",
         clear: bool = False,
+        target_id: str = "",
     ) -> Dict[str, Any]:
         """Answer HTTP basic/digest challenges in-page. ``secret_ref``
         resolves the password server-side; ``clear`` disarms the handler."""
@@ -1104,6 +1131,8 @@ class RuntimeBrowserResource:
             body["password"] = password
         if clear:
             body["clear"] = True
+        if target_id:
+            body["target_id"] = target_id
         return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/auth", body)
 
     # -- extensions + CDP ------------------------------------------------------
@@ -1165,7 +1194,7 @@ class RuntimeBrowserResource:
 
     # -- reads: content + cookies ------------------------------------------------
 
-    def content(self, runtime_id: str, browser_id: str, target_id: str, format: str = "") -> Dict[str, Any]:
+    def content(self, runtime_id: str, browser_id: str, target_id: str = "", format: str = "") -> Dict[str, Any]:
         """Serialized page content — rendered HTML by default, ``format``
         selects the extraction."""
         _validate_runtime_id(runtime_id)
@@ -1174,13 +1203,15 @@ class RuntimeBrowserResource:
             body["format"] = format
         return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/content", body)
 
-    def cookies(self, runtime_id: str, browser_id: str, context_id: str = "") -> Dict[str, Any]:
+    def cookies(self, runtime_id: str, browser_id: str, context_id: str = "", url: str = "") -> Dict[str, Any]:
         """List the context's cookies — empty ``context_id`` is the default
         context."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
         if context_id:
             body["context_id"] = context_id
+        if url:
+            body["url"] = url
         return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/cookies", body)
 
     def set_cookie(
@@ -1238,12 +1269,16 @@ class RuntimeBrowserResource:
             endpoint += "?delete_file=true"
         return self._j("DELETE", endpoint)
 
-    def recording_start(self, runtime_id: str, browser_id: str, target_id: str) -> Dict[str, Any]:
+    def recording_start(
+        self, runtime_id: str, browser_id: str, target_id: str, fps: int = 0, quality: int = 0
+    ) -> Dict[str, Any]:
         """Start a per-target video recording (works headless) → recording
         handle."""
         _validate_runtime_id(runtime_id)
         return self._j(
-            "POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets/{_q(target_id)}/recording/start", {}
+            "POST",
+            f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets/{_q(target_id)}/recording/start",
+            {k: v for k, v in (("fps", fps), ("quality", quality)) if v},
         )
 
     def recording_stop(self, runtime_id: str, browser_id: str, target_id: str) -> Dict[str, Any]:
@@ -1280,25 +1315,41 @@ class RuntimeBrowserResource:
         )
 
     def replay(
-        self, runtime_id: str, browser_id: str, steps: List[Dict[str, Any]], stop_on_fail: bool = False
+        self,
+        runtime_id: str,
+        browser_id: str,
+        steps: List[Dict[str, Any]],
+        stop_on_fail: bool = False,
+        step_timeout_ms: int = 0,
+        target_id: str = "",
     ) -> Dict[str, Any]:
         """Replay recorded action steps with per-step effect checks —
-        ``steps`` are ``{action, expect_*?}`` entries; ``stop_on_fail``
-        halts the cohort on the first failed check."""
+        ``steps`` are ``{action, expect_url_contains?/expect_selector?/
+        expect_eval?}`` entries; ``stop_on_fail`` halts the cohort on the
+        first failed check; ``step_timeout_ms`` caps each step."""
         _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {"steps": steps, "stop_on_fail": stop_on_fail}
+        if step_timeout_ms:
+            body["step_timeout_ms"] = step_timeout_ms
+        if target_id:
+            body["target_id"] = target_id
         return self._j(
             "POST",
             f"runtime/{runtime_id}/browser/{_q(browser_id)}/replay",
-            {"steps": steps, "stop_on_fail": stop_on_fail},
+            body,
         )
 
-    def fork(self, runtime_id: str, browser_id: str, count: int = 1, url: str = "") -> Dict[str, Any]:
+    def fork(
+        self, runtime_id: str, browser_id: str, count: int = 1, url: str = "", target_id: str = ""
+    ) -> Dict[str, Any]:
         """Fork the page into a cohort of identical targets (1–8) for
-        best-of-N runs → ``{forks: [...]}``."""
+        best-of-N runs → ``{target_ids: [...]}``."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {"count": count}
         if url:
             body["url"] = url
+        if target_id:
+            body["target_id"] = target_id
         return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/fork", body)
 
 
@@ -2139,49 +2190,69 @@ class AsyncRuntimeBrowserResource:
         timezone: str = "",
         locale: str = "",
         user_agent: str = "",
+        mobile: Optional[bool] = None,
         touch: Optional[bool] = None,
         color_scheme: str = "",
+        context_id: str = "",
+        clear: bool = False,
     ) -> Dict[str, Any]:
-        """Apply emulation overrides to a target — viewport ``{width, height,
-        scale}``, ``geolocation``, ``timezone``, ``locale``, ``user_agent``,
-        ``touch``, ``color_scheme``. Only carried keys override; they
-        persist across target re-attach."""
+        """Async mirror of :meth:`RuntimeBrowser.emulate`."""
         _validate_runtime_id(runtime_id)
-        body: Dict[str, Any] = {"target_id": target_id}
+        body: Dict[str, Any] = {}
+        if target_id:
+            body["target_id"] = target_id
+        if context_id:
+            body["context_id"] = context_id
         if viewport is not None:
-            body["viewport"] = viewport
+            if viewport.get("width"):
+                body["width"] = viewport["width"]
+            if viewport.get("height"):
+                body["height"] = viewport["height"]
+            if viewport.get("scale"):
+                body["device_scale_factor"] = viewport["scale"]
         if geolocation is not None:
-            body["geolocation"] = geolocation
+            if geolocation.get("latitude") is not None:
+                body["geolocation_lat"] = geolocation["latitude"]
+            if geolocation.get("longitude") is not None:
+                body["geolocation_lon"] = geolocation["longitude"]
+            if geolocation.get("accuracy") is not None:
+                body["geolocation_accuracy"] = geolocation["accuracy"]
         for key, value in (
-            ("timezone", timezone),
+            ("timezone_id", timezone),
             ("locale", locale),
             ("user_agent", user_agent),
             ("color_scheme", color_scheme),
         ):
             if value:
                 body[key] = value
+        if mobile is not None:
+            body["mobile"] = mobile
         if touch is not None:
             body["touch"] = touch
+        if clear:
+            body["clear"] = True
         return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/emulate", body)
 
     async def intercept(
         self, runtime_id: str, browser_id: str, rules: List[Dict[str, Any]], target_id: str = ""
     ) -> Dict[str, Any]:
         """Install request-interception rules — ``{url_pattern, action:
-        "continue"|"block"|"mock", ...}`` → ``{rule_ids}``."""
+        "continue"|"block"|"mock", ...}`` with caller-set ``id`` → ``{ok: true}``."""
         _validate_runtime_id(runtime_id)
         return await self._j(
             "POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/intercept", {"target_id": target_id, "rules": rules}
         )
 
     async def intercept_clear(
-        self, runtime_id: str, browser_id: str, rule_ids: Optional[List[str]] = None
+        self, runtime_id: str, browser_id: str, rule_ids: Optional[List[str]] = None, target_id: str = ""
     ) -> Dict[str, Any]:
         """Remove interception rules — empty clears all."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
         if rule_ids:
             body["rule_ids"] = rule_ids
+        if target_id:
+            body["target_id"] = target_id
         return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/intercept/clear", body)
 
     async def auth(
@@ -2192,6 +2263,7 @@ class AsyncRuntimeBrowserResource:
         password: str = "",
         secret_ref: str = "",
         clear: bool = False,
+        target_id: str = "",
     ) -> Dict[str, Any]:
         """Answer HTTP basic/digest challenges — ``secret_ref`` resolves the
         password server-side; ``clear`` disarms."""
@@ -2205,6 +2277,8 @@ class AsyncRuntimeBrowserResource:
             body["password"] = password
         if clear:
             body["clear"] = True
+        if target_id:
+            body["target_id"] = target_id
         return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/auth", body)
 
     # -- extensions + CDP ------------------------------------------------------
@@ -2265,7 +2339,7 @@ class AsyncRuntimeBrowserResource:
 
     # -- reads: content + cookies ------------------------------------------------
 
-    async def content(self, runtime_id: str, browser_id: str, target_id: str, format: str = "") -> Dict[str, Any]:
+    async def content(self, runtime_id: str, browser_id: str, target_id: str = "", format: str = "") -> Dict[str, Any]:
         """Serialized page content — rendered HTML by default."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {"target_id": target_id}
@@ -2273,12 +2347,14 @@ class AsyncRuntimeBrowserResource:
             body["format"] = format
         return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/content", body)
 
-    async def cookies(self, runtime_id: str, browser_id: str, context_id: str = "") -> Dict[str, Any]:
+    async def cookies(self, runtime_id: str, browser_id: str, context_id: str = "", url: str = "") -> Dict[str, Any]:
         """List the context's cookies."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
         if context_id:
             body["context_id"] = context_id
+        if url:
+            body["url"] = url
         return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/cookies", body)
 
     async def set_cookie(
@@ -2335,11 +2411,15 @@ class AsyncRuntimeBrowserResource:
             endpoint += "?delete_file=true"
         return await self._j("DELETE", endpoint)
 
-    async def recording_start(self, runtime_id: str, browser_id: str, target_id: str) -> Dict[str, Any]:
+    async def recording_start(
+        self, runtime_id: str, browser_id: str, target_id: str, fps: int = 0, quality: int = 0
+    ) -> Dict[str, Any]:
         """Start a per-target video recording (works headless)."""
         _validate_runtime_id(runtime_id)
         return await self._j(
-            "POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets/{_q(target_id)}/recording/start", {}
+            "POST",
+            f"runtime/{runtime_id}/browser/{_q(browser_id)}/targets/{_q(target_id)}/recording/start",
+            {k: v for k, v in (("fps", fps), ("quality", quality)) if v},
         )
 
     async def recording_stop(self, runtime_id: str, browser_id: str, target_id: str) -> Dict[str, Any]:
@@ -2376,20 +2456,35 @@ class AsyncRuntimeBrowserResource:
         )
 
     async def replay(
-        self, runtime_id: str, browser_id: str, steps: List[Dict[str, Any]], stop_on_fail: bool = False
+        self,
+        runtime_id: str,
+        browser_id: str,
+        steps: List[Dict[str, Any]],
+        stop_on_fail: bool = False,
+        step_timeout_ms: int = 0,
+        target_id: str = "",
     ) -> Dict[str, Any]:
         """Replay recorded action steps with per-step effect checks."""
         _validate_runtime_id(runtime_id)
+        body: Dict[str, Any] = {"steps": steps, "stop_on_fail": stop_on_fail}
+        if step_timeout_ms:
+            body["step_timeout_ms"] = step_timeout_ms
+        if target_id:
+            body["target_id"] = target_id
         return await self._j(
             "POST",
             f"runtime/{runtime_id}/browser/{_q(browser_id)}/replay",
-            {"steps": steps, "stop_on_fail": stop_on_fail},
+            body,
         )
 
-    async def fork(self, runtime_id: str, browser_id: str, count: int = 1, url: str = "") -> Dict[str, Any]:
+    async def fork(
+        self, runtime_id: str, browser_id: str, count: int = 1, url: str = "", target_id: str = ""
+    ) -> Dict[str, Any]:
         """Fork the page into a cohort of identical targets (1–8)."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {"count": count}
         if url:
             body["url"] = url
+        if target_id:
+            body["target_id"] = target_id
         return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/fork", body)

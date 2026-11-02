@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **`emulate` now serializes to the wire's flat fields** — `viewport`
+  `{width, height, scale}` maps to `width`/`height`/`device_scale_factor`,
+  `geolocation` to `geolocation_lat`/`geolocation_lon`/`geolocation_accuracy`,
+  and `timezone` to `timezone_id`. Previously those convenience arguments
+  were sent under keys the API does not read, so the overrides were
+  silently dropped. Also added `mobile`, `context_id`, and `clear`
+  (drops every override on the scope).
+- **Missing scoping options added**: `target_id` on `intercept_clear`,
+  `auth`, `replay`, and `fork`; `step_timeout_ms` on `replay`; `fps` and
+  `quality` on `recording_start`; `url` filter on `cookies`; `content`
+  accepts an omitted `target_id` for the active tab.
+
 ## [0.1.115] - 2026-11-01
 
 ### Added

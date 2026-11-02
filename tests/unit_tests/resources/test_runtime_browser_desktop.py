@@ -1586,9 +1586,11 @@ class TestSyncBrowserWavesAD:
             touch=True,
         )
         body = json.loads(mock_api.calls[-1].request.content)
-        assert body["viewport"]["width"] == 1280
-        assert body["timezone"] == "America/New_York"
+        assert body["width"] == 1280 and body["height"] == 800
+        assert body["device_scale_factor"] == 1
+        assert body["timezone_id"] == "America/New_York"
         assert body["touch"] is True
+        assert "viewport" not in body and "timezone" not in body
         assert "user_agent" not in body and "locale" not in body
 
     def test_intercept_and_clear(self, client, mock_api):
@@ -1763,7 +1765,7 @@ class TestSyncBrowserWavesAD:
         r = Runtime(runtime_id=VALID_UUID, status="running")
         r._client = client
         r.browser.emulate(BID, timezone="UTC")
-        assert json.loads(mock_api.calls[-1].request.content)["timezone"] == "UTC"
+        assert json.loads(mock_api.calls[-1].request.content)["timezone_id"] == "UTC"
         assert r.browser.fork(BID, count=1)["forks"] == ["t2"]
 
 
