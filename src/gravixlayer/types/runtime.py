@@ -10,14 +10,11 @@ from dataclasses import dataclass, field
 from .._resource_utils import sandbox_lifetime_seconds
 from .storage import RuntimeMount, RuntimeMountList
 
-
 # ---------------------------------------------------------------------------
 # Input validation helpers
 # ---------------------------------------------------------------------------
 
-_UUID_RE = re.compile(
-    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-)
+_UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 
 def _validate_runtime_id(runtime_id: str) -> None:
@@ -218,6 +215,7 @@ class Runtime:
         lifetime = sandbox_lifetime_seconds(timeout, timeout_seconds)
         if client is None:
             from ..client import GravixLayer
+
             client = GravixLayer(api_key=api_key, base_url=base_url, cloud=cloud, region=region)
             owns_client = True
         else:
@@ -299,6 +297,7 @@ class Runtime:
 
         if client is None:
             from ..client import GravixLayer
+
             client = GravixLayer(api_key=api_key, base_url=base_url)
             owns_client = True
         else:
@@ -380,9 +379,7 @@ class Runtime:
     ) -> "CodeContext":
         """Create a persistent execution context on this runtime."""
         self._require_alive()
-        return self._client.runtime.create_context(
-            self.runtime_id, language=language, cwd=cwd
-        )
+        return self._client.runtime.create_context(self.runtime_id, language=language, cwd=cwd)
 
     def get_context(self, context_id: str) -> "CodeContext":
         """Return metadata for an execution context on this runtime."""
@@ -535,9 +532,7 @@ class Runtime:
             SSHInfo with connection details.
         """
         self._require_alive()
-        return self._client.runtime.enable_ssh(
-            self.runtime_id, regenerate_keys=regenerate_keys
-        )
+        return self._client.runtime.enable_ssh(self.runtime_id, regenerate_keys=regenerate_keys)
 
     def disable_ssh(self) -> None:
         """Disable SSH access on the runtime."""
@@ -769,9 +764,7 @@ class RuntimeFileBound:
         overwrite: bool = False,
     ) -> "FileCopyResponse":
         rid, client = self._rc()
-        return client.runtime.file.copy(
-            rid, source, destination, recursive=recursive, overwrite=overwrite
-        )
+        return client.runtime.file.copy(rid, source, destination, recursive=recursive, overwrite=overwrite)
 
     def chown(
         self,
@@ -1039,6 +1032,7 @@ class RuntimeWebService:
 # SSH types (enable / status API responses)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SSHInfo:
     """SSH connection info returned when SSH is enabled."""
@@ -1078,6 +1072,7 @@ class FileReadResponse:
         """Exact file bytes: decode ``content_base64`` when present, else UTF-8."""
         if self.content_base64 is not None:
             import base64
+
             return base64.b64decode(self.content_base64)
         return self.content.encode("utf-8")
 
@@ -1378,24 +1373,16 @@ class RuntimeGit:
         )
 
     def status(self, repository_path: str) -> GitOperationResult:
-        return self._sync_git_result(
-            self._client.runtime.git.status(self._runtime_id, repository_path=repository_path)
-        )
+        return self._sync_git_result(self._client.runtime.git.status(self._runtime_id, repository_path=repository_path))
 
-    def branch_list(
-        self, repository_path: str, scope: Optional[str] = None
-    ) -> GitOperationResult:
+    def branch_list(self, repository_path: str, scope: Optional[str] = None) -> GitOperationResult:
         return self._sync_git_result(
-            self._client.runtime.git.branch_list(
-                self._runtime_id, repository_path, scope=scope
-            )
+            self._client.runtime.git.branch_list(self._runtime_id, repository_path, scope=scope)
         )
 
     def checkout(self, repository_path: str, ref_name: str) -> GitOperationResult:
         return self._sync_git_result(
-            self._client.runtime.git.checkout(
-                self._runtime_id, repository_path=repository_path, ref_name=ref_name
-            )
+            self._client.runtime.git.checkout(self._runtime_id, repository_path=repository_path, ref_name=ref_name)
         )
 
     def pull(
@@ -1457,9 +1444,7 @@ class RuntimeGit:
 
     def add(self, repository_path: str, paths: Optional[List[str]] = None) -> GitOperationResult:
         return self._sync_git_result(
-            self._client.runtime.git.add(
-                self._runtime_id, repository_path=repository_path, paths=paths
-            )
+            self._client.runtime.git.add(self._runtime_id, repository_path=repository_path, paths=paths)
         )
 
     def commit(
@@ -1642,6 +1627,7 @@ class CommandInfo:
 # Code execution types (Execution / Result / Logs API shapes)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ExecutionResult:
     """A single result from code execution.
@@ -1732,16 +1718,18 @@ class CodeRunResponse:
         if isinstance(raw_results, list):
             for r in raw_results:
                 if isinstance(r, dict):
-                    results.append(ExecutionResult(
-                        text=r.get("text", ""),
-                        html=r.get("html", ""),
-                        json=r.get("json"),
-                        png=r.get("png", ""),
-                        jpeg=r.get("jpeg", ""),
-                        svg=r.get("svg", ""),
-                        markdown=r.get("markdown", ""),
-                        chart=r.get("chart"),
-                    ))
+                    results.append(
+                        ExecutionResult(
+                            text=r.get("text", ""),
+                            html=r.get("html", ""),
+                            json=r.get("json"),
+                            png=r.get("png", ""),
+                            jpeg=r.get("jpeg", ""),
+                            svg=r.get("svg", ""),
+                            markdown=r.get("markdown", ""),
+                            chart=r.get("chart"),
+                        )
+                    )
 
         # Parse logs
         raw_logs = data.get("logs") or {}
@@ -1980,13 +1968,9 @@ class Execution:
 # Module-level constants (computed once at import time, shared by resources)
 # ---------------------------------------------------------------------------
 
-_RUNTIME_KNOWN_FIELDS: frozenset = frozenset(
-    f.name for f in dataclasses.fields(Runtime) if not f.name.startswith("_")
-)
+_RUNTIME_KNOWN_FIELDS: frozenset = frozenset(f.name for f in dataclasses.fields(Runtime) if not f.name.startswith("_"))
 
-_METRICS_FIELDS: frozenset = frozenset(
-    f.name for f in dataclasses.fields(RuntimeMetrics)
-)
+_METRICS_FIELDS: frozenset = frozenset(f.name for f in dataclasses.fields(RuntimeMetrics))
 
 _RUNTIME_DEFAULTS: Dict[str, Any] = {
     "metadata": {},
@@ -2018,20 +2002,22 @@ class RuntimeBrowserBound:
         r._require_alive()
         return r.runtime_id, r._client
 
-    def open(self, engine: str = "chromium", headless: bool = False,
-             profile_dir: str = "", args: Optional[List[str]] = None,
-             url: str = "") -> Any:
+    def open(
+        self,
+        engine: str = "chromium",
+        headless: bool = False,
+        profile_dir: str = "",
+        args: Optional[List[str]] = None,
+        url: str = "",
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.open(rid, engine=engine, headless=headless,
-                                           profile_dir=profile_dir, args=args,
-                                           url=url)
+        return client.runtime.browser.open(
+            rid, engine=engine, headless=headless, profile_dir=profile_dir, args=args, url=url
+        )
 
-    def goto(self, url: str, target_id: str = "", wait_until: str = "load",
-             timeout_ms: int = 30_000) -> Any:
+    def goto(self, url: str, target_id: str = "", wait_until: str = "load", timeout_ms: int = 30_000) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.goto(rid, url, target_id=target_id,
-                                           wait_until=wait_until,
-                                           timeout_ms=timeout_ms)
+        return client.runtime.browser.goto(rid, url, target_id=target_id, wait_until=wait_until, timeout_ms=timeout_ms)
 
     def close(self, browser_id: str) -> Any:
         rid, client = self._rc()
@@ -2045,13 +2031,13 @@ class RuntimeBrowserBound:
         rid, client = self._rc()
         return client.runtime.browser.status(rid, browser_id)
 
-    def navigate(self, browser_id: str, url: str, target_id: str = "",
-                 wait_until: str = "load", timeout_ms: int = 30_000) -> Any:
+    def navigate(
+        self, browser_id: str, url: str, target_id: str = "", wait_until: str = "load", timeout_ms: int = 30_000
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.navigate(rid, browser_id, url,
-                                               target_id=target_id,
-                                               wait_until=wait_until,
-                                               timeout_ms=timeout_ms)
+        return client.runtime.browser.navigate(
+            rid, browser_id, url, target_id=target_id, wait_until=wait_until, timeout_ms=timeout_ms
+        )
 
     def command(self, browser_id: str, verb: str, target_id: str = "") -> Any:
         rid, client = self._rc()
@@ -2073,138 +2059,290 @@ class RuntimeBrowserBound:
         rid, client = self._rc()
         return client.runtime.browser.activate(rid, browser_id, target_id)
 
-    def screenshot(self, browser_id: str, target_id: str = "",
-                   format: str = "png", full_page: bool = False,
-                   element: Any = None, quality: int = 0,
-                   wait_stable_ms: int = 0, timeout_ms: int = 0) -> Any:
+    def screenshot(
+        self,
+        browser_id: str,
+        target_id: str = "",
+        format: str = "png",
+        full_page: bool = False,
+        element: Any = None,
+        quality: int = 0,
+        wait_stable_ms: int = 0,
+        timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.screenshot(
-            rid, browser_id, target_id=target_id, format=format,
-            full_page=full_page, element=element, quality=quality,
-            wait_stable_ms=wait_stable_ms, timeout_ms=timeout_ms)
+            rid,
+            browser_id,
+            target_id=target_id,
+            format=format,
+            full_page=full_page,
+            element=element,
+            quality=quality,
+            wait_stable_ms=wait_stable_ms,
+            timeout_ms=timeout_ms,
+        )
 
-    def snapshot(self, browser_id: str, target_id: str = "",
-                 viewport_only: bool = True, diff: str = "",
-                 filter_role: str = "", filter_name: str = "") -> Any:
+    def snapshot(
+        self,
+        browser_id: str,
+        target_id: str = "",
+        viewport_only: bool = True,
+        diff: str = "",
+        filter_role: str = "",
+        filter_name: str = "",
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.snapshot(
-            rid, browser_id, target_id=target_id, viewport_only=viewport_only,
-            diff=diff, filter_role=filter_role, filter_name=filter_name)
+            rid,
+            browser_id,
+            target_id=target_id,
+            viewport_only=viewport_only,
+            diff=diff,
+            filter_role=filter_role,
+            filter_name=filter_name,
+        )
 
-    def evaluate(self, browser_id: str, expression: str, target_id: str = "",
-                 await_promise: bool = True, timeout_ms: int = 30_000,
-                 world: str = "isolated") -> Any:
+    def evaluate(
+        self,
+        browser_id: str,
+        expression: str,
+        target_id: str = "",
+        await_promise: bool = True,
+        timeout_ms: int = 30_000,
+        world: str = "isolated",
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.evaluate(
-            rid, browser_id, expression, target_id=target_id,
-            await_promise=await_promise, timeout_ms=timeout_ms, world=world)
+            rid,
+            browser_id,
+            expression,
+            target_id=target_id,
+            await_promise=await_promise,
+            timeout_ms=timeout_ms,
+            world=world,
+        )
 
-    def click(self, browser_id: str, target: Any, target_id: str = "",
-              button: str = "left", click_count: int = 1, settle: bool = True,
-              settle_timeout_ms: int = 0, force: bool = False,
-              target_timeout_ms: int = 0) -> Any:
+    def click(
+        self,
+        browser_id: str,
+        target: Any,
+        target_id: str = "",
+        button: str = "left",
+        click_count: int = 1,
+        settle: bool = True,
+        settle_timeout_ms: int = 0,
+        force: bool = False,
+        target_timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.click(
-            rid, browser_id, target, target_id=target_id, button=button,
-            click_count=click_count, settle=settle, force=force,
+            rid,
+            browser_id,
+            target,
+            target_id=target_id,
+            button=button,
+            click_count=click_count,
+            settle=settle,
+            force=force,
             settle_timeout_ms=settle_timeout_ms,
-            target_timeout_ms=target_timeout_ms)
+            target_timeout_ms=target_timeout_ms,
+        )
 
-    def dblclick(self, browser_id: str, target: Any, target_id: str = "",
-                 button: str = "left", settle: bool = True, force: bool = False,
-                 settle_timeout_ms: int = 0, target_timeout_ms: int = 0) -> Any:
+    def dblclick(
+        self,
+        browser_id: str,
+        target: Any,
+        target_id: str = "",
+        button: str = "left",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.dblclick(
-            rid, browser_id, target, target_id=target_id, button=button,
-            settle=settle, force=force, settle_timeout_ms=settle_timeout_ms,
-            target_timeout_ms=target_timeout_ms)
+            rid,
+            browser_id,
+            target,
+            target_id=target_id,
+            button=button,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
 
-    def hover(self, browser_id: str, target: Any, target_id: str = "",
-              settle: bool = True, force: bool = False,
-              settle_timeout_ms: int = 0, target_timeout_ms: int = 0) -> Any:
+    def hover(
+        self,
+        browser_id: str,
+        target: Any,
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.hover(
-            rid, browser_id, target, target_id=target_id, settle=settle,
-            force=force, settle_timeout_ms=settle_timeout_ms,
-            target_timeout_ms=target_timeout_ms)
+            rid,
+            browser_id,
+            target,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
 
-    def fill(self, browser_id: str, target: Any, text: str = "",
-             target_id: str = "", secret_ref: str = "", settle: bool = True,
-             force: bool = False, settle_timeout_ms: int = 0,
-             target_timeout_ms: int = 0) -> Any:
+    def fill(
+        self,
+        browser_id: str,
+        target: Any,
+        text: str = "",
+        target_id: str = "",
+        secret_ref: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.fill(
-            rid, browser_id, target, text, target_id=target_id,
-            secret_ref=secret_ref, settle=settle, force=force,
+            rid,
+            browser_id,
+            target,
+            text,
+            target_id=target_id,
+            secret_ref=secret_ref,
+            settle=settle,
+            force=force,
             settle_timeout_ms=settle_timeout_ms,
-            target_timeout_ms=target_timeout_ms)
+            target_timeout_ms=target_timeout_ms,
+        )
 
-    def type(self, browser_id: str, target: Any, text: str,
-             target_id: str = "", delay_ms: int = 0, settle: bool = True,
-             force: bool = False, settle_timeout_ms: int = 0,
-             target_timeout_ms: int = 0) -> Any:
+    def type(
+        self,
+        browser_id: str,
+        target: Any,
+        text: str,
+        target_id: str = "",
+        delay_ms: int = 0,
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.type(
-            rid, browser_id, target, text, target_id=target_id,
-            delay_ms=delay_ms, settle=settle, force=force,
+            rid,
+            browser_id,
+            target,
+            text,
+            target_id=target_id,
+            delay_ms=delay_ms,
+            settle=settle,
+            force=force,
             settle_timeout_ms=settle_timeout_ms,
-            target_timeout_ms=target_timeout_ms)
+            target_timeout_ms=target_timeout_ms,
+        )
 
-    def press(self, browser_id: str, key: str, target: Any = None,
-              target_id: str = "", settle: bool = True, force: bool = False,
-              settle_timeout_ms: int = 0, target_timeout_ms: int = 0) -> Any:
+    def press(
+        self,
+        browser_id: str,
+        key: str,
+        target: Any = None,
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.press(
-            rid, browser_id, key, target=target, target_id=target_id,
-            settle=settle, force=force, settle_timeout_ms=settle_timeout_ms,
-            target_timeout_ms=target_timeout_ms)
+            rid,
+            browser_id,
+            key,
+            target=target,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
 
-    def hotkey(self, browser_id: str, keys: List[str], target_id: str = "",
-               settle: bool = True, force: bool = False,
-               settle_timeout_ms: int = 0, target_timeout_ms: int = 0) -> Any:
+    def hotkey(
+        self,
+        browser_id: str,
+        keys: List[str],
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.hotkey(
-            rid, browser_id, keys, target_id=target_id, settle=settle,
-            force=force, settle_timeout_ms=settle_timeout_ms,
-            target_timeout_ms=target_timeout_ms)
+            rid,
+            browser_id,
+            keys,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
 
-    def scroll(self, browser_id: str, target: Any = None, target_id: str = "",
-               dx: int = 0, dy: int = 0, settle: bool = True,
-               force: bool = False, settle_timeout_ms: int = 0,
-               target_timeout_ms: int = 0) -> Any:
+    def scroll(
+        self,
+        browser_id: str,
+        target: Any = None,
+        target_id: str = "",
+        dx: int = 0,
+        dy: int = 0,
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.scroll(
-            rid, browser_id, target=target, target_id=target_id, dx=dx, dy=dy,
-            settle=settle, force=force, settle_timeout_ms=settle_timeout_ms,
-            target_timeout_ms=target_timeout_ms)
+            rid,
+            browser_id,
+            target=target,
+            target_id=target_id,
+            dx=dx,
+            dy=dy,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
 
-    def dialog(self, browser_id: str, accept: bool = True,
-               prompt_text: str = "", auto_dismiss: bool = False,
-               target_id: str = "") -> Any:
+    def dialog(
+        self,
+        browser_id: str,
+        accept: bool = True,
+        prompt_text: str = "",
+        auto_dismiss: bool = False,
+        target_id: str = "",
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.dialog(rid, browser_id, accept=accept,
-                                             prompt_text=prompt_text,
-                                             auto_dismiss=auto_dismiss,
-                                             target_id=target_id)
+        return client.runtime.browser.dialog(
+            rid, browser_id, accept=accept, prompt_text=prompt_text, auto_dismiss=auto_dismiss, target_id=target_id
+        )
 
-    def targets(self, browser_id: str, url: str = "",
-                activate: bool = True, context_id: str = "") -> Any:
+    def targets(self, browser_id: str, url: str = "", activate: bool = True, context_id: str = "") -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.targets(rid, browser_id, url=url,
-                                              activate=activate,
-                                              context_id=context_id)
+        return client.runtime.browser.targets(rid, browser_id, url=url, activate=activate, context_id=context_id)
 
-    def events(self, browser_id: str, since: int = 0,
-               wait_ms: int = 0) -> Any:
+    def events(self, browser_id: str, since: int = 0, wait_ms: int = 0) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.events(rid, browser_id, since=since,
-                                             wait_ms=wait_ms)
+        return client.runtime.browser.events(rid, browser_id, since=since, wait_ms=wait_ms)
 
-    def create_context(self, browser_id: str, proxy: str = "",
-                       storage_state: Any = None) -> Any:
+    def create_context(self, browser_id: str, proxy: str = "", storage_state: Any = None) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.create_context(
-            rid, browser_id, proxy=proxy, storage_state=storage_state)
+        return client.runtime.browser.create_context(rid, browser_id, proxy=proxy, storage_state=storage_state)
 
     def contexts(self, browser_id: str) -> Any:
         rid, client = self._rc()
@@ -2212,50 +2350,371 @@ class RuntimeBrowserBound:
 
     def delete_context(self, browser_id: str, context_id: str) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.delete_context(rid, browser_id,
-                                                     context_id)
+        return client.runtime.browser.delete_context(rid, browser_id, context_id)
 
     def export_storage(self, browser_id: str, context_id: str = "") -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.export_storage(rid, browser_id,
-                                                     context_id=context_id)
+        return client.runtime.browser.export_storage(rid, browser_id, context_id=context_id)
 
-    def import_storage(self, browser_id: str, storage_state: Any,
-                       context_id: str = "") -> Any:
+    def import_storage(self, browser_id: str, storage_state: Any, context_id: str = "") -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.import_storage(
-            rid, browser_id, storage_state, context_id=context_id)
+        return client.runtime.browser.import_storage(rid, browser_id, storage_state, context_id=context_id)
 
-    def downloads(self, browser_id: str, wait_name: str = "",
-                  timeout_ms: int = 0) -> Any:
+    def downloads(self, browser_id: str, wait_name: str = "", timeout_ms: int = 0) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.downloads(rid, browser_id,
-                                                wait_name=wait_name,
-                                                timeout_ms=timeout_ms)
+        return client.runtime.browser.downloads(rid, browser_id, wait_name=wait_name, timeout_ms=timeout_ms)
 
-    def download(self, browser_id: str, download_id: str,
-                 meta_only: bool = False) -> Any:
+    def download(self, browser_id: str, download_id: str, meta_only: bool = False) -> Any:
         rid, client = self._rc()
-        return client.runtime.browser.download(rid, browser_id, download_id,
-                                               meta_only=meta_only)
+        return client.runtime.browser.download(rid, browser_id, download_id, meta_only=meta_only)
 
-    def pdf(self, browser_id: str, target_id: str, landscape: bool = False,
-            print_background: bool = True, page_ranges: str = "",
-            paper_width_in: float = 0.0, paper_height_in: float = 0.0,
-            margins_in: Optional[Dict[str, float]] = None) -> Any:
+    def pdf(
+        self,
+        browser_id: str,
+        target_id: str,
+        landscape: bool = False,
+        print_background: bool = True,
+        page_ranges: str = "",
+        paper_width_in: float = 0.0,
+        paper_height_in: float = 0.0,
+        margins_in: Optional[Dict[str, float]] = None,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.pdf(
-            rid, browser_id, target_id, landscape=landscape,
-            print_background=print_background, page_ranges=page_ranges,
-            paper_width_in=paper_width_in, paper_height_in=paper_height_in,
-            margins_in=margins_in)
+            rid,
+            browser_id,
+            target_id,
+            landscape=landscape,
+            print_background=print_background,
+            page_ranges=page_ranges,
+            paper_width_in=paper_width_in,
+            paper_height_in=paper_height_in,
+            margins_in=margins_in,
+        )
 
-    def view(self, browser_id: str, target_id: str = "", fps: int = 0,
-             quality: int = 0, role: str = "", rotate_token: bool = False) -> Any:
+    def view(
+        self,
+        browser_id: str,
+        target_id: str = "",
+        fps: int = 0,
+        quality: int = 0,
+        role: str = "",
+        rotate_token: bool = False,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.browser.view(
-            rid, browser_id, target_id=target_id, fps=fps, quality=quality,
-            role=role, rotate_token=rotate_token)
+            rid, browser_id, target_id=target_id, fps=fps, quality=quality, role=role, rotate_token=rotate_token
+        )
+
+    def select(
+        self,
+        browser_id: str,
+        target: Any,
+        option: str,
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.select(
+            rid,
+            browser_id,
+            target,
+            option,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
+
+    def check(
+        self,
+        browser_id: str,
+        target: Any,
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.check(
+            rid,
+            browser_id,
+            target,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
+
+    def uncheck(
+        self,
+        browser_id: str,
+        target: Any,
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.uncheck(
+            rid,
+            browser_id,
+            target,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
+
+    def focus(
+        self,
+        browser_id: str,
+        target: Any,
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.focus(
+            rid,
+            browser_id,
+            target,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
+
+    def blur(
+        self,
+        browser_id: str,
+        target: Any,
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.blur(
+            rid,
+            browser_id,
+            target,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
+
+    def scroll_into_view(
+        self,
+        browser_id: str,
+        target: Any,
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.scroll_into_view(
+            rid,
+            browser_id,
+            target,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
+
+    def drag_to(
+        self,
+        browser_id: str,
+        target: Any,
+        drop_target: Any,
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.drag_to(
+            rid,
+            browser_id,
+            target,
+            drop_target,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
+
+    def upload(
+        self,
+        browser_id: str,
+        target: Any,
+        paths: List[str],
+        target_id: str = "",
+        settle: bool = True,
+        force: bool = False,
+        settle_timeout_ms: int = 0,
+        target_timeout_ms: int = 0,
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.upload(
+            rid,
+            browser_id,
+            target,
+            paths,
+            target_id=target_id,
+            settle=settle,
+            force=force,
+            settle_timeout_ms=settle_timeout_ms,
+            target_timeout_ms=target_timeout_ms,
+        )
+
+    def emulate(
+        self,
+        browser_id: str,
+        target_id: str = "",
+        viewport: Optional[Dict[str, Any]] = None,
+        geolocation: Optional[Dict[str, Any]] = None,
+        timezone: str = "",
+        locale: str = "",
+        user_agent: str = "",
+        touch: Optional[bool] = None,
+        color_scheme: str = "",
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.emulate(
+            rid,
+            browser_id,
+            target_id=target_id,
+            viewport=viewport,
+            geolocation=geolocation,
+            timezone=timezone,
+            locale=locale,
+            user_agent=user_agent,
+            touch=touch,
+            color_scheme=color_scheme,
+        )
+
+    def intercept(self, browser_id: str, rules: List[Dict[str, Any]], target_id: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.intercept(rid, browser_id, rules, target_id=target_id)
+
+    def intercept_clear(self, browser_id: str, rule_ids: Optional[List[str]] = None) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.intercept_clear(rid, browser_id, rule_ids=rule_ids)
+
+    def auth(
+        self, browser_id: str, username: str = "", password: str = "", secret_ref: str = "", clear: bool = False
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.auth(
+            rid, browser_id, username=username, password=password, secret_ref=secret_ref, clear=clear
+        )
+
+    def extension_load(self, browser_id: str, path: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.extension_load(rid, browser_id, path)
+
+    def extension_unload(self, browser_id: str, extension_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.extension_unload(rid, browser_id, extension_id)
+
+    def cdp_endpoint(self, browser_id: str, port: int = 0, token: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.cdp_endpoint(rid, browser_id, port=port, token=token)
+
+    def cdp_endpoint_stop(self, browser_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.cdp_endpoint_stop(rid, browser_id)
+
+    def approval_request(self, browser_id: str, message: str, timeout_ms: int = 0) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.approval_request(rid, browser_id, message, timeout_ms=timeout_ms)
+
+    def approval_resolve(self, browser_id: str, approval_id: str, approved: bool, note: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.approval_resolve(rid, browser_id, approval_id, approved, note=note)
+
+    def content(self, browser_id: str, target_id: str, format: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.content(rid, browser_id, target_id, format=format)
+
+    def cookies(self, browser_id: str, context_id: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.cookies(rid, browser_id, context_id=context_id)
+
+    def set_cookie(
+        self,
+        browser_id: str,
+        name: str,
+        value: str,
+        url: str = "",
+        context_id: str = "",
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.set_cookie(
+            rid, browser_id, name, value, url=url, context_id=context_id, attrs=attrs
+        )
+
+    def delete_cookie(self, browser_id: str, name: str, url: str = "", context_id: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.delete_cookie(rid, browser_id, name, url=url, context_id=context_id)
+
+    def clear_cookies(self, browser_id: str, context_id: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.clear_cookies(rid, browser_id, context_id=context_id)
+
+    def download_delete(self, browser_id: str, download_id: str, delete_file: bool = False) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.download_delete(rid, browser_id, download_id, delete_file=delete_file)
+
+    def recording_start(self, browser_id: str, target_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.recording_start(rid, browser_id, target_id)
+
+    def recording_stop(self, browser_id: str, target_id: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.recording_stop(rid, browser_id, target_id)
+
+    def recording_export(self, browser_id: str, recording_id: str, dest_dir: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.recording_export(rid, browser_id, recording_id, dest_dir)
+
+    def profile_export(self, browser_id: str, dest_path: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.profile_export(rid, browser_id, dest_path=dest_path)
+
+    def profile_import(self, browser_id: str, archive_path: str) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.profile_import(rid, browser_id, archive_path)
+
+    def replay(self, browser_id: str, steps: List[Dict[str, Any]], stop_on_fail: bool = False) -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.replay(rid, browser_id, steps, stop_on_fail=stop_on_fail)
+
+    def fork(self, browser_id: str, count: int = 1, url: str = "") -> Any:
+        rid, client = self._rc()
+        return client.runtime.browser.fork(rid, browser_id, count=count, url=url)
 
 
 class RuntimeDesktopBound:
@@ -2271,14 +2730,20 @@ class RuntimeDesktopBound:
         r._require_alive()
         return r.runtime_id, r._client
 
-    def enable(self, width: int = 0, height: int = 0, depth: int = 0,
-               wm: str = "", display: str = "", mode: str = "",
-               dpi: int = 0) -> Any:
+    def enable(
+        self,
+        width: int = 0,
+        height: int = 0,
+        depth: int = 0,
+        wm: str = "",
+        display: str = "",
+        mode: str = "",
+        dpi: int = 0,
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.enable(rid, width=width, height=height,
-                                             depth=depth, wm=wm,
-                                             display=display, mode=mode,
-                                             dpi=dpi)
+        return client.runtime.desktop.enable(
+            rid, width=width, height=height, depth=depth, wm=wm, display=display, mode=mode, dpi=dpi
+        )
 
     def disable(self) -> Any:
         rid, client = self._rc()
@@ -2300,79 +2765,121 @@ class RuntimeDesktopBound:
         rid, client = self._rc()
         return client.runtime.desktop.keys(rid)
 
-    def screenshot(self, format: str = "png",
-                   region: Optional[Dict[str, int]] = None, quality: int = 0,
-                   scale_pct: int = 0, wait_stable_ms: int = 0,
-                   timeout_ms: int = 0, max_width: int = 0, max_height: int = 0,
-                   cursor: bool = False, if_rev: int = 0) -> Any:
+    def screenshot(
+        self,
+        format: str = "png",
+        region: Optional[Dict[str, int]] = None,
+        quality: int = 0,
+        scale_pct: int = 0,
+        wait_stable_ms: int = 0,
+        timeout_ms: int = 0,
+        max_width: int = 0,
+        max_height: int = 0,
+        cursor: bool = False,
+        if_rev: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.screenshot(
-            rid, format=format, region=region, quality=quality,
-            scale_pct=scale_pct, wait_stable_ms=wait_stable_ms,
-            timeout_ms=timeout_ms, max_width=max_width, max_height=max_height,
-            cursor=cursor, if_rev=if_rev)
+            rid,
+            format=format,
+            region=region,
+            quality=quality,
+            scale_pct=scale_pct,
+            wait_stable_ms=wait_stable_ms,
+            timeout_ms=timeout_ms,
+            max_width=max_width,
+            max_height=max_height,
+            cursor=cursor,
+            if_rev=if_rev,
+        )
 
-    def click(self, x: Optional[int] = None, y: Optional[int] = None,
-              button: str = "left", click_count: int = 0,
-              modifiers: Optional[List[str]] = None,
-              coordinate_space: str = "") -> Any:
+    def click(
+        self,
+        x: Optional[int] = None,
+        y: Optional[int] = None,
+        button: str = "left",
+        click_count: int = 0,
+        modifiers: Optional[List[str]] = None,
+        coordinate_space: str = "",
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.click(rid, x, y, button,
-                                            click_count=click_count,
-                                            modifiers=modifiers,
-                                            coordinate_space=coordinate_space)
+        return client.runtime.desktop.click(
+            rid, x, y, button, click_count=click_count, modifiers=modifiers, coordinate_space=coordinate_space
+        )
 
-    def down(self, x: Optional[int] = None, y: Optional[int] = None,
-             button: str = "left", modifiers: Optional[List[str]] = None,
-             coordinate_space: str = "") -> Any:
+    def down(
+        self,
+        x: Optional[int] = None,
+        y: Optional[int] = None,
+        button: str = "left",
+        modifiers: Optional[List[str]] = None,
+        coordinate_space: str = "",
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.down(rid, x, y, button,
-                                           modifiers=modifiers,
-                                           coordinate_space=coordinate_space)
+        return client.runtime.desktop.down(rid, x, y, button, modifiers=modifiers, coordinate_space=coordinate_space)
 
-    def up(self, button: str = "left", x: Optional[int] = None,
-           y: Optional[int] = None, modifiers: Optional[List[str]] = None,
-           coordinate_space: str = "") -> Any:
+    def up(
+        self,
+        button: str = "left",
+        x: Optional[int] = None,
+        y: Optional[int] = None,
+        modifiers: Optional[List[str]] = None,
+        coordinate_space: str = "",
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.up(rid, button, x=x, y=y,
-                                         modifiers=modifiers,
-                                         coordinate_space=coordinate_space)
+        return client.runtime.desktop.up(rid, button, x=x, y=y, modifiers=modifiers, coordinate_space=coordinate_space)
 
-    def drag(self, to_x: int, to_y: int, x: Optional[int] = None,
-             y: Optional[int] = None, button: str = "left", steps: int = 0,
-             duration_ms: int = 0, modifiers: Optional[List[str]] = None,
-             coordinate_space: str = "") -> Any:
+    def drag(
+        self,
+        to_x: int,
+        to_y: int,
+        x: Optional[int] = None,
+        y: Optional[int] = None,
+        button: str = "left",
+        steps: int = 0,
+        duration_ms: int = 0,
+        modifiers: Optional[List[str]] = None,
+        coordinate_space: str = "",
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.drag(
-            rid, to_x, to_y, x=x, y=y, button=button, steps=steps,
-            duration_ms=duration_ms, modifiers=modifiers,
-            coordinate_space=coordinate_space)
+            rid,
+            to_x,
+            to_y,
+            x=x,
+            y=y,
+            button=button,
+            steps=steps,
+            duration_ms=duration_ms,
+            modifiers=modifiers,
+            coordinate_space=coordinate_space,
+        )
 
     def move(self, x: int, y: int, coordinate_space: str = "") -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.move(rid, x, y,
-                                           coordinate_space=coordinate_space)
+        return client.runtime.desktop.move(rid, x, y, coordinate_space=coordinate_space)
 
-    def scroll(self, dx: int = 0, dy: int = 0,
-               x: Optional[int] = None, y: Optional[int] = None,
-               modifiers: Optional[List[str]] = None,
-               coordinate_space: str = "") -> Any:
+    def scroll(
+        self,
+        dx: int = 0,
+        dy: int = 0,
+        x: Optional[int] = None,
+        y: Optional[int] = None,
+        modifiers: Optional[List[str]] = None,
+        coordinate_space: str = "",
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.scroll(rid, x, y, dx, dy,
-                                             modifiers=modifiers,
-                                             coordinate_space=coordinate_space)
+        return client.runtime.desktop.scroll(rid, x, y, dx, dy, modifiers=modifiers, coordinate_space=coordinate_space)
 
     def type(self, text: str, delay_ms: int = 0, mode: str = "") -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.type(rid, text, delay_ms=delay_ms,
-                                           mode=mode)
+        return client.runtime.desktop.type(rid, text, delay_ms=delay_ms, mode=mode)
 
     def press(self, key: str, modifiers: Optional[List[str]] = None) -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.press(rid, key, modifiers=modifiers)
 
-    def hotkey(self, keys: List[str],
-               modifiers: Optional[List[str]] = None) -> Any:
+    def hotkey(self, keys: List[str], modifiers: Optional[List[str]] = None) -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.hotkey(rid, keys, modifiers=modifiers)
 
@@ -2388,12 +2895,13 @@ class RuntimeDesktopBound:
         rid, client = self._rc()
         return client.runtime.desktop.wait_stable(rid, stable_ms, timeout_ms)
 
-    def view(self, fps: int = 0, quality: int = 0, rotate_token: bool = False,
-             role: str = "", window_id: int = 0) -> Any:
+    def view(
+        self, fps: int = 0, quality: int = 0, rotate_token: bool = False, role: str = "", window_id: int = 0
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.view(rid, fps=fps, quality=quality,
-                                           rotate_token=rotate_token, role=role,
-                                           window_id=window_id)
+        return client.runtime.desktop.view(
+            rid, fps=fps, quality=quality, rotate_token=rotate_token, role=role, window_id=window_id
+        )
 
     def stop_view(self) -> Any:
         rid, client = self._rc()
@@ -2401,14 +2909,16 @@ class RuntimeDesktopBound:
 
     # -- agent step ---------------------------------------------------------
 
-    def act(self, actions: List[Dict[str, Any]], settle_ms: int = 0,
-            timeout_ms: int = 0,
-            observe: Optional[Dict[str, Any]] = None) -> Any:
+    def act(
+        self,
+        actions: List[Dict[str, Any]],
+        settle_ms: int = 0,
+        timeout_ms: int = 0,
+        observe: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         """One agent step: batched inputs → settle → observation."""
         rid, client = self._rc()
-        return client.runtime.desktop.act(rid, actions, settle_ms=settle_ms,
-                                          timeout_ms=timeout_ms,
-                                          observe=observe)
+        return client.runtime.desktop.act(rid, actions, settle_ms=settle_ms, timeout_ms=timeout_ms, observe=observe)
 
     # -- geometry / windows / apps ------------------------------------------
 
@@ -2420,11 +2930,9 @@ class RuntimeDesktopBound:
         rid, client = self._rc()
         return client.runtime.desktop.windows(rid, window_class)
 
-    def window_op(self, window_id: int, op: str, x: int = 0, y: int = 0,
-                  w: int = 0, h: int = 0) -> Any:
+    def window_op(self, window_id: int, op: str, x: int = 0, y: int = 0, w: int = 0, h: int = 0) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.window_op(rid, window_id, op, x=x, y=y,
-                                                w=w, h=h)
+        return client.runtime.desktop.window_op(rid, window_id, op, x=x, y=y, w=w, h=h)
 
     def focus_window(self, window_id: int) -> Any:
         rid, client = self._rc()
@@ -2446,19 +2954,13 @@ class RuntimeDesktopBound:
         rid, client = self._rc()
         return client.runtime.desktop.apps(rid)
 
-    def launch_app(self, app: str, uri: str = "", wait_window: bool = False,
-                   timeout_ms: int = 0) -> Any:
+    def launch_app(self, app: str, uri: str = "", wait_window: bool = False, timeout_ms: int = 0) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.launch_app(rid, app, uri=uri,
-                                                 wait_window=wait_window,
-                                                 timeout_ms=timeout_ms)
+        return client.runtime.desktop.launch_app(rid, app, uri=uri, wait_window=wait_window, timeout_ms=timeout_ms)
 
-    def open(self, target: str, wait_window: bool = False,
-             timeout_ms: int = 0) -> Any:
+    def open(self, target: str, wait_window: bool = False, timeout_ms: int = 0) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.open(rid, target,
-                                           wait_window=wait_window,
-                                           timeout_ms=timeout_ms)
+        return client.runtime.desktop.open(rid, target, wait_window=wait_window, timeout_ms=timeout_ms)
 
     # -- session plane -------------------------------------------------------
 
@@ -2480,37 +2982,28 @@ class RuntimeDesktopBound:
     def restart_component(self, name: str) -> Any:
         return self.component(name, "restart")
 
-    def logs(self, name: str, cursor: str = "", max_entries: int = 0,
-             priority: str = "") -> Any:
+    def logs(self, name: str, cursor: str = "", max_entries: int = 0, priority: str = "") -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.logs(rid, name, cursor=cursor,
-                                           max_entries=max_entries,
-                                           priority=priority)
+        return client.runtime.desktop.logs(rid, name, cursor=cursor, max_entries=max_entries, priority=priority)
 
     # -- simple mouse/keyboard conveniences ----------------------------------
 
-    def left_click(self, x: Optional[int] = None, y: Optional[int] = None,
-                   **kwargs) -> Any:
+    def left_click(self, x: Optional[int] = None, y: Optional[int] = None, **kwargs) -> Any:
         return self.click(x, y, "left", **kwargs)
 
-    def double_click(self, x: Optional[int] = None, y: Optional[int] = None,
-                     **kwargs) -> Any:
+    def double_click(self, x: Optional[int] = None, y: Optional[int] = None, **kwargs) -> Any:
         return self.click(x, y, "left", click_count=2, **kwargs)
 
-    def right_click(self, x: Optional[int] = None, y: Optional[int] = None,
-                    **kwargs) -> Any:
+    def right_click(self, x: Optional[int] = None, y: Optional[int] = None, **kwargs) -> Any:
         return self.click(x, y, "right", **kwargs)
 
-    def middle_click(self, x: Optional[int] = None, y: Optional[int] = None,
-                     **kwargs) -> Any:
+    def middle_click(self, x: Optional[int] = None, y: Optional[int] = None, **kwargs) -> Any:
         return self.click(x, y, "middle", **kwargs)
 
-    def mouse_press(self, button: str = "left", x: Optional[int] = None,
-                    y: Optional[int] = None, **kwargs) -> Any:
+    def mouse_press(self, button: str = "left", x: Optional[int] = None, y: Optional[int] = None, **kwargs) -> Any:
         return self.down(x, y, button, **kwargs)
 
-    def mouse_release(self, button: str = "left", x: Optional[int] = None,
-                      y: Optional[int] = None, **kwargs) -> Any:
+    def mouse_release(self, button: str = "left", x: Optional[int] = None, y: Optional[int] = None, **kwargs) -> Any:
         return self.up(button, x=x, y=y, **kwargs)
 
     def move_mouse(self, x: int, y: int, **kwargs) -> Any:
@@ -2530,38 +3023,58 @@ class RuntimeDesktopBound:
 
     # -- accessibility, recordings, takeover -----------------------------------
 
-    def a11y_snapshot(self, scope: str = "", app: str = "", pid: int = 0,
-                      max_depth: int = 0, limit: int = 0,
-                      visible_only: Optional[bool] = None,
-                      roles: Optional[List[str]] = None, name: str = "",
-                      diff: bool = False, rev: int = 0) -> Any:
+    def a11y_snapshot(
+        self,
+        scope: str = "",
+        app: str = "",
+        pid: int = 0,
+        max_depth: int = 0,
+        limit: int = 0,
+        visible_only: Optional[bool] = None,
+        roles: Optional[List[str]] = None,
+        name: str = "",
+        diff: bool = False,
+        rev: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.a11y_snapshot(
-            rid, scope=scope, app=app, pid=pid, max_depth=max_depth,
-            limit=limit, visible_only=visible_only, roles=roles, name=name,
-            diff=diff, rev=rev)
+            rid,
+            scope=scope,
+            app=app,
+            pid=pid,
+            max_depth=max_depth,
+            limit=limit,
+            visible_only=visible_only,
+            roles=roles,
+            name=name,
+            diff=diff,
+            rev=rev,
+        )
 
-    def a11y_find(self, role: str = "", name: str = "", ref: str = "",
-                  max: int = 0) -> Any:
+    def a11y_find(self, role: str = "", name: str = "", ref: str = "", max: int = 0) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.a11y_find(rid, role=role, name=name,
-                                                ref=ref, max=max)
+        return client.runtime.desktop.a11y_find(rid, role=role, name=name, ref=ref, max=max)
 
-    def a11y_action(self, op: str, ref: str, action: str = "",
-                    action_index: int = 0, text: str = "",
-                    value: Optional[float] = None,
-                    timeout_ms: int = 0) -> Any:
+    def a11y_action(
+        self,
+        op: str,
+        ref: str,
+        action: str = "",
+        action_index: int = 0,
+        text: str = "",
+        value: Optional[float] = None,
+        timeout_ms: int = 0,
+    ) -> Any:
         rid, client = self._rc()
         return client.runtime.desktop.a11y_action(
-            rid, op, ref, action=action, action_index=action_index,
-            text=text, value=value, timeout_ms=timeout_ms)
+            rid, op, ref, action=action, action_index=action_index, text=text, value=value, timeout_ms=timeout_ms
+        )
 
-    def start_recording(self, include: Optional[List[str]] = None,
-                        label: str = "", window_id: int = 0,
-                        dir: str = "") -> Any:
+    def start_recording(
+        self, include: Optional[List[str]] = None, label: str = "", window_id: int = 0, dir: str = ""
+    ) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.start_recording(
-            rid, include=include, label=label, window_id=window_id, dir=dir)
+        return client.runtime.desktop.start_recording(rid, include=include, label=label, window_id=window_id, dir=dir)
 
     def recordings(self) -> Any:
         rid, client = self._rc()

@@ -1,6 +1,21 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.115] - 2026-11-01
+
+### Added
+- **Full wave A-D browser surface on `client.runtime.browser`** (sync and
+  async resources, and the bound `runtime.browser` handle): emulation
+  (`emulate`), request interception (`intercept`, `intercept_clear`),
+  HTTP auth (`auth`, `secret_ref`-capable), extensions (`extension_load`,
+  `extension_unload`), the compat CDP endpoint (`cdp_endpoint`,
+  `cdp_endpoint_stop`), approvals (`approval_request`,
+  `approval_resolve`), `content`, cookie ops (`cookies`, `set_cookie`,
+  `delete_cookie`, `clear_cookies`), `download_delete`, per-target
+  recording (`recording_start`, `recording_stop`) plus
+  `recording_export`, browser profile archives (`profile_export`,
+  `profile_import`), `replay`, and `fork`. New action verbs —
+  `select`, `check`, `uncheck`, `focus`, `blur`, `scroll_into_view`,
+  `drag_to`, `upload` — land on the same `actions/{verb}` route.
 
 ### Fixed
 - **Concurrent requests no longer starve on a shared HTTP/2 lane.** The
