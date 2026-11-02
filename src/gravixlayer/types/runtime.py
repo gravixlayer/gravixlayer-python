@@ -2981,13 +2981,13 @@ class RuntimeDesktopBound:
         rid, client = self._rc()
         return client.runtime.desktop.apps(rid)
 
-    def launch_app(self, app: str, uri: str = "", wait_window: bool = False, timeout_ms: int = 0) -> Any:
+    def launch_app(self, app: str, uri: str = "", wait_window: bool = False, timeout_ms: int = 0, user: Optional[str] = None) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.launch_app(rid, app, uri=uri, wait_window=wait_window, timeout_ms=timeout_ms)
+        return client.runtime.desktop.launch_app(rid, app, uri=uri, wait_window=wait_window, timeout_ms=timeout_ms, user=user)
 
-    def open(self, target: str, wait_window: bool = False, timeout_ms: int = 0) -> Any:
+    def open(self, target: str, wait_window: bool = False, timeout_ms: int = 0, user: Optional[str] = None) -> Any:
         rid, client = self._rc()
-        return client.runtime.desktop.open(rid, target, wait_window=wait_window, timeout_ms=timeout_ms)
+        return client.runtime.desktop.open(rid, target, wait_window=wait_window, timeout_ms=timeout_ms, user=user)
 
     # -- session plane -------------------------------------------------------
 

@@ -369,6 +369,7 @@ class Runtimes:
         *,
         background: Literal[True],
         on_error: Optional[Any] = None,
+        user: Optional[str] = None,
     ) -> CommandHandle: ...
 
     @overload
@@ -400,6 +401,7 @@ class Runtimes:
         on_exit: Optional[Any] = None,
         background: bool = False,
         on_error: Optional[Any] = None,
+        user: Optional[str] = None,
     ) -> Union[CommandRunResponse, CommandHandle]:
         """Execute a shell command in the runtime.
 
@@ -422,6 +424,8 @@ class Runtimes:
             on_error: With ``background``, invoked with the exception if following
                 the output fails. The command keeps running, and the exception is
                 also kept on the handle's ``error``.
+            user: Login name to run the command as (e.g. ``"root"``). Omit for
+                the runtime's default identity.
         """
         _validate_runtime_id(runtime_id)
         data: Dict[str, Any] = {"command": command}
@@ -436,6 +440,8 @@ class Runtimes:
             data["timeout"] = timeout * 1000
         if background:
             data["background"] = True
+        if user is not None:
+            data["user"] = user
 
         request_timeout = command_request_timeout(timeout)
         streaming = (

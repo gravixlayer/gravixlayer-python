@@ -194,6 +194,7 @@ class AgentBuildRequest:
     disk_mb: int = 0
     environment: Dict[str, str] = field(default_factory=dict)
     start_cmd: str = ""
+    start_user: str = ""
     ready_cmd: str = ""
     ready_timeout_secs: int = 0
     tags: Dict[str, str] = field(default_factory=dict)
@@ -219,6 +220,8 @@ class AgentBuildRequest:
             result["environment"] = self.environment
         if self.start_cmd:
             result["start_cmd"] = self.start_cmd
+        if self.start_user:
+            result["start_user"] = self.start_user
         if self.ready_cmd:
             result["ready_cmd"] = self.ready_cmd
         if self.ready_timeout_secs:

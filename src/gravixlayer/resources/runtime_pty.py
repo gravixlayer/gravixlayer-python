@@ -67,8 +67,11 @@ def _create_payload(
     environment: Optional[Dict[str, str]],
     cols: Optional[int],
     rows: Optional[int],
+    user: Optional[str],
 ) -> Dict[str, Any]:
     payload: Dict[str, Any] = {}
+    if user is not None:
+        payload["user"] = user
     if shell is not None:
         payload["shell"] = shell
     if args is not None:
@@ -763,6 +766,7 @@ class RuntimePtyResource:
         environment: Optional[Dict[str, str]] = None,
         cols: Optional[int] = None,
         rows: Optional[int] = None,
+        user: Optional[str] = None,
     ) -> PtySession:
         """Create a PTY session inside the runtime.
 
@@ -778,9 +782,11 @@ class RuntimePtyResource:
             environment: Extra environment variables, merged over the runtime's own.
             cols: Terminal width in columns.
             rows: Terminal height in rows.
+            user: Login name to run the session as (e.g. ``"root"``). Omit for
+                the runtime's default identity.
         """
         _validate_runtime_id(runtime_id)
-        payload = _create_payload(shell, args, working_dir, environment, cols, rows)
+        payload = _create_payload(shell, args, working_dir, environment, cols, rows, user)
         with telemetry.runtime_span("pty.create", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/pty", payload)
             session = PtySession.from_api(response.json())
@@ -935,10 +941,11 @@ class AsyncRuntimePtyResource:
         environment: Optional[Dict[str, str]] = None,
         cols: Optional[int] = None,
         rows: Optional[int] = None,
+        user: Optional[str] = None,
     ) -> PtySession:
         """Create a PTY session inside the runtime."""
         _validate_runtime_id(runtime_id)
-        payload = _create_payload(shell, args, working_dir, environment, cols, rows)
+        payload = _create_payload(shell, args, working_dir, environment, cols, rows, user)
         with telemetry.runtime_span("pty.create", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/pty", payload)
             session = PtySession.from_api(response.json())

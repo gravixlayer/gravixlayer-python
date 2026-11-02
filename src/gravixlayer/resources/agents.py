@@ -399,6 +399,7 @@ class Agents:
         disk_mb: int = 0,
         environment: Optional[Dict[str, str]] = None,
         start_cmd: str = "",
+        start_user: str = "",
         ready_cmd: str = "",
         ready_timeout_secs: int = 0,
         tags: Optional[Dict[str, str]] = None,
@@ -422,6 +423,7 @@ class Agents:
             disk_mb: Disk size in MB (default determined by the API).
             environment: Environment variables for the agent.
             start_cmd: Custom start command.
+            start_user: Login name ``start_cmd`` runs as during the build.
             ready_cmd: Readiness check command.
             ready_timeout_secs: Readiness timeout in seconds.
             tags: Metadata tags.
@@ -452,6 +454,7 @@ class Agents:
             disk_mb=disk_mb,
             environment=environment or {},
             start_cmd=start_cmd,
+            start_user=start_user,
             ready_cmd=ready_cmd,
             ready_timeout_secs=ready_timeout_secs,
             tags=tags or {},
@@ -599,6 +602,7 @@ class Agents:
         disk_mb: int = 0,
         environment: Optional[Dict[str, str]] = None,
         start_cmd: str = "",
+        start_user: str = "",
         ready_cmd: str = "",
         ready_timeout_secs: int = 0,
         tags: Optional[Dict[str, str]] = None,
@@ -716,6 +720,7 @@ class Agents:
                 disk_mb=disk_mb,
                 environment=environment,
                 start_cmd=start_cmd,
+            start_user=start_user,
                 ready_cmd=ready_cmd,
                 ready_timeout_secs=ready_timeout_secs,
                 tags=tags,

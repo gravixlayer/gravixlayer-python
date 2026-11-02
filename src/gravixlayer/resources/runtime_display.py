@@ -398,7 +398,8 @@ class RuntimeDisplayResource:
 
     def launch_app(self, runtime_id: str, app: str, uri: str = "",
                    wait_window: bool = False,
-                   timeout_ms: int = 0) -> Dict[str, Any]:
+                   timeout_ms: int = 0,
+                   user: Optional[str] = None) -> Dict[str, Any]:
         """Launch an installed app by its ``apps()`` id. ``wait_window``
         blocks until a new top-level window maps; returns
         ``{pid, window_id, app}``."""
@@ -406,17 +407,22 @@ class RuntimeDisplayResource:
         body: Dict[str, Any] = {"app": app}
         if uri:
             body["uri"] = uri
+        if user is not None:
+            body["user"] = user
         if wait_window:
             body["wait_window"] = True
             body["timeout_ms"] = timeout_ms or 10_000
         return self._j("POST", f"runtime/{runtime_id}/display/apps/launch", body)
 
     def open(self, runtime_id: str, target: str, wait_window: bool = False,
-             timeout_ms: int = 0) -> Dict[str, Any]:
+             timeout_ms: int = 0,
+             user: Optional[str] = None) -> Dict[str, Any]:
         """Open a file path or URL with its registered handler. Returns
         ``{pid, window_id, app, mime}``."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {"target": target}
+        if user is not None:
+            body["user"] = user
         if wait_window:
             body["wait_window"] = True
             body["timeout_ms"] = timeout_ms or 10_000
@@ -893,23 +899,29 @@ class AsyncRuntimeDisplayResource:
 
     async def launch_app(self, runtime_id: str, app: str, uri: str = "",
                          wait_window: bool = False,
-                         timeout_ms: int = 0) -> Dict[str, Any]:
+                         timeout_ms: int = 0,
+                         user: Optional[str] = None) -> Dict[str, Any]:
         """Launch an installed app by id; ``wait_window`` blocks until its
         window maps. Returns ``{pid, window_id, app}``."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {"app": app}
         if uri:
             body["uri"] = uri
+        if user is not None:
+            body["user"] = user
         if wait_window:
             body["wait_window"] = True
             body["timeout_ms"] = timeout_ms or 10_000
         return await self._j("POST", f"runtime/{runtime_id}/display/apps/launch", body)
 
     async def open(self, runtime_id: str, target: str, wait_window: bool = False,
-                   timeout_ms: int = 0) -> Dict[str, Any]:
+                   timeout_ms: int = 0,
+                   user: Optional[str] = None) -> Dict[str, Any]:
         """Open a file path or URL with its registered handler."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {"target": target}
+        if user is not None:
+            body["user"] = user
         if wait_window:
             body["wait_window"] = True
             body["timeout_ms"] = timeout_ms or 10_000

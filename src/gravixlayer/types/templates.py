@@ -344,6 +344,7 @@ class TemplateBuilder:
         self._memory_mb: int = 1024
         self._disk_mb: int = 4096
         self._start_cmd: Optional[str] = None
+        self._start_user: Optional[str] = None
         self._ready_cmd: Optional[str] = None
         self._ready_port: Optional[int] = None
         self._ready_timeout_secs: int = DEFAULT_READY_TIMEOUT_SECS
@@ -426,6 +427,15 @@ class TemplateBuilder:
     def start_cmd(self, cmd: str) -> "TemplateBuilder":
         """Set the command to run after the sandbox starts (captured in snapshot)."""
         self._start_cmd = cmd
+        return self
+
+    def start_user(self, user: str) -> "TemplateBuilder":
+        """Set the login ``start_cmd``/``ready_cmd`` run as during the build.
+
+        Pass ``"root"`` when provisioning needs package installs or system
+        writes; omit for the image's default identity.
+        """
+        self._start_user = user
         return self
 
     def ready_cmd(
@@ -706,6 +716,8 @@ class TemplateBuilder:
 
         if self._start_cmd:
             data["start_cmd"] = self._start_cmd
+        if self._start_user:
+            data["start_user"] = self._start_user
         if self._ready_port is not None:
             data["ready_port"] = self._ready_port
         if self._ready_cmd:

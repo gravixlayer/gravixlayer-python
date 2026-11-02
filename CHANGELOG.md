@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+- `user=` on `runtimes.run_command`/`run_cmd`, `pty.create`, and
+  `desktop.launch_app`/`open` — the guest login the process runs as;
+  omitted keeps the session user.
+- `start_user=` on `templates.build`/`AgentTemplate` and
+  `agents.create` template params — the login the template entrypoint
+  runs as, serialized as `start_user`.
+
 ### Fixed
 - **`emulate` now serializes to the wire's flat fields** — `viewport`
   `{width, height, scale}` maps to `width`/`height`/`device_scale_factor`,
