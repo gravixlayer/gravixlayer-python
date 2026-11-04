@@ -3,8 +3,8 @@
 # GravixLayer base-browser template
 #
 # base (Python 3.14.6 · Node 24.18.0 · Ubuntu 24.04) + the browser plane:
-# Chromium (Playwright build, pinned) · Xvfb · openbox · fonts · dbus ·
-# at-spi2-core · xdg-utils.
+# Google Chrome (official stable .deb) · Xvfb · openbox ·
+# fonts · dbus · at-spi2-core · xdg-utils.
 #
 #   gravixlayer template build \
 #     --dockerfile ./base-browser.Dockerfile \
@@ -26,11 +26,10 @@
 #   - No desktop session, no login manager, no VNC server — the platform
 #     owns the framebuffer and the view stream directly. For a full desktop
 #     with real applications, build base-desktop.Dockerfile.
-#   - No Firefox — the browser plane is Chromium-only for now.
-#   - Chromium comes from Playwright's builds: Ubuntu's `chromium` apt
-#     package is a snap shim that cannot run inside the guest, and
-#     Google Chrome ships no linux-arm64 deb. Playwright covers both
-#     arches and installs the exact system dep set (`--with-deps`).
+#   - No Firefox — the browser plane is Chrome-only for now.
+#   - Chrome comes from Google's official stable .deb channel, which now
+#     ships both amd64 and arm64 builds. Ubuntu's `chromium` apt package
+#     is a snap shim that cannot run inside the guest.
 
 FROM ubuntu:24.04 AS system
 
@@ -108,17 +107,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
-# Chromium — Playwright build: multiarch (amd64+arm64) and `--with-deps`
-# installs its exact system libraries. `/opt/browsers` is a shared,
-# world-readable browser root; `chromium` lands on PATH for the browser
-# plane's resolver (`chromium|chromium-browser|google-chrome|chrome`).
-RUN PLAYWRIGHT_BROWSERS_PATH=/opt/browsers \
-        npx -y playwright@1.55.0 install chromium --with-deps --no-shell \
-    && ln -sf "$(find /opt/browsers -type f -name chrome -path '*chrome-linux*' | head -1)" \
-        /usr/local/bin/chromium \
-    && chromium --version | grep -F 'Chromium' \
-    && npm cache clean --force \
-    && rm -rf /root/.npm /workspace/.npm
+# Google Chrome — official stable channel .deb for the build arch.
+# `apt-get install ./pkg.deb` resolves and installs the runtime
+# libraries Chrome declares; the package drops the binary at
+# /opt/google/chrome and links /usr/bin/google-chrome. `chromium` is
+# aliased on PATH for the browser plane's resolver
+# (`chromium|chromium-browser|google-chrome|chrome`).
+RUN case "$(uname -m)" in \
+         x86_64|amd64) CHROME_DEB=amd64 ;; \
+         aarch64|arm64) CHROME_DEB=arm64 ;; \
+         *) echo "unsupported Chrome arch: $(uname -m)" >&2; exit 1 ;; \
+       esac \
+    && curl -fSL --retry 5 --retry-all-errors --connect-timeout 20 \
+        -o /tmp/google-chrome.deb \
+        "https://dl.google.com/linux/direct/google-chrome-stable_current_${CHROME_DEB}.deb" \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends /tmp/google-chrome.deb \
+    && rm /tmp/google-chrome.deb \
+    && ln -sf /usr/bin/google-chrome /usr/local/bin/chromium \
+    && chromium --version | grep -F 'Google Chrome' \
+    && rm -rf /var/lib/apt/lists/*
 
 FROM desktop AS final
 

@@ -37,8 +37,8 @@
 # Lean choices:
 #   - Ubuntu's firefox and chromium packages are snap stubs, and snaps do
 #     not run in the guest: snapd is pinned out, Firefox ESR comes from
-#     Mozilla's release tarball (amd64 + arm64), Chromium from Playwright's
-#     build (amd64 + arm64).
+#     Mozilla's release tarball (amd64 + arm64), Chrome from Google's
+#     Chrome for Testing builds (amd64 + arm64).
 #   - The file indexer and the calendar data server are off. The login
 #     keyring has no password, so it never prompts. Screen lock, idle
 #     blanking, animations and cursor blink are off.
@@ -261,21 +261,44 @@ RUN TB_VERSION=140.4.0esr \
         'StartupNotify=true' \
         > /usr/share/applications/thunderbird.desktop
 
-# Chromium — Playwright build: multiarch (amd64+arm64) and `--with-deps`
-# installs its exact system libraries. `chromium` lands on PATH for the
-# browser plane. Desktop launches expose web content to the accessibility
-# tree.
-RUN PLAYWRIGHT_BROWSERS_PATH=/opt/browsers \
-        npx -y playwright@1.55.0 install chromium --with-deps --no-shell \
-    && ln -sf "$(find /opt/browsers -type f -name chrome -path '*chrome-linux*' | head -1)" \
-        /usr/local/bin/chromium \
-    && chromium --version | grep -F 'Chromium' \
-    && npm cache clean --force \
-    && rm -rf /root/.npm /workspace/.npm /var/lib/apt/lists/* \
+# Google Chrome — Chrome for Testing release: official Google builds for
+# amd64 and arm64, pinned to a stable version. `chromium` stays on PATH
+# for the browser plane; desktop launches expose web content to the
+# accessibility tree.
+RUN CHROME_VERSION=156.0.8078.80 \
+    && case "$(uname -m)" in \
+         x86_64|amd64) CHROME_ARCH=linux64 ;; \
+         aarch64|arm64) CHROME_ARCH=linux-arm64 ;; \
+         *) echo "unsupported Chrome arch: $(uname -m)" >&2; exit 1 ;; \
+       esac \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        unzip \
+        libasound2t64 \
+        libatk-bridge2.0-0t64 \
+        libatk1.0-0t64 \
+        libcups2t64 \
+        libnss3 \
+        libgbm1 \
+        libxkbcommon0 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxfixes3 \
+        libxrandr2 \
+        libpango-1.0-0 \
+        libcairo2 \
+    && curl -fSL --retry 5 --retry-all-errors --connect-timeout 20 \
+        -o /tmp/chrome.zip \
+        "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/${CHROME_ARCH}/chrome-${CHROME_ARCH}.zip" \
+    && unzip -q /tmp/chrome.zip -d /opt/browsers \
+    && rm /tmp/chrome.zip \
+    && ln -sf "/opt/browsers/chrome-${CHROME_ARCH}/chrome" /usr/local/bin/chromium \
+    && ln -sf /usr/local/bin/chromium /usr/local/bin/google-chrome \
+    && chromium --version | grep -F 'Chrome for Testing' \
+    && rm -rf /var/lib/apt/lists/* \
     && printf '%s\n' \
         '[Desktop Entry]' \
         'Type=Application' \
-        'Name=Chromium' \
+        'Name=Google Chrome' \
         'Exec=chromium --force-renderer-accessibility %U' \
         'Icon=web-browser' \
         'Categories=Network;WebBrowser;' \
