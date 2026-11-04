@@ -12,10 +12,15 @@
   first-run Terms of Service screen (which is flag-gated and ignores
   policies and prefs).
 - `base-desktop` and `base-osworld` template Dockerfiles install Google
-  Chrome for Testing (pinned stable build) selected by build
-  architecture (`linux64`/`linux-arm64`) instead of a Playwright
-  Chromium build; the desktop app entry is now named Google Chrome. The
-  `chromium.desktop` Exec carries the same first-run suppression flags.
+  Chrome from the official stable `.deb` channel for the build
+  architecture (amd64 or arm64), same as `base-browser`; the desktop app
+  entry keeps the `chromium.desktop` filename the dock favorites pin but
+  now points at real Chrome with the `google-chrome` icon and
+  `StartupWMClass=Google-chrome`. `base-osworld` additionally keeps a
+  `/usr/local/bin/google-chrome` shim to a pinned Chrome for Testing
+  build (now arch-selected `linux64`/`linux-arm64`, was amd64-only)
+  because OSWorld task configs need `--remote-debugging-port` on the
+  default profile, which branded Chrome ≥136 refuses.
 
 ### Added
 - `browser.set_control_mode(...)` (and `runtime.browser.set_control_mode`)

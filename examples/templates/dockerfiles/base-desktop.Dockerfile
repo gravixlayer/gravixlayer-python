@@ -34,8 +34,8 @@
 # Lean choices:
 #   - Ubuntu's firefox and chromium packages are snap stubs, and snaps do
 #     not run in the guest: snapd is pinned out, Firefox ESR comes from
-#     Mozilla's release tarball (amd64 + arm64), Chromium from Playwright's
-#     build (amd64 + arm64).
+#     Mozilla's release tarball (amd64 + arm64), Chrome from Google's
+#     stable channel (amd64 + arm64).
 #   - The file indexer and the calendar data server are off. The login
 #     keyring has no password, so it never prompts. Screen lock, idle
 #     blanking, animations and cursor blink are off.
@@ -228,48 +228,44 @@ RUN FF_VERSION=153.5.1esr \
         'StartupNotify=true' \
         > /usr/share/applications/firefox-esr.desktop
 
-# Google Chrome — Chrome for Testing release: official Google builds for
-# amd64 and arm64, pinned to a stable version. `chromium` stays on PATH
-# for the browser plane; desktop launches expose web content to the
-# accessibility tree.
-RUN CHROME_VERSION=156.0.8078.80 \
+# Google Chrome — official stable channel .deb for the build arch.
+# `apt-get install ./pkg.deb` resolves and installs the runtime
+# libraries Chrome declares; the package drops the binary at
+# /opt/google/chrome and links /usr/bin/google-chrome. `chromium` is
+# aliased on PATH for the browser plane's resolver
+# (`chromium|chromium-browser|google-chrome|chrome`). Desktop launches
+# expose web content to the accessibility tree.
+# repo_add_once=false keeps the .deb from registering Google's apt
+# repository and its daily repo-refresh hook — a template is an
+# immutable image, so the browser updates when the image rebuilds,
+# never underneath it.
+RUN printf '%s\n' 'repo_add_once="false"' > /etc/default/google-chrome \
     && case "$(uname -m)" in \
-         x86_64|amd64) CHROME_ARCH=linux64 ;; \
-         aarch64|arm64) CHROME_ARCH=linux-arm64 ;; \
+         x86_64|amd64) CHROME_DEB=amd64 ;; \
+         aarch64|arm64) CHROME_DEB=arm64 ;; \
          *) echo "unsupported Chrome arch: $(uname -m)" >&2; exit 1 ;; \
        esac \
-    && apt-get update && apt-get install -y --no-install-recommends \
-        unzip \
-        libasound2t64 \
-        libatk-bridge2.0-0t64 \
-        libatk1.0-0t64 \
-        libcups2t64 \
-        libnss3 \
-        libgbm1 \
-        libxkbcommon0 \
-        libxcomposite1 \
-        libxdamage1 \
-        libxfixes3 \
-        libxrandr2 \
-        libpango-1.0-0 \
-        libcairo2 \
     && curl -fSL --retry 5 --retry-all-errors --connect-timeout 20 \
-        -o /tmp/chrome.zip \
-        "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/${CHROME_ARCH}/chrome-${CHROME_ARCH}.zip" \
-    && unzip -q /tmp/chrome.zip -d /opt/browsers \
-    && rm /tmp/chrome.zip \
-    && ln -sf "/opt/browsers/chrome-${CHROME_ARCH}/chrome" /usr/local/bin/chromium \
-    && ln -sf /usr/local/bin/chromium /usr/local/bin/google-chrome \
-    && chromium --version | grep -F 'Chrome for Testing' \
+        -o /tmp/google-chrome.deb \
+        "https://dl.google.com/linux/direct/google-chrome-stable_current_${CHROME_DEB}.deb" \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends /tmp/google-chrome.deb \
+    && rm /tmp/google-chrome.deb \
+    && rm -f /etc/cron.daily/google-chrome /etc/apt/sources.list.d/google-chrome.list \
+    && ln -sf /usr/bin/google-chrome /usr/local/bin/chromium \
+    && sed -i 's|^Exec=/usr/bin/google-chrome-stable|Exec=/usr/bin/google-chrome-stable --no-first-run --no-default-browser-check|' \
+        /usr/share/applications/google-chrome.desktop \
+    && chromium --version | grep -F 'Google Chrome' \
     && rm -rf /var/lib/apt/lists/* \
     && printf '%s\n' \
         '[Desktop Entry]' \
         'Type=Application' \
         'Name=Google Chrome' \
         'Exec=chromium --force-renderer-accessibility --no-first-run --no-default-browser-check %U' \
-        'Icon=web-browser' \
+        'Icon=google-chrome' \
         'Categories=Network;WebBrowser;' \
         'MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;' \
+        'StartupWMClass=Google-chrome' \
         'StartupNotify=true' \
         > /usr/share/applications/chromium.desktop
 
