@@ -2406,6 +2406,12 @@ class RuntimeBrowserBound:
             rid, browser_id, target_id=target_id, fps=fps, quality=quality, role=role, rotate_token=rotate_token
         )
 
+    def set_control_mode(self, browser_id: str, mode: str) -> Any:
+        """Live-view takeover mode ``shared`` | ``human`` | ``agent`` —
+        same contract as the desktop's control mode."""
+        rid, client = self._rc()
+        return client.runtime.browser.set_control_mode(rid, browser_id, mode)
+
     def select(
         self,
         browser_id: str,

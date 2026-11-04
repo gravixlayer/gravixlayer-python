@@ -346,6 +346,16 @@ class TestAsyncBrowser:
         assert body["target"]["by"] == "ref"
 
     @pytest.mark.asyncio
+    async def test_set_control_mode(self, mock_api):
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/view/control").mock(
+            return_value=httpx.Response(200, json={"mode": "agent"})
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            r = await client.runtime.browser.set_control_mode(VALID_UUID, BID, "agent")
+        assert r["mode"] == "agent"
+        assert json.loads(mock_api.calls[-1].request.content) == {"mode": "agent"}
+
+    @pytest.mark.asyncio
     async def test_display_screenshot(self, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/display/screenshot").mock(
             return_value=httpx.Response(200, json={"data": "", "format": "png"})
@@ -711,6 +721,16 @@ class TestWireParams:
         assert "role" not in body
         # A control token still composes — headed feeds require vt=.
         assert r["watch_url"].endswith("vt=vt-ctl")
+
+    def test_set_control_mode(self, client, mock_api):
+        """The browser plane's takeover mode — same contract as the
+        display's view/control."""
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/b1/view/control").mock(
+            return_value=httpx.Response(200, json={"mode": "human"})
+        )
+        r = client.runtime.browser.set_control_mode(VALID_UUID, BID, "human")
+        assert r["mode"] == "human"
+        assert json.loads(mock_api.calls[-1].request.content) == {"mode": "human"}
 
     def test_path_segments_are_encoded(self, client, mock_api):
         """Caller ids must never inject `/`, `?` or `#` into a route path."""
@@ -1509,6 +1529,9 @@ class TestBoundNewSurfaces:
         mock_api.get(f"{SB}/{VALID_UUID}/browser/{BID}/events").mock(
             return_value=httpx.Response(200, text=SSE_PAGE, headers={"content-type": "text/event-stream"})
         )
+        mock_api.post(f"{SB}/{VALID_UUID}/browser/{BID}/view/control").mock(
+            return_value=httpx.Response(200, json={"mode": "human"})
+        )
 
         from gravixlayer.types.runtime import Runtime
 
@@ -1522,6 +1545,7 @@ class TestBoundNewSurfaces:
         r.browser.targets(BID, url="https://x.io", context_id="c9")
         frames = list(r.browser.events(BID))
         assert [f["seq"] for f in frames] == [41, 42]
+        assert r.browser.set_control_mode(BID, "human")["mode"] == "human"
 
         calls = mock_api.calls
         ctx_body = json.loads(calls[0].request.content)

@@ -18,6 +18,14 @@
   `chromium.desktop` Exec carries the same first-run suppression flags.
 
 ### Added
+- `browser.set_control_mode(...)` (and `runtime.browser.set_control_mode`)
+  — the browser plane's takeover mode `shared` | `human` | `agent`,
+  symmetric with `desktop.set_control_mode`. Under `human` agent `action`
+  calls are rejected while a human holds control; under `agent` viewer
+  input is dropped. Browser status now carries `control_mode` plus a
+  `viewers` presence roster — per-viewer `{id, name, color, agent}`
+  identity and labeled cursor, including the agent's own cursor slot.
+
 - `user=` on `runtimes.run_command`/`run_cmd`, `pty.create`, and
   `desktop.launch_app`/`open` — the guest login the process runs as;
   omitted keeps the session user.

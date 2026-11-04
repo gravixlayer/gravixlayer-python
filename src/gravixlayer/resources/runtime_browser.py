@@ -709,6 +709,15 @@ class RuntimeBrowserResource:
 
         return _with_watch_url(self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/view", body))
 
+    def set_control_mode(self, runtime_id: str, browser_id: str, mode: str) -> Dict[str, Any]:
+        """Live-view takeover mode ``shared`` | ``human`` | ``agent`` →
+        ``{mode}`` — same contract as the display plane. Under ``human`` the
+        browser keeps answering screenshots/status but rejects agent
+        ``action`` calls until the mode returns to ``shared``/``agent``."""
+        _validate_runtime_id(runtime_id)
+        return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/view/control",
+                       {"mode": mode})
+
     # -- events, contexts, storage state --------------------------------------
 
     def events(self, runtime_id: str, browser_id: str, since: int = 0, wait_ms: int = 0) -> Iterator[Dict[str, Any]]:
@@ -1873,6 +1882,13 @@ class AsyncRuntimeBrowserResource:
         from gravixlayer.resources.runtime_display import _with_watch_url
 
         return _with_watch_url(await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/view", body))
+
+    async def set_control_mode(self, runtime_id: str, browser_id: str, mode: str) -> Dict[str, Any]:
+        """Async variant of the sync ``set_control_mode`` — live-view
+        takeover mode ``shared`` | ``human`` | ``agent`` → ``{mode}``."""
+        _validate_runtime_id(runtime_id)
+        return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/view/control",
+                             {"mode": mode})
 
     # -- events, contexts, storage state --------------------------------------
 
