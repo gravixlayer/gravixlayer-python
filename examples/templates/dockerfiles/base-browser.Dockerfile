@@ -113,7 +113,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # /opt/google/chrome and links /usr/bin/google-chrome. `chromium` is
 # aliased on PATH for the browser plane's resolver
 # (`chromium|chromium-browser|google-chrome|chrome`).
-RUN case "$(uname -m)" in \
+# repo_add_once=false keeps the .deb from registering Google's apt
+# repository and its daily repo-refresh hook — a template is an
+# immutable image, so the browser updates when the image rebuilds,
+# never underneath it.
+RUN printf '%s\n' 'repo_add_once="false"' > /etc/default/google-chrome \
+    && case "$(uname -m)" in \
          x86_64|amd64) CHROME_DEB=amd64 ;; \
          aarch64|arm64) CHROME_DEB=arm64 ;; \
          *) echo "unsupported Chrome arch: $(uname -m)" >&2; exit 1 ;; \
@@ -124,6 +129,7 @@ RUN case "$(uname -m)" in \
     && apt-get update \
     && apt-get install -y --no-install-recommends /tmp/google-chrome.deb \
     && rm /tmp/google-chrome.deb \
+    && rm -f /etc/cron.daily/google-chrome /etc/apt/sources.list.d/google-chrome.list \
     && ln -sf /usr/bin/google-chrome /usr/local/bin/chromium \
     && chromium --version | grep -F 'Google Chrome' \
     && rm -rf /var/lib/apt/lists/*
