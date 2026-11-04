@@ -266,7 +266,7 @@ RUN CHROME_VERSION=156.0.8078.80 \
         '[Desktop Entry]' \
         'Type=Application' \
         'Name=Google Chrome' \
-        'Exec=chromium --force-renderer-accessibility %U' \
+        'Exec=chromium --force-renderer-accessibility --no-first-run --no-default-browser-check %U' \
         'Icon=web-browser' \
         'Categories=Network;WebBrowser;' \
         'MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;' \

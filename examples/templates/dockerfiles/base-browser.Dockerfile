@@ -131,6 +131,8 @@ RUN printf '%s\n' 'repo_add_once="false"' > /etc/default/google-chrome \
     && rm /tmp/google-chrome.deb \
     && rm -f /etc/cron.daily/google-chrome /etc/apt/sources.list.d/google-chrome.list \
     && ln -sf /usr/bin/google-chrome /usr/local/bin/chromium \
+    && sed -i 's|^Exec=/usr/bin/google-chrome-stable|Exec=/usr/bin/google-chrome-stable --no-first-run --no-default-browser-check|' \
+        /usr/share/applications/google-chrome.desktop \
     && chromium --version | grep -F 'Google Chrome' \
     && rm -rf /var/lib/apt/lists/*
 

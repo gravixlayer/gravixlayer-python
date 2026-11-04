@@ -6,11 +6,16 @@
 - `base-browser` template Dockerfile now installs Google Chrome from the
   official stable `.deb` channel for the build architecture (amd64 or
   arm64) instead of a Playwright Chromium build. Google's apt repo and
-  daily refresh hook are disabled so the image stays immutable.
+  daily refresh hook are disabled so the image stays immutable. The
+  `google-chrome.desktop` entry carries `--no-first-run` /
+  `--no-default-browser-check` so desktop-launched Chrome skips the
+  first-run Terms of Service screen (which is flag-gated and ignores
+  policies and prefs).
 - `base-desktop` and `base-osworld` template Dockerfiles install Google
   Chrome for Testing (pinned stable build) selected by build
   architecture (`linux64`/`linux-arm64`) instead of a Playwright
-  Chromium build; the desktop app entry is now named Google Chrome.
+  Chromium build; the desktop app entry is now named Google Chrome. The
+  `chromium.desktop` Exec carries the same first-run suppression flags.
 
 ### Added
 - `user=` on `runtimes.run_command`/`run_cmd`, `pty.create`, and
