@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.119] - 2026-11-05
+
 ### Added
 - `secret_providers.add_secret` / `update_secret` / `create` accept
   `allowed_origins` — origin-bind a secret so browser fills refuse off-origin.
@@ -10,6 +12,18 @@
 - `browser.create_context(..., proxy_username=, proxy_password_secret_ref=,
   fingerprint=)` — authenticated upstream proxy (password resolved
   server-side) and per-context persona. Sync + async parity.
+- `browser.set_control_mode(...)` (and `runtime.browser.set_control_mode`)
+  — the browser plane's takeover mode `shared` | `human` | `agent`,
+  symmetric with `desktop.set_control_mode`. Under `human` agent `action`
+  calls are rejected while a human holds control; under `agent` viewer
+  input is dropped. Browser status now carries `control_mode` plus a
+  `viewers` presence roster — per-viewer `{id, name, color, agent}`
+  identity and labeled cursor, including the agent's own cursor slot.
+
+- `user=` on `runtimes.run_command`/`run_cmd`, `pty.create`, and
+  `desktop.launch_app`/`open` — the guest login the process runs as;
+  omitted keeps the session user.
+
 
 ### Changed
 - `base-browser` template Dockerfile now installs Google Chrome from the
@@ -31,18 +45,6 @@
   because OSWorld task configs need `--remote-debugging-port` on the
   default profile, which branded Chrome ≥136 refuses.
 
-### Added
-- `browser.set_control_mode(...)` (and `runtime.browser.set_control_mode`)
-  — the browser plane's takeover mode `shared` | `human` | `agent`,
-  symmetric with `desktop.set_control_mode`. Under `human` agent `action`
-  calls are rejected while a human holds control; under `agent` viewer
-  input is dropped. Browser status now carries `control_mode` plus a
-  `viewers` presence roster — per-viewer `{id, name, color, agent}`
-  identity and labeled cursor, including the agent's own cursor slot.
-
-- `user=` on `runtimes.run_command`/`run_cmd`, `pty.create`, and
-  `desktop.launch_app`/`open` — the guest login the process runs as;
-  omitted keeps the session user.
 - `start_user=` on `templates.build`/`AgentTemplate` and
   `agents.create` template params — the login the template entrypoint
   runs as, serialized as `start_user`.
