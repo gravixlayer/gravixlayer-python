@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+- `secret_providers.add_secret` / `update_secret` / `create` accept
+  `allowed_origins` — origin-bind a secret so browser fills refuse off-origin.
+- `browser.open(..., captcha_policy="handoff", fingerprint={...})` —
+  captcha human-handoff and a coherent device persona.
+- `browser.create_context(..., proxy_username=, proxy_password_secret_ref=,
+  fingerprint=)` — authenticated upstream proxy (password resolved
+  server-side) and per-context persona. Sync + async parity.
+
 ### Changed
 - `base-browser` template Dockerfile now installs Google Chrome from the
   official stable `.deb` channel for the build architecture (amd64 or

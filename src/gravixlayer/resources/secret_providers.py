@@ -90,7 +90,16 @@ class Providers:
         }
         if secrets:
             body["secrets"] = [
-                {"key": s["key"], "value": s["value"]} for s in secrets
+                {
+                    "key": s["key"],
+                    "value": s["value"],
+                    **(
+                        {"allowed_origins": s["allowed_origins"]}
+                        if s.get("allowed_origins")
+                        else {}
+                    ),
+                }
+                for s in secrets
             ]
         endpoint = "providers"
         if project_id:
@@ -162,15 +171,24 @@ class Providers:
         provider_id: str,
         key: str,
         value: str,
+        allowed_origins: Optional[List[str]] = None,
         project_id: Optional[str] = None,
     ) -> SecretInfo:
-        """Add or upsert a key/value secret on a provider."""
+        """Add or upsert a key/value secret on a provider.
+
+        Args:
+            allowed_origins: Origins the value may be filled on in the
+                browser (``"https://app.example.com"``, ``"*.example.com"``,
+                ``"example.com"``). A ``secret_ref`` fill refuses to type on
+                any other origin.
+        """
         endpoint = f"providers/{provider_id}/secrets"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
-        response = self._make_identity_request(
-            "POST", endpoint, {"key": key, "value": value}
-        )
+        body: Dict[str, Any] = {"key": key, "value": value}
+        if allowed_origins is not None:
+            body["allowed_origins"] = allowed_origins
+        response = self._make_identity_request("POST", endpoint, body)
         return _parse_secret(response.json()["secret"])
 
     def list_secrets(self, provider_id: str) -> SecretList:
@@ -189,14 +207,17 @@ class Providers:
         secret_id: str,
         key: Optional[str] = None,
         value: Optional[str] = None,
+        allowed_origins: Optional[List[str]] = None,
         project_id: Optional[str] = None,
     ) -> SecretInfo:
-        """Update a secret's key and/or replace its value."""
+        """Update a secret's key, value, and/or origin binding."""
         body: Dict[str, Any] = {}
         if key is not None:
             body["key"] = key
         if value is not None:
             body["value"] = value
+        if allowed_origins is not None:
+            body["allowed_origins"] = allowed_origins
         endpoint = f"providers/{provider_id}/secrets/{secret_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"

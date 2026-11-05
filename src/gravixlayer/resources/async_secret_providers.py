@@ -50,7 +50,16 @@ class AsyncProviders:
         }
         if secrets:
             body["secrets"] = [
-                {"key": s["key"], "value": s["value"]} for s in secrets
+                {
+                    "key": s["key"],
+                    "value": s["value"],
+                    **(
+                        {"allowed_origins": s["allowed_origins"]}
+                        if s.get("allowed_origins")
+                        else {}
+                    ),
+                }
+                for s in secrets
             ]
         endpoint = "providers"
         if project_id:
@@ -118,14 +127,16 @@ class AsyncProviders:
         provider_id: str,
         key: str,
         value: str,
+        allowed_origins: Optional[List[str]] = None,
         project_id: Optional[str] = None,
     ) -> SecretInfo:
         endpoint = f"providers/{provider_id}/secrets"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"
-        response = await self._make_identity_request(
-            "POST", endpoint, {"key": key, "value": value}
-        )
+        body: Dict[str, Any] = {"key": key, "value": value}
+        if allowed_origins is not None:
+            body["allowed_origins"] = allowed_origins
+        response = await self._make_identity_request("POST", endpoint, body)
         return _parse_secret(response.json()["secret"])
 
     async def list_secrets(self, provider_id: str) -> SecretList:
@@ -143,6 +154,7 @@ class AsyncProviders:
         secret_id: str,
         key: Optional[str] = None,
         value: Optional[str] = None,
+        allowed_origins: Optional[List[str]] = None,
         project_id: Optional[str] = None,
     ) -> SecretInfo:
         body: Dict[str, Any] = {}
@@ -150,6 +162,8 @@ class AsyncProviders:
             body["key"] = key
         if value is not None:
             body["value"] = value
+        if allowed_origins is not None:
+            body["allowed_origins"] = allowed_origins
         endpoint = f"providers/{provider_id}/secrets/{secret_id}"
         if project_id:
             endpoint = f"{endpoint}?project_id={project_id}"

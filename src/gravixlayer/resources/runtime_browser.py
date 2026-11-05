@@ -104,7 +104,15 @@ def _target(target: Any) -> Optional[Dict[str, Any]]:
 _COMMAND_VERBS = frozenset({"back", "forward", "reload", "activate"})
 
 
-def _open_body(engine: str, headless: bool, profile_dir: str, args: Optional[List[str]], url: str) -> Dict[str, Any]:
+def _open_body(
+    engine: str,
+    headless: bool,
+    profile_dir: str,
+    args: Optional[List[str]],
+    url: str,
+    captcha_policy: str = "",
+    fingerprint: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     body: Dict[str, Any] = {"engine": engine, "headless": headless}
     if profile_dir:
         body["profile_dir"] = profile_dir
@@ -112,6 +120,10 @@ def _open_body(engine: str, headless: bool, profile_dir: str, args: Optional[Lis
         body["args"] = args
     if url:
         body["url"] = url
+    if captcha_policy:
+        body["captcha_policy"] = captcha_policy
+    if fingerprint:
+        body["fingerprint"] = fingerprint
     return body
 
 
@@ -212,12 +224,19 @@ class RuntimeBrowserResource:
         profile_dir: str = "",
         args: Optional[List[str]] = None,
         url: str = "",
+        captcha_policy: str = "",
+        fingerprint: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Open a browser. Headed by default — the window is on the runtime's
-        display, so ``view()`` and pixel actions work on it."""
+        display, so ``view()`` and pixel actions work on it.
+
+        ``captcha_policy="handoff"`` transfers live control to a human when
+        a captcha challenge is detected. ``fingerprint`` applies a coherent
+        device persona (``user_agent``, ``platform``, ``ua_full_version``,
+        ``locale``, ``timezone_id``, ``geolocation_*``, ``mobile``)."""
         _validate_runtime_id(runtime_id)
         return self._j(
-            "POST", f"runtime/{runtime_id}/browser/open", _open_body(engine, headless, profile_dir, args, url)
+            "POST", f"runtime/{runtime_id}/browser/open", _open_body(engine, headless, profile_dir, args, url, captcha_policy, fingerprint)
         )
 
     def close(self, runtime_id: str, browser_id: str) -> Dict[str, Any]:
@@ -747,18 +766,36 @@ class RuntimeBrowserResource:
             response.close()
 
     def create_context(
-        self, runtime_id: str, browser_id: str, proxy: str = "", storage_state: Optional[Dict[str, Any]] = None
+        self,
+        runtime_id: str,
+        browser_id: str,
+        proxy: str = "",
+        storage_state: Optional[Dict[str, Any]] = None,
+        proxy_username: str = "",
+        proxy_password_secret_ref: str = "",
+        fingerprint: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Open an isolated browser context (separate cookie/storage jars)
         → ``{context_id}``. ``proxy`` is a proxy server URL;
         ``storage_state`` seeds the context's cookies and origins in the
-        Playwright-compatible export shape."""
+        Playwright-compatible export shape.
+
+        ``proxy_username`` + ``proxy_password_secret_ref`` authenticate an
+        upstream proxy via secret reference — the password is resolved
+        server-side and never crosses the client. ``fingerprint`` applies a
+        per-context device persona."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
         if proxy:
             body["proxy"] = proxy
         if storage_state is not None:
             body["storage_state"] = storage_state
+        if proxy_username:
+            body["proxy_username"] = proxy_username
+        if proxy_password_secret_ref:
+            body["proxy_password_secret_ref"] = proxy_password_secret_ref
+        if fingerprint:
+            body["fingerprint"] = fingerprint
         return self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/context", body)
 
     def contexts(self, runtime_id: str, browser_id: str) -> Dict[str, Any]:
@@ -1419,10 +1456,12 @@ class AsyncRuntimeBrowserResource:
         profile_dir: str = "",
         args: Optional[List[str]] = None,
         url: str = "",
+        captcha_policy: str = "",
+        fingerprint: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         _validate_runtime_id(runtime_id)
         return await self._j(
-            "POST", f"runtime/{runtime_id}/browser/open", _open_body(engine, headless, profile_dir, args, url)
+            "POST", f"runtime/{runtime_id}/browser/open", _open_body(engine, headless, profile_dir, args, url, captcha_policy, fingerprint)
         )
 
     async def close(self, runtime_id: str, browser_id: str) -> Dict[str, Any]:
@@ -1917,16 +1956,31 @@ class AsyncRuntimeBrowserResource:
             await response.aclose()
 
     async def create_context(
-        self, runtime_id: str, browser_id: str, proxy: str = "", storage_state: Optional[Dict[str, Any]] = None
+        self,
+        runtime_id: str,
+        browser_id: str,
+        proxy: str = "",
+        storage_state: Optional[Dict[str, Any]] = None,
+        proxy_username: str = "",
+        proxy_password_secret_ref: str = "",
+        fingerprint: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Open an isolated browser context (separate cookie/storage jars)
-        → ``{context_id}``. ``proxy`` is a proxy server URL."""
+        → ``{context_id}``. ``proxy`` is a proxy server URL. Upstream proxy
+        credentials come from ``proxy_username`` + ``proxy_password_secret_ref``
+        (resolved server-side); ``fingerprint`` sets a per-context persona."""
         _validate_runtime_id(runtime_id)
         body: Dict[str, Any] = {}
         if proxy:
             body["proxy"] = proxy
         if storage_state is not None:
             body["storage_state"] = storage_state
+        if proxy_username:
+            body["proxy_username"] = proxy_username
+        if proxy_password_secret_ref:
+            body["proxy_password_secret_ref"] = proxy_password_secret_ref
+        if fingerprint:
+            body["fingerprint"] = fingerprint
         return await self._j("POST", f"runtime/{runtime_id}/browser/{_q(browser_id)}/context", body)
 
     async def contexts(self, runtime_id: str, browser_id: str) -> Dict[str, Any]:
