@@ -1,14 +1,18 @@
 # syntax=docker/dockerfile:1
 #
-# OSWorld template — Ubuntu 22.04 desktop (GNOME 42 on a virtual display)
-# plus the full OSWorld guest surface: the in-guest Flask server on :5000
-# (osworld_server.service — the unit name is a contract), Google Chrome with
-# the :9222→:1337 CDP relay, x11vnc + noVNC for humans, AT-SPI accessibility,
-# and the `user` account (uid 1000) that owns the desktop session.
+# GravixLayer base-osworld template
 #
-#   The first ~420 lines are the shared desktop base; the OSWorld layer is
-#   delimited below. This file is self-contained — it fetches the pinned
-#   upstream server tree itself, so it builds anywhere:
+# Ubuntu 24.04 desktop (GNOME 46 on a virtual display) plus the full
+# OSWorld guest surface: the in-guest Flask server on :5000
+# (osworld_server.service — the unit name is a contract), Google Chrome
+# with the :9222→:1337 CDP relay, x11vnc + noVNC for humans, AT-SPI
+# accessibility, and the `user` account (uid 1000) that owns the desktop
+# session.
+#
+#   The first ~430 lines are the shared desktop base (identical to
+#   base-desktop); the OSWorld layer is delimited below. This file is
+#   self-contained — it fetches the pinned upstream server tree itself,
+#   so it builds anywhere:
 #
 #   gravixlayer template build \
 #     --dockerfile ./base-osworld.Dockerfile \
@@ -24,15 +28,16 @@
 #   - desktop-x.service serves display :0 (Xvfb, no TCP listener). The
 #     framebuffer file is in /run/desktop; clients authenticate with
 #     /var/lib/desktop/Xauthority.
-#   - desktop-session.service runs the GNOME session as `agent` in a
-#     logind session. desktop-session.path starts it as soon as the X
-#     socket exists; its ExecStartPre handshake gate waits until the
-#     server accepts authorized connections.
+#   - desktop-session.service runs the GNOME session as `user` (uid
+#     1000) in a logind session. desktop-session.path starts it as soon
+#     as the X socket exists; its ExecStartPre handshake gate waits
+#     until the server accepts authorized connections.
 #   - /etc/gravixlayer/desktop.json describes the display. Its presence
 #     makes a template a desktop template.
-#   - `chromium` on PATH for the browser plane.
-#
-# Add your own applications in the `apps` stage of a copy of this file.
+#   - `google-chrome` on PATH is a shim onto Chrome for Testing (the
+#     versioned Google build exempt from the branding-gated CDP-port
+#     check) with the profile pinned to ~/.config/google-chrome; the
+#     stable .deb supplies the dependency chain.
 #
 # Lean choices:
 #   - Ubuntu's firefox and chromium packages are snap stubs, and snaps do
@@ -45,8 +50,8 @@
 #   - Accessibility is on for every toolkit, so the desktop's
 #     accessibility tree covers GTK, Qt, Firefox, Chromium and Electron
 #     windows.
-
-FROM ubuntu:22.04 AS system
+#
+FROM ubuntu:24.04 AS system
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -111,7 +116,7 @@ FROM devtools AS desktop
 #                            CPU, the guest has no GPU
 #   ubuntu-session, gnome-shell, gnome-shell-extension-*, yaru-theme-*,
 #   ubuntu-settings, fonts-ubuntu
-#                          — GNOME 42 with the Ubuntu session, dock, theme,
+#                          — GNOME 46 with the Ubuntu session, dock, theme,
 #                            font and wallpaper
 #   librsvg2-common        — SVG icons: every symbolic icon in the shell
 #   nautilus, gnome-terminal, gedit, evince, gnome-calculator, eog
@@ -203,8 +208,12 @@ RUN FF_VERSION=153.5.1esr \
            FF_SHA256=e566ecb209917c0b4d11813212c5afae4383f28ca554c4ad651df044cb255cde ;; \
          *) echo "unsupported Firefox arch: $(uname -m)" >&2; exit 1 ;; \
        esac \
-    && curl -fsSL -o /tmp/firefox.tar.xz \
+    && for url in \
         "https://ftp.mozilla.org/pub/firefox/releases/${FF_VERSION}/${FF_ARCH}/en-US/firefox-${FF_VERSION}.tar.xz" \
+        "https://archive.mozilla.org/pub/firefox/releases/${FF_VERSION}/${FF_ARCH}/en-US/firefox-${FF_VERSION}.tar.xz"; do \
+         curl -fSL --retry 5 --retry-all-errors --connect-timeout 20 \
+            -o /tmp/firefox.tar.xz "$url" && break; \
+       done \
     && echo "${FF_SHA256}  /tmp/firefox.tar.xz" | sha256sum -c - \
     && tar -xJf /tmp/firefox.tar.xz -C /opt \
     && rm /tmp/firefox.tar.xz \
@@ -226,40 +235,6 @@ RUN FF_VERSION=153.5.1esr \
         'StartupWMClass=firefox-esr' \
         'StartupNotify=true' \
         > /usr/share/applications/firefox-esr.desktop
-
-# Thunderbird ESR — Mozilla's release build, pinned and checksum-verified.
-# Ubuntu 22.04's thunderbird package is a snap stub and snaps do not run in
-# the guest. Mozilla publishes Linux tarballs for x86_64 only; other arches
-# fall back to the mozillateam PPA, which builds real .debs for them.
-RUN TB_VERSION=140.4.0esr \
-    && if [ "$(uname -m)" = "x86_64" ]; then \
-         curl -fsSL -o /tmp/thunderbird.tar.xz \
-           "https://ftp.mozilla.org/pub/thunderbird/releases/${TB_VERSION}/linux-x86_64/en-US/thunderbird-${TB_VERSION}.tar.xz" \
-        && echo "86b461f0f53969e0da2e097ae7b353e90728c7064bddf1740d3548ca36f8d679  /tmp/thunderbird.tar.xz" | sha256sum -c - \
-        && tar -xJf /tmp/thunderbird.tar.xz -C /opt \
-        && rm /tmp/thunderbird.tar.xz \
-        && ln -sf /opt/thunderbird/thunderbird /usr/local/bin/thunderbird \
-        && mkdir -p /usr/share/icons/hicolor/256x256/apps \
-        && cp /opt/thunderbird/chrome/icons/default/default256.png \
-           /usr/share/icons/hicolor/256x256/apps/thunderbird.png; \
-       else \
-         apt-get update \
-        && apt-get install -y --no-install-recommends software-properties-common \
-        && add-apt-repository -y ppa:mozillateam/ppa \
-        && apt-get update && apt-get install -y --no-install-recommends thunderbird \
-        && rm -rf /var/lib/apt/lists/*; \
-       fi \
-    && printf '%s\n' \
-        '[Desktop Entry]' \
-        'Type=Application' \
-        'Name=Thunderbird' \
-        'Exec=thunderbird %u' \
-        'Icon=thunderbird' \
-        'Categories=Network;Email;' \
-        'MimeType=x-scheme-handler/mailto;message/rfc822;' \
-        'StartupWMClass=thunderbird' \
-        'StartupNotify=true' \
-        > /usr/share/applications/thunderbird.desktop
 
 # Google Chrome — official stable channel .deb for the build arch.
 # `apt-get install ./pkg.deb` resolves and installs the runtime
@@ -555,8 +530,10 @@ RUN case "$(uname -m)" in \
 # the desktop-session owner. linger is file-based — no logind runs during
 # docker build. /home/user/.Xauthority carries the display cookie so the
 # OSWorld server's plain DISPLAY=:0 works like the upstream VM's.
-# (/usr/sbin is off this stage's PATH — absolute paths for account tools.)
-RUN /usr/sbin/useradd -m -u 1000 -s /bin/bash user \
+# (/usr/sbin is off this stage's PATH — absolute paths for account tools.
+# Noble's stock `ubuntu` user already holds uid 1000 — remove it first.)
+RUN /usr/sbin/userdel -r ubuntu 2>/dev/null || true \
+    && /usr/sbin/useradd -m -u 1000 -s /bin/bash user \
     && echo "user:password" | /usr/sbin/chpasswd \
     && printf '%s\n' 'user ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/osworld \
     && chmod 440 /etc/sudoers.d/osworld \
@@ -623,7 +600,7 @@ RUN printf '%s\n' \
 # inside the build so this Dockerfile needs no build context. Deps install on
 # the *system* interpreter: the unit ExecStarts /usr/bin/python, not the
 # image's /workspace/.venv. setuptools upgrades first — pynput's git-ref pin
-# resolves through the legacy path and dies on jammy's stock toolchain.
+# resolves through the legacy path and resolves through the legacy path and needs a newer toolchain.
 RUN OSWORLD_COMMIT=044bc33901cb893808e3f91ebc9a17ed8e54b44c \
     && curl -fsSL -o /tmp/osworld.tar.gz \
         "https://codeload.github.com/xlang-ai/OSWorld/tar.gz/${OSWORLD_COMMIT}" \
@@ -632,8 +609,9 @@ RUN OSWORLD_COMMIT=044bc33901cb893808e3f91ebc9a17ed8e54b44c \
     && cp -r /tmp/osworld/desktop_env/server /home/user/server \
     && rm -rf /tmp/osworld /tmp/osworld.tar.gz \
     && chown -R user:user /home/user \
-    && /usr/bin/python3 -m pip install --no-cache-dir -U pip setuptools wheel \
-    && /usr/bin/python3 -m pip install --no-cache-dir -r /home/user/server/requirements.txt
+    && /usr/bin/python3 -m pip install --no-cache-dir --break-system-packages --ignore-installed -U pip setuptools wheel \
+    && /usr/bin/python3 -m pip install --no-cache-dir --break-system-packages --ignore-installed \
+        -r /home/user/server/requirements.txt
 
 # The OSWorld and human-view units, in the same idiom as the units above.
 RUN printf '%s\n' \

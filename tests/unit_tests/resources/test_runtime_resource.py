@@ -464,6 +464,81 @@ class TestSyncRuntimeFiles:
         result = client.runtime.file.write(VALID_UUID, "/tmp/f.txt", "content")
         assert result.message == "Written"
 
+    def test_write_file_append_flag(self, client, mock_api):
+        route = mock_api.post(f"{SB}/{VALID_UUID}/files/write").mock(
+            return_value=httpx.Response(200, json={"message": "Written", "path": "/tmp/f.txt"})
+        )
+        client.runtime.file.write(VALID_UUID, "/tmp/f.txt", "more", append=True)
+        assert json.loads(route.calls.last.request.content) == {
+            "path": "/tmp/f.txt",
+            "content": "more",
+            "append": True,
+        }
+
+    def test_write_file_large_routes_to_upload(self, client, mock_api):
+        write_route = mock_api.post(f"{SB}/{VALID_UUID}/files/write").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(
+                200, json={"files": [{"path": "/tmp/big.bin", "name": "big.bin", "type": "file"}]}
+            )
+        )
+        result = client.runtime.file.write(VALID_UUID, "/tmp/big.bin", "x" * (1024 * 1024))
+        assert not write_route.called
+        assert result.path == "/tmp/big.bin"
+        assert result.bytes_written == 1024 * 1024
+
+    def test_write_file_large_append_carries_flag(self, client, mock_api):
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(
+                200, json={"files": [{"path": "/tmp/big.bin", "name": "big.bin", "type": "file"}]}
+            )
+        )
+        client.runtime.file.write(VALID_UUID, "/tmp/big.bin", "x" * (1024 * 1024), append=True)
+        assert mock_api.calls.last.request.url.params.get("append") == "true"
+
+    def test_write_file_escape_heavy_routes_to_upload(self, client, mock_api):
+        write_route = mock_api.post(f"{SB}/{VALID_UUID}/files/write").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(200, json={"files": [{"path": "/tmp/log.txt"}]})
+        )
+        # 800 KiB of newlines JSON-encode to ~1.6 MB.
+        client.runtime.file.write(VALID_UUID, "/tmp/log.txt", "\n" * (800 * 1024))
+        assert not write_route.called
+
+    def test_read_file_range(self, client, mock_api):
+        route = mock_api.post(f"{SB}/{VALID_UUID}/files/read").mock(
+            return_value=httpx.Response(
+                200, json={"content": "ell", "path": "/tmp/f.txt", "size": 11}
+            )
+        )
+        result = client.runtime.file.read(VALID_UUID, "/tmp/f.txt", offset=1, length=3)
+        assert json.loads(route.calls.last.request.content) == {
+            "path": "/tmp/f.txt",
+            "offset": 1,
+            "length": 3,
+        }
+        assert result.size == 11
+
+    def test_upload_append_query(self, client, mock_api):
+        mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(200, json={"files": [{"path": "/tmp/f.bin"}]})
+        )
+        client.runtime.file.upload(VALID_UUID, "/tmp/f.bin", b"data", append=True)
+        assert mock_api.calls.last.request.url.params.get("append") == "true"
+
+    def test_download_file_range(self, client, mock_api):
+        mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/download").mock(
+            return_value=httpx.Response(200, content=b"e")
+        )
+        result = client.runtime.file.download_file(VALID_UUID, "/tmp/f.bin", offset=10, length=1)
+        assert mock_api.calls.last.request.url.params.get("offset") == "10"
+        assert mock_api.calls.last.request.url.params.get("length") == "1"
+        assert result == b"e"
+
     def test_list_files(self, client, mock_api):
         mock_api.post(f"{SB}/{VALID_UUID}/files/list").mock(
             return_value=httpx.Response(200, json={

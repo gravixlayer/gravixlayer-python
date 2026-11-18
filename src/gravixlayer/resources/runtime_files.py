@@ -47,10 +47,20 @@ from ..types.runtime import (
 #: How many files ``write_many`` sends at the same time.
 DEFAULT_WRITE_CONCURRENCY = 8
 
+#: Largest ``files/write`` JSON body the API accepts is 2 MiB; JSON escapes
+#: inflate the body past the raw content length, so writes switch to the
+#: binary upload endpoint with headroom.
+WRITE_JSON_MAX_BYTES = 1024 * 1024
+
 
 def _utf8_nbytes(text: str) -> int:
     """Byte length of ``text`` as UTF-8 without copying ASCII payloads."""
     return len(text) if text.isascii() else len(text.encode("utf-8"))
+
+
+def _json_nbytes(text: str) -> int:
+    """Byte length of ``text`` as it appears inside a JSON string body."""
+    return len(json.dumps(text).encode("utf-8"))
 
 
 def _file_read_response(result: Dict[str, Any], path: str) -> FileReadResponse:
@@ -219,11 +229,26 @@ class RuntimeFileResource:
     def _req(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any):
         return self._r._make_agents_request(method, endpoint, data, **kwargs)
 
-    def read(self, runtime_id: str, path: str) -> FileReadResponse:
-        """Read file contents from the runtime."""
+    def read(
+        self,
+        runtime_id: str,
+        path: str,
+        offset: Optional[int] = None,
+        length: Optional[int] = None,
+    ) -> FileReadResponse:
+        """Read file contents from the runtime.
+
+        ``offset``/``length`` page a byte range; ``size`` in the response
+        reports the file's total size. For whole large files, ``download_file``
+        avoids JSON/base64 entirely.
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        data = {"path": path}
+        data: Dict[str, Any] = {"path": path}
+        if offset is not None:
+            data["offset"] = offset
+        if length is not None:
+            data["length"] = length
         with telemetry.runtime_span("file.read", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/read", data)
             result = response.json()
@@ -232,11 +257,31 @@ class RuntimeFileResource:
                 telemetry.record_outputs(span, {"path": path, "size": parsed.size})
             return parsed
 
-    def write(self, runtime_id: str, path: str, content: str) -> FileWriteResponse:
-        """Write text content via JSON API (``POST .../files/write``)."""
+    def write(
+        self,
+        runtime_id: str,
+        path: str,
+        content: str,
+        append: bool = False,
+    ) -> FileWriteResponse:
+        """Write text content, creating or replacing the file.
+
+        ``append=True`` extends the file instead. Content that would exceed
+        the JSON request cap is routed through the binary upload endpoint
+        automatically — callers never see a size error.
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        payload = {"path": path, "content": content}
+        # Escapes inflate the JSON body past the raw content length, so
+        # measure the encoded form before choosing the transport.
+        if _json_nbytes(content) > WRITE_JSON_MAX_BYTES:
+            written = self.upload(runtime_id, path, content.encode("utf-8"), append=append)
+            return FileWriteResponse(
+                message="File written", path=written.path, bytes_written=written.size
+            )
+        payload: Dict[str, Any] = {"path": path, "content": content}
+        if append:
+            payload["append"] = True
         with telemetry.runtime_span("file.write", runtime_id) as span:
             response = self._req("POST", f"runtime/{runtime_id}/files/write", payload)
             result = response.json()
@@ -285,8 +330,12 @@ class RuntimeFileResource:
         data: Union[str, bytes, BinaryIO],
         user: Optional[str] = None,
         mode: Optional[int] = None,
+        append: bool = False,
     ) -> WriteResult:
-        """Write raw content via multipart upload (``POST .../files``)."""
+        """Write raw content via multipart upload (``POST .../files``).
+
+        ``append=True`` extends the destination instead of replacing it.
+        """
         _validate_runtime_id(runtime_id)
         content = self._coerce_to_bytes(data)
         filename = os.path.basename(path)
@@ -295,6 +344,8 @@ class RuntimeFileResource:
             params["username"] = user
         if mode is not None:
             params["mode"] = _format_mode(mode)
+        if append:
+            params["append"] = "true"
         endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
         files = {"file": (filename, content, "application/octet-stream")}
         with telemetry.runtime_span("file.upload", runtime_id) as span:
@@ -312,6 +363,7 @@ class RuntimeFileResource:
         entries: List[WriteEntry],
         user: Optional[str] = None,
         concurrency: int = DEFAULT_WRITE_CONCURRENCY,
+        append: bool = False,
     ) -> WriteFilesResponse:
         """Write several files, each to its own destination path.
 
@@ -335,7 +387,7 @@ class RuntimeFileResource:
             entry = entries[index]
             try:
                 results[index] = self.upload(
-                    runtime_id, entry.path, entry.data, user=user, mode=entry.mode
+                    runtime_id, entry.path, entry.data, user=user, mode=entry.mode, append=append
                 )
             except GravixLayerConnectionError:
                 # The transport failed, so this says nothing about one file.
@@ -744,10 +796,22 @@ class RuntimeFileResource:
                 telemetry.record_outputs(span, {"path": path or getattr(uploaded, "path", None)})
             return uploaded
 
-    def download_file(self, runtime_id: str, path: str) -> bytes:
+    def download_file(
+        self,
+        runtime_id: str,
+        path: str,
+        offset: Optional[int] = None,
+        length: Optional[int] = None,
+    ) -> bytes:
+        """Download a file's raw bytes; ``offset``/``length`` page a range."""
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        endpoint = f"runtime/{runtime_id}/download?{urlencode({'path': path})}"
+        params: Dict[str, Any] = {"path": path}
+        if offset is not None:
+            params["offset"] = offset
+        if length is not None:
+            params["length"] = length
+        endpoint = f"runtime/{runtime_id}/download?{urlencode(params)}"
         with telemetry.runtime_span("file.download", runtime_id) as span:
             response = self._req("GET", endpoint)
             content = response.content
@@ -777,10 +841,20 @@ class AsyncRuntimeFileResource:
     async def _req(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None, **kwargs: Any):
         return await self._r._make_agents_request(method, endpoint, data, **kwargs)
 
-    async def read(self, runtime_id: str, path: str) -> FileReadResponse:
+    async def read(
+        self,
+        runtime_id: str,
+        path: str,
+        offset: Optional[int] = None,
+        length: Optional[int] = None,
+    ) -> FileReadResponse:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        payload = {"path": path}
+        payload: Dict[str, Any] = {"path": path}
+        if offset is not None:
+            payload["offset"] = offset
+        if length is not None:
+            payload["length"] = length
         with telemetry.runtime_span("file.read", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/read", payload)
             result = response.json()
@@ -789,10 +863,27 @@ class AsyncRuntimeFileResource:
                 telemetry.record_outputs(span, {"path": path, "size": parsed.size})
             return parsed
 
-    async def write(self, runtime_id: str, path: str, content: str) -> FileWriteResponse:
+    async def write(
+        self,
+        runtime_id: str,
+        path: str,
+        content: str,
+        append: bool = False,
+    ) -> FileWriteResponse:
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        payload = {"path": path, "content": content}
+        # Escapes inflate the JSON body past the raw content length, so
+        # measure the encoded form before choosing the transport.
+        if _json_nbytes(content) > WRITE_JSON_MAX_BYTES:
+            written = await self.upload(
+                runtime_id, path, content.encode("utf-8"), append=append
+            )
+            return FileWriteResponse(
+                message="File written", path=written.path, bytes_written=written.size
+            )
+        payload: Dict[str, Any] = {"path": path, "content": content}
+        if append:
+            payload["append"] = True
         with telemetry.runtime_span("file.write", runtime_id) as span:
             response = await self._req("POST", f"runtime/{runtime_id}/files/write", payload)
             result = response.json()
@@ -842,6 +933,7 @@ class AsyncRuntimeFileResource:
         data: Union[str, bytes, BinaryIO],
         user: Optional[str] = None,
         mode: Optional[int] = None,
+        append: bool = False,
     ) -> WriteResult:
         _validate_runtime_id(runtime_id)
         content = self._coerce_to_bytes(data)
@@ -851,6 +943,8 @@ class AsyncRuntimeFileResource:
             params["username"] = user
         if mode is not None:
             params["mode"] = _format_mode(mode)
+        if append:
+            params["append"] = "true"
         endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
         files = {"file": (filename, content, "application/octet-stream")}
         with telemetry.runtime_span("file.upload", runtime_id) as span:
@@ -868,6 +962,7 @@ class AsyncRuntimeFileResource:
         entries: List[WriteEntry],
         user: Optional[str] = None,
         concurrency: int = DEFAULT_WRITE_CONCURRENCY,
+        append: bool = False,
     ) -> WriteFilesResponse:
         """Write several files, each to its own destination path.
 
@@ -893,7 +988,8 @@ class AsyncRuntimeFileResource:
             async with limit:
                 try:
                     results[index] = await self.upload(
-                        runtime_id, entry.path, entry.data, user=user, mode=entry.mode
+                        runtime_id, entry.path, entry.data, user=user, mode=entry.mode,
+                        append=append,
                     )
                 except GravixLayerConnectionError:
                     # The transport failed, so this says nothing about one file.
@@ -1185,10 +1281,22 @@ class AsyncRuntimeFileResource:
                 telemetry.record_outputs(span, {"path": path or getattr(uploaded, "path", None)})
             return uploaded
 
-    async def download_file(self, runtime_id: str, path: str) -> bytes:
+    async def download_file(
+        self,
+        runtime_id: str,
+        path: str,
+        offset: Optional[int] = None,
+        length: Optional[int] = None,
+    ) -> bytes:
+        """Download a file's raw bytes; ``offset``/``length`` page a range."""
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        endpoint = f"runtime/{runtime_id}/download?{urlencode({'path': path})}"
+        params: Dict[str, Any] = {"path": path}
+        if offset is not None:
+            params["offset"] = offset
+        if length is not None:
+            params["length"] = length
+        endpoint = f"runtime/{runtime_id}/download?{urlencode(params)}"
         with telemetry.runtime_span("file.download", runtime_id) as span:
             response = await self._req("GET", endpoint)
             content = response.content

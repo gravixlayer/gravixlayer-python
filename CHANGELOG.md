@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [0.1.120] - 2026-11-18
+
+### Added
+- `file.read` and `file.download_file` accept `offset`/`length` to page a
+  byte range; the read response's `size` reports the file's total size.
+- `file.write` accepts `append=True` to extend an existing file, and
+  `file.upload`/`file.write_many` forward `append` to the upload endpoint.
+- `file.write` routes content that would exceed the JSON request cap
+  through the binary upload endpoint automatically — escape-heavy or
+  multi-megabyte strings no longer fail with a payload error.
+
+### Fixed
+- `base-osworld` example Dockerfile builds again — rebased onto the
+  Ubuntu 24.04 desktop base (matches `base-desktop`), drops noble's
+  stock `ubuntu` user so uid 1000 belongs to `user`, and installs the
+  in-guest server's Python deps with `pip --break-system-packages
+  --ignore-installed` so debian-managed wheels without RECORD
+  (blinker et al.) no longer abort the build. Also picks up the
+  Firefox archive-mirror fallback and drops Thunderbird, which noble
+  no longer needs a tarball workaround for.
+
 ## [0.1.119] - 2026-11-05
 
 ### Added
