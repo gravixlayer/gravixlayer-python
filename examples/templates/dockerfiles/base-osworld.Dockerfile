@@ -503,15 +503,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # deb installed above supplies its dependency chain, and a PATH shim
 # routes `google-chrome` to CfT with the profile dir pinned to the
 # getter-visible default.
-ARG CHROME_FOR_TESTING_VERSION=156.0.8078.47
+# CfT release to install. Empty resolves the current Stable channel at
+# build time — the browser always ships the latest stable, never a stale
+# pin. Set an explicit version (e.g. 158.0.8127.36) to freeze the image.
+ARG CHROME_FOR_TESTING_VERSION=
 RUN case "$(uname -m)" in \
          x86_64|amd64) CFT_ARCH=linux64 ;; \
          aarch64|arm64) CFT_ARCH=linux-arm64 ;; \
          *) echo "unsupported Chrome arch: $(uname -m)" >&2; exit 1 ;; \
        esac \
+    && CFT_VERSION="${CHROME_FOR_TESTING_VERSION:-$(curl -fsSL \
+        https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json \
+        | grep -oE '"Stable":\{[^}]*' | grep -oE '[0-9]+(\.[0-9]+){3}' | head -1)}" \
+    && test -n "$CFT_VERSION" \
     && apt-get update && apt-get install -y --no-install-recommends unzip \
     && curl -fSL --retry 5 --retry-all-errors --connect-timeout 20 \
-        "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/${CFT_ARCH}/chrome-${CFT_ARCH}.zip" \
+        "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/${CFT_ARCH}/chrome-${CFT_ARCH}.zip" \
         -o /tmp/chrome-for-testing.zip \
     && unzip -q /tmp/chrome-for-testing.zip -d /opt/chrome-for-testing \
     && mv "/opt/chrome-for-testing/chrome-${CFT_ARCH}" /opt/chrome-for-testing/chrome \

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+- `examples/templates/dockerfiles/base-osworld.Dockerfile`: the Chrome for
+  Testing install no longer ships a hardcoded stale version. An empty
+  `CHROME_FOR_TESTING_VERSION` (the default) resolves the current Stable
+  channel release at image-build time, so builds always ship the latest
+  stable browser; set the arg explicitly to pin a reproducible build.
+
 ## [0.1.120] - 2026-11-18
 
 ### Added
