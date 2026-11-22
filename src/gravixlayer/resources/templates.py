@@ -44,7 +44,7 @@ def _attach_placement(
 ) -> Dict[str, Any]:
     """Fill cloud/region from the client unless the payload already has them.
 
-    Same contract as runtime create: ``GravixLayer()`` builds in aws/us-east-1.
+    Same contract as runtime create: ``GravixLayer()`` builds in gravix/us-central-1.
     A copy is returned so a caller-owned dict is not mutated.
     """
     out = dict(payload)
@@ -145,9 +145,9 @@ class Templates:
             builder: A TemplateBuilder instance or a raw dict matching
                      the BuildTemplateRequest schema.
             cloud: Cloud to build in. Defaults to the client's cloud
-                   (``aws``, or ``GRAVIXLAYER_CLOUD``).
+                   (``gravix``, or ``GRAVIXLAYER_CLOUD``).
             region: Region to build in. Defaults to the client's region
-                    (``us-east-1``, or ``GRAVIXLAYER_REGION``).
+                    (``us-central-1``, or ``GRAVIXLAYER_REGION``).
 
         Returns:
             TemplateBuildResponse with build_id for status polling.

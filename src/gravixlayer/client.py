@@ -47,8 +47,8 @@ class GravixLayer:
     Args:
         api_key: API key for authentication (or GRAVIXLAYER_API_KEY env var)
         base_url: Base URL for the API (or GRAVIXLAYER_BASE_URL env var, default: "https://api.gravixlayer.ai")
-        cloud: Default cloud for runtime/template operations (default: "aws")
-        region: Default region for runtime/template operations (default: "us-east-1")
+        cloud: Default cloud for runtime/template operations (default: "gravix")
+        region: Default region for runtime/template operations (default: "us-central-1")
         timeout: Request timeout in seconds (default: 60.0)
         max_retries: Maximum retry attempts for transient failures (default: 3)
         headers: Additional HTTP headers to include in requests
@@ -63,7 +63,7 @@ class GravixLayer:
 
     Example:
         >>> from gravixlayer import GravixLayer
-        >>> client = GravixLayer()  # defaults to cloud="aws", region="us-east-1"
+        >>> client = GravixLayer()  # defaults to cloud="gravix", region="us-central-1"
         >>> sandbox = client.runtime.create()  # defaults to template="base-small"
     """
 
@@ -91,8 +91,8 @@ class GravixLayer:
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
             raise ValueError("Base URL must start with http:// or https://")
 
-        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD", "aws")
-        self.region = region or os.environ.get("GRAVIXLAYER_REGION", "us-east-1")
+        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD", "gravix")
+        self.region = region or os.environ.get("GRAVIXLAYER_REGION", "us-central-1")
         self.timeout = timeout
         self.max_retries = max_retries
         self._retry_attempts = range(self.max_retries + 1)

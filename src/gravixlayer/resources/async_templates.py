@@ -117,9 +117,9 @@ class AsyncTemplates:
             builder: A TemplateBuilder instance or a raw dict matching
                      the BuildTemplateRequest schema.
             cloud: Cloud to build in. Defaults to the client's cloud
-                   (``aws``, or ``GRAVIXLAYER_CLOUD``).
+                   (``gravix``, or ``GRAVIXLAYER_CLOUD``).
             region: Region to build in. Defaults to the client's region
-                    (``us-east-1``, or ``GRAVIXLAYER_REGION``).
+                    (``us-central-1``, or ``GRAVIXLAYER_REGION``).
 
         Returns:
             TemplateBuildResponse with build_id for status polling.

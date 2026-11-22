@@ -73,8 +73,8 @@ class TestSyncClientInit:
 
     def test_cloud_region_defaults(self):
         client = GravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
-        assert client.cloud == "aws"
-        assert client.region == "us-east-1"
+        assert client.cloud == "gravix"
+        assert client.region == "us-central-1"
         client.close()
 
     def test_cloud_region_from_env(self, monkeypatch):
@@ -365,6 +365,13 @@ class TestAsyncClientInit:
         monkeypatch.setenv("GRAVIXLAYER_API_KEY", "env-key")
         c = AsyncGravixLayer(base_url=TEST_BASE_URL)
         assert c.api_key == "env-key"
+
+    def test_cloud_region_defaults(self, monkeypatch):
+        monkeypatch.delenv("GRAVIXLAYER_CLOUD", raising=False)
+        monkeypatch.delenv("GRAVIXLAYER_REGION", raising=False)
+        c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+        assert c.cloud == "gravix"
+        assert c.region == "us-central-1"
 
     def test_base_url_preserves_path(self):
         c = AsyncGravixLayer(api_key=TEST_API_KEY, base_url="https://api.example.com/v1/files")

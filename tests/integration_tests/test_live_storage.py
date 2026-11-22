@@ -17,7 +17,7 @@ Storage test config — either env vars or ~/.config/gravix-test/aws.env:
     PRIVATE_REPO             - private https git repo URL (optional)
     GIT_TOKEN                - HTTPS token for PRIVATE_REPO (optional)
     GRAVIXLAYER_TEMPLATE     - runtime template (default: base-small)
-    GRAVIXLAYER_REGION       - runtime region (default: us-east-1)
+    GRAVIXLAYER_REGION       - runtime region (default: us-central-1)
     GRAVIXLAYER_PROJECT_ID   - optional project scope
 
 Usage:
@@ -64,8 +64,8 @@ _load_env_file()
 
 API_KEY = os.environ.get("GRAVIXLAYER_API_KEY", "")
 BASE_URL = os.environ.get("GRAVIXLAYER_BASE_URL", "https://api.gravixlayer.ai")
-CLOUD = os.environ.get("GRAVIXLAYER_CLOUD", "aws")
-REGION = os.environ.get("GRAVIXLAYER_REGION", "us-east-1")
+CLOUD = os.environ.get("GRAVIXLAYER_CLOUD", "gravix")
+REGION = os.environ.get("GRAVIXLAYER_REGION", "us-central-1")
 TEMPLATE = os.environ.get("GRAVIXLAYER_TEMPLATE", "base-small")
 PROJECT_ID = os.environ.get("GRAVIXLAYER_PROJECT_ID") or None
 

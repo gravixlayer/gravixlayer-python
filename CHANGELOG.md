@@ -2,7 +2,14 @@
 
 ## [Unreleased]
 
+## [0.1.121] - 2026-11-22
+
 ### Changed
+- The default cloud and region are now `gravix` / `us-central-1` (were
+  `aws` / `us-east-1`) on `GravixLayer`, `AsyncGravixLayer` and
+  `Runtime.create`. Runtimes and template builds that name no placement, and
+  set no `GRAVIXLAYER_CLOUD` / `GRAVIXLAYER_REGION`, land there. Pass `cloud` /
+  `region` to keep another placement.
 - `examples/templates/dockerfiles/base-osworld.Dockerfile`: the Chrome for
   Testing install no longer ships a hardcoded stale version. An empty
   `CHROME_FOR_TESTING_VERSION` (the default) resolves the current Stable

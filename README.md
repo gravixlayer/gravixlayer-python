@@ -25,7 +25,7 @@ print(result.text)
 sandbox.kill()
 ```
 
-Cloud and region default to `aws` / `us-east-1`. Override with
+Cloud and region default to `gravix` / `us-central-1`. Override with
 `GRAVIXLAYER_CLOUD` / `GRAVIXLAYER_REGION`, or pass them to the client.
 
 **Docs:** [docs.gravixlayer.ai](https://docs.gravixlayer.ai) ·
@@ -39,8 +39,8 @@ from gravixlayer import GravixLayer
 client = GravixLayer(
     api_key="your-api-key",          # or GRAVIXLAYER_API_KEY
     base_url="https://api.gravixlayer.ai",
-    cloud="aws",
-    region="us-east-1",
+    cloud="gravix",
+    region="us-central-1",
 )
 ```
 
@@ -48,8 +48,8 @@ client = GravixLayer(
 | --- | --- | --- |
 | `api_key` | `GRAVIXLAYER_API_KEY` | Required. |
 | `base_url` | `GRAVIXLAYER_BASE_URL`, then `https://api.gravixlayer.ai` | |
-| `cloud` | `GRAVIXLAYER_CLOUD`, then `aws` | Runtimes and template builds. |
-| `region` | `GRAVIXLAYER_REGION`, then `us-east-1` | Runtimes and template builds. |
+| `cloud` | `GRAVIXLAYER_CLOUD`, then `gravix` | Runtimes and template builds. |
+| `region` | `GRAVIXLAYER_REGION`, then `us-central-1` | Runtimes and template builds. |
 | `timeout` | `60` | Per request, in seconds. |
 | `max_retries` | `3` | Transient failures only. |
 
@@ -126,7 +126,7 @@ print(ssh.connect_cmd)
 ## Templates
 
 Build an image once so runtimes start with everything already installed.
-Placement follows the client (`aws` / `us-east-1` unless you override it).
+Placement follows the client (`gravix` / `us-central-1` unless you override it).
 
 ```python
 from gravixlayer import TemplateBuilder

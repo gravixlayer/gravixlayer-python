@@ -52,7 +52,7 @@ class AsyncGravixLayer:
     serializing on one. Pass ``http2=False`` for a plain HTTP/1.1 pool.
 
     Example:
-        >>> async with AsyncGravixLayer() as client:  # defaults to cloud="aws", region="us-east-1"
+        >>> async with AsyncGravixLayer() as client:  # defaults to cloud="gravix", region="us-central-1"
         ...     sandbox = await client.runtime.create()  # defaults to template="base-small"
         ...     result = await client.runtime.run_code(sandbox.runtime_id, "print('hello')")
     """
@@ -78,8 +78,8 @@ class AsyncGravixLayer:
         if not (self.base_url.startswith("http://") or self.base_url.startswith("https://")):
             raise ValueError("Base URL must start with http:// or https://")
 
-        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD", "aws")
-        self.region = region or os.environ.get("GRAVIXLAYER_REGION", "us-east-1")
+        self.cloud = cloud or os.environ.get("GRAVIXLAYER_CLOUD", "gravix")
+        self.region = region or os.environ.get("GRAVIXLAYER_REGION", "us-central-1")
         self.timeout = timeout
         self.max_retries = max_retries
         self._retry_attempts = range(self.max_retries + 1)

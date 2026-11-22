@@ -2,7 +2,7 @@
 
 Set `GRAVIXLAYER_API_KEY`. Private Git: `GIT_AUTH_TOKEN` for [06_python_private_git.py](06_python_private_git.py).
 
-Builds use the client default placement (`aws` / `us-east-1`, or `GRAVIXLAYER_CLOUD` / `GRAVIXLAYER_REGION`). You do not need to pass cloud or region in each script.
+Builds use the client default placement (`gravix` / `us-central-1`, or `GRAVIXLAYER_CLOUD` / `GRAVIXLAYER_REGION`). You do not need to pass cloud or region in each script.
 
 | # | File | Notes |
 |---|------|--------|

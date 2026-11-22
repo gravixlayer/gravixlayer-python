@@ -435,6 +435,17 @@ class TestRuntimeInstanceMethods:
         )
         assert isinstance(result, Execution)
 
+    def test_create_builds_its_client_in_the_default_placement(self):
+        with patch("gravixlayer.client.GravixLayer") as client_cls:
+            client_cls.return_value.runtime.create.return_value = Runtime(
+                runtime_id="uuid-d", status="running", cloud="gravix", region="us-central-1"
+            )
+            rt = Runtime.create(api_key="k")
+        client_cls.assert_called_once_with(
+            api_key="k", base_url=None, cloud="gravix", region="us-central-1"
+        )
+        assert (rt.cloud, rt.region) == ("gravix", "us-central-1")
+
     def test_create_context_delegates(self):
         rt, mock_client = self._make_runtime_with_client()
         mock_client.runtime.create_context.return_value = CodeContext(

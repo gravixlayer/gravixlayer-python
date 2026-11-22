@@ -453,8 +453,8 @@ class TestSyncTemplatesResource:
         assert isinstance(resp, TemplateBuildResponse)
         assert resp.build_id == "build-001"
         body = json.loads(mock_api.calls.last.request.content)
-        assert body["cloud"] == "aws"
-        assert body["region"] == "us-east-1"
+        assert body["cloud"] == "gravix"
+        assert body["region"] == "us-central-1"
 
     def test_build_with_raw_dict(self, client, mock_api):
         mock_api.post(f"{TMPL_BASE}/build").mock(
@@ -463,8 +463,8 @@ class TestSyncTemplatesResource:
         resp = client.templates.build({"name": "test", "docker_image": "python:3.11"})
         assert resp.build_id == "build-001"
         body = json.loads(mock_api.calls.last.request.content)
-        assert body["cloud"] == "aws"
-        assert body["region"] == "us-east-1"
+        assert body["cloud"] == "gravix"
+        assert body["region"] == "us-central-1"
 
     def test_build_honours_explicit_placement(self, client, mock_api):
         mock_api.post(f"{TMPL_BASE}/build").mock(
@@ -723,8 +723,8 @@ class TestAsyncTemplatesResource:
             resp = await client.templates.build(TemplateBuilder("test").from_image("python:3.11"))
             assert resp.build_id == "build-001"
             body = json.loads(mock_api.calls.last.request.content)
-            assert body["cloud"] == "aws"
-            assert body["region"] == "us-east-1"
+            assert body["cloud"] == "gravix"
+            assert body["region"] == "us-central-1"
 
     @pytest.mark.asyncio
     async def test_get_build_status(self, mock_api):
