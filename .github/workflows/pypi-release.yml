@@ -37,7 +37,11 @@ jobs:
             echo "Release (no bump): ${BASH_REMATCH[1]}"
             echo "should_release=true" >> $GITHUB_OUTPUT
             echo "release_mode=publish_only" >> $GITHUB_OUTPUT
-            echo "release_notes=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+            {
+              echo "release_notes<<RELEASE_NOTES_EOF"
+              echo "${BASH_REMATCH[1]}"
+              echo "RELEASE_NOTES_EOF"
+            } >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -48,7 +52,11 @@ jobs:
             echo "should_release=true" >> $GITHUB_OUTPUT
             echo "release_mode=bump" >> $GITHUB_OUTPUT
             echo "release_type=$TYPE" >> $GITHUB_OUTPUT
-            echo "release_notes=$NOTES" >> $GITHUB_OUTPUT
+            {
+              echo "release_notes<<RELEASE_NOTES_EOF"
+              echo "$NOTES"
+              echo "RELEASE_NOTES_EOF"
+            } >> $GITHUB_OUTPUT
           else
             echo "Not a release commit — skipping"
             echo "should_release=false" >> $GITHUB_OUTPUT
