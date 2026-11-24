@@ -52,6 +52,11 @@ DEFAULT_WRITE_CONCURRENCY = 8
 #: binary upload endpoint with headroom.
 WRITE_JSON_MAX_BYTES = 1024 * 1024
 
+#: Largest file part the upload endpoints accept per request. A bigger
+#: payload is split into sequential appended requests — append order is
+#: the file's byte order, so chunks cannot run concurrently.
+UPLOAD_CHUNK_BYTES = 64 * 1024 * 1024
+
 
 def _utf8_nbytes(text: str) -> int:
     """Byte length of ``text`` as UTF-8 without copying ASCII payloads."""
@@ -334,26 +339,41 @@ class RuntimeFileResource:
     ) -> WriteResult:
         """Write raw content via multipart upload (``POST .../files``).
 
-        ``append=True`` extends the destination instead of replacing it.
+        ``append=True`` extends the destination instead of replacing it. A
+        payload larger than the per-request part cap is split into sequential
+        appended requests and still lands as one file.
         """
         _validate_runtime_id(runtime_id)
         content = self._coerce_to_bytes(data)
         filename = os.path.basename(path)
-        params: Dict[str, str] = {"path": path}
+        base: Dict[str, str] = {"path": path}
         if user:
-            params["username"] = user
+            base["username"] = user
         if mode is not None:
-            params["mode"] = _format_mode(mode)
-        if append:
-            params["append"] = "true"
-        endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
-        files = {"file": (filename, content, "application/octet-stream")}
+            base["mode"] = _format_mode(mode)
+        chunks = max(1, -(-len(content) // UPLOAD_CHUNK_BYTES))
+        written: Optional[WriteResult] = None
         with telemetry.runtime_span("file.upload", runtime_id) as span:
-            response = self._req("POST", endpoint, data=None, files=files)
-            written = _write_result_from_upload(response.json(), path, filename, len(content))
+            for index in range(chunks):
+                params = dict(base)
+                # The first chunk honors the caller's append flag; every
+                # later chunk must extend what the previous one wrote.
+                if index > 0 or append:
+                    params["append"] = "true"
+                endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
+                part = content[index * UPLOAD_CHUNK_BYTES : (index + 1) * UPLOAD_CHUNK_BYTES]
+                files = {"file": (filename, part, "application/octet-stream")}
+                response = self._req("POST", endpoint, data=None, files=files)
+                written = _write_result_from_upload(response.json(), path, filename, len(content))
             if span is not None:
                 telemetry.record_outputs(
-                    span, {"path": written.path, "size": written.size, "name": written.name}
+                    span,
+                    {
+                        "path": written.path,
+                        "size": written.size,
+                        "name": written.name,
+                        "chunks": chunks,
+                    },
                 )
             return written
 
@@ -783,17 +803,39 @@ class RuntimeFileResource:
             return replaced
 
     def upload_file(self, runtime_id: str, file: BinaryIO, path: Optional[str] = None) -> FileUploadResponse:
+        """Upload a file object through the legacy ``POST .../upload`` endpoint.
+
+        Reads are streamed in part-sized pieces; a file larger than the
+        per-request cap lands as one file through sequential appended
+        requests, so the whole payload never needs to sit in memory.
+        """
         _validate_runtime_id(runtime_id)
-        data = {}
-        if path:
-            data["path"] = path
-        files = {"file": file}
+        source_name = getattr(file, "name", None)
+        filename = os.path.basename(source_name) if source_name else "upload"
+        uploaded: Optional[FileUploadResponse] = None
         with telemetry.runtime_span("file.upload_file", runtime_id) as span:
-            response = self._req("POST", f"runtime/{runtime_id}/upload", data=data, files=files)
-            result = response.json()
-            uploaded = FileUploadResponse(**result)
+            index = 0
+            while True:
+                part = file.read(UPLOAD_CHUNK_BYTES)
+                if not part and index > 0:
+                    break
+                data = {}
+                if path:
+                    data["path"] = path
+                # Every chunk after the first extends what the previous one
+                # wrote; each names the same destination so the server
+                # resolves the same file.
+                endpoint = f"runtime/{runtime_id}/upload"
+                if index > 0:
+                    endpoint += "?append=true"
+                files = {"file": (filename, part)}
+                response = self._req("POST", endpoint, data=data, files=files)
+                uploaded = FileUploadResponse(**response.json())
+                index += 1
             if span is not None:
-                telemetry.record_outputs(span, {"path": path or getattr(uploaded, "path", None)})
+                telemetry.record_outputs(
+                    span, {"path": path or getattr(uploaded, "path", None), "chunks": index}
+                )
             return uploaded
 
     def download_file(
@@ -938,21 +980,34 @@ class AsyncRuntimeFileResource:
         _validate_runtime_id(runtime_id)
         content = self._coerce_to_bytes(data)
         filename = os.path.basename(path)
-        params: Dict[str, str] = {"path": path}
+        base: Dict[str, str] = {"path": path}
         if user:
-            params["username"] = user
+            base["username"] = user
         if mode is not None:
-            params["mode"] = _format_mode(mode)
-        if append:
-            params["append"] = "true"
-        endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
-        files = {"file": (filename, content, "application/octet-stream")}
+            base["mode"] = _format_mode(mode)
+        chunks = max(1, -(-len(content) // UPLOAD_CHUNK_BYTES))
+        written: Optional[WriteResult] = None
         with telemetry.runtime_span("file.upload", runtime_id) as span:
-            response = await self._req("POST", endpoint, data=None, files=files)
-            written = _write_result_from_upload(response.json(), path, filename, len(content))
+            for index in range(chunks):
+                params = dict(base)
+                # The first chunk honors the caller's append flag; every
+                # later chunk must extend what the previous one wrote.
+                if index > 0 or append:
+                    params["append"] = "true"
+                endpoint = f"runtime/{runtime_id}/files?{urlencode(params)}"
+                part = content[index * UPLOAD_CHUNK_BYTES : (index + 1) * UPLOAD_CHUNK_BYTES]
+                files = {"file": (filename, part, "application/octet-stream")}
+                response = await self._req("POST", endpoint, data=None, files=files)
+                written = _write_result_from_upload(response.json(), path, filename, len(content))
             if span is not None:
                 telemetry.record_outputs(
-                    span, {"path": written.path, "size": written.size, "name": written.name}
+                    span,
+                    {
+                        "path": written.path,
+                        "size": written.size,
+                        "name": written.name,
+                        "chunks": chunks,
+                    },
                 )
             return written
 
@@ -1268,17 +1323,39 @@ class AsyncRuntimeFileResource:
             return replaced
 
     async def upload_file(self, runtime_id: str, file: BinaryIO, path: Optional[str] = None) -> FileUploadResponse:
+        """Upload a file object through the legacy ``POST .../upload`` endpoint.
+
+        Reads are streamed in part-sized pieces; a file larger than the
+        per-request cap lands as one file through sequential appended
+        requests, so the whole payload never needs to sit in memory.
+        """
         _validate_runtime_id(runtime_id)
-        data = {}
-        if path:
-            data["path"] = path
-        files = {"file": file}
+        source_name = getattr(file, "name", None)
+        filename = os.path.basename(source_name) if source_name else "upload"
+        uploaded: Optional[FileUploadResponse] = None
         with telemetry.runtime_span("file.upload_file", runtime_id) as span:
-            response = await self._req("POST", f"runtime/{runtime_id}/upload", data=data, files=files)
-            result = response.json()
-            uploaded = FileUploadResponse(**result)
+            index = 0
+            while True:
+                part = file.read(UPLOAD_CHUNK_BYTES)
+                if not part and index > 0:
+                    break
+                data = {}
+                if path:
+                    data["path"] = path
+                # Every chunk after the first extends what the previous one
+                # wrote; each names the same destination so the server
+                # resolves the same file.
+                endpoint = f"runtime/{runtime_id}/upload"
+                if index > 0:
+                    endpoint += "?append=true"
+                files = {"file": (filename, part)}
+                response = await self._req("POST", endpoint, data=data, files=files)
+                uploaded = FileUploadResponse(**response.json())
+                index += 1
             if span is not None:
-                telemetry.record_outputs(span, {"path": path or getattr(uploaded, "path", None)})
+                telemetry.record_outputs(
+                    span, {"path": path or getattr(uploaded, "path", None), "chunks": index}
+                )
             return uploaded
 
     async def download_file(
