@@ -25,20 +25,20 @@ class TestNormalizeRuntimeApiPayload:
         data = {
             "id": "u1",
             "status": "running",
-            "compute_provider": "aws",
-            "compute_region": "us-west-2",
+            "compute_provider": "gravix",
+            "compute_region": "us-central-1",
             "tags": {"k": "v"},
         }
         normalize_runtime_api_payload(data)
-        assert data["cloud"] == "aws"
-        assert data["region"] == "us-west-2"
+        assert data["cloud"] == "gravix"
+        assert data["region"] == "us-central-1"
         assert data["metadata"] == {"k": "v"}
 
     def test_no_op_when_already_sdk_shaped(self):
         data = {
             "runtime_id": "u1",
-            "cloud": "aws",
-            "region": "us-east-1",
+            "cloud": "gravix",
+            "region": "us-central-1",
             "metadata": {},
         }
         normalize_runtime_api_payload(data)
@@ -57,9 +57,9 @@ class TestBuildListEndpoint:
             "x",
             limit=2,
             offset=0,
-            extra_params={"cloud": "aws", "skip": None},
+            extra_params={"cloud": "gravix", "skip": None},
         )
-        assert "cloud=aws" in ep
+        assert "cloud=gravix" in ep
         assert "skip" not in ep
 
     def test_none_limit_offset_omitted(self):

@@ -22,7 +22,7 @@ BUCKET = {
     "id": "bkt-1",
     "name": "datasets",
     "provider": "s3",
-    "region": "us-east-1",
+    "region": "us-central-1",
     "bucket": "glx-a1b2-datasets",
     "status": "active",
     "error": "",
@@ -69,12 +69,12 @@ MOUNTS_URL = f"{AGENTS_BASE}/runtime/{RUNTIME_ID}/mounts"
 class TestBuckets:
     def test_create(self, client, mock_api):
         mock_api.post(BUCKETS_URL).mock(return_value=httpx.Response(201, json={"bucket": BUCKET}))
-        bucket = client.storage.buckets.create("datasets", region="us-east-1")
+        bucket = client.storage.buckets.create("datasets", region="us-central-1")
         assert isinstance(bucket, StorageBucket)
         assert bucket.id == "bkt-1"
         assert bucket.bucket == "glx-a1b2-datasets"
         body = json.loads(mock_api.calls[-1].request.content)
-        assert body == {"name": "datasets", "region": "us-east-1"}
+        assert body == {"name": "datasets", "region": "us-central-1"}
 
     def test_create_scoped_to_project(self, client, mock_api):
         mock_api.post(BUCKETS_URL).mock(return_value=httpx.Response(201, json={"bucket": BUCKET}))
@@ -310,7 +310,7 @@ class TestAsyncStorage:
         mock_api.get(f"{BUCKETS_URL}/bkt-1").mock(return_value=httpx.Response(200, json={"bucket": BUCKET}))
         mock_api.delete(f"{BUCKETS_URL}/bkt-1").mock(return_value=httpx.Response(200, json={"deleted": True}))
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as c:
-            bucket = await c.storage.buckets.create("datasets", region="us-east-1")
+            bucket = await c.storage.buckets.create("datasets", region="us-central-1")
             assert bucket.id == "bkt-1"
             assert (await c.storage.buckets.list()).total == 1
             assert (await c.storage.buckets.get("bkt-1")).status == "active"
