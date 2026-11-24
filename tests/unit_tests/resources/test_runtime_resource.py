@@ -111,16 +111,16 @@ class TestSyncRuntimeLifecycle:
                     "id": VALID_UUID,
                     "status": "running",
                     "template_id": "tmpl-001",
-                    "compute_provider": "aws",
-                    "compute_region": "us-east-1",
+                    "compute_provider": "gravix",
+                    "compute_region": "us-central-1",
                     "tags": {"team": "preview"},
                 },
             )
         )
         rt = client.runtime.create(template="base-small")
         assert rt.runtime_id == VALID_UUID
-        assert rt.cloud == "aws"
-        assert rt.region == "us-east-1"
+        assert rt.cloud == "gravix"
+        assert rt.region == "us-central-1"
         assert rt.metadata == {"team": "preview"}
 
     def test_create_with_all_params(self, client, mock_api):
@@ -128,7 +128,7 @@ class TestSyncRuntimeLifecycle:
             return_value=httpx.Response(200, json=make_runtime_response())
         )
         rt = client.runtime.create(
-            cloud="aws",
+            cloud="gravix",
             region="us-west-2",
             template="node-v1",
             timeout=600,
@@ -144,7 +144,7 @@ class TestSyncRuntimeLifecycle:
         request = mock_api.calls[-1].request
         import json
         body = json.loads(request.content)
-        assert body["cloud"] == "aws"
+        assert body["cloud"] == "gravix"
         assert body["region"] == "us-west-2"
         assert body["template"] == "node-v1"
         assert body["timeout"] == 600
@@ -529,6 +529,59 @@ class TestSyncRuntimeFiles:
         )
         client.runtime.file.upload(VALID_UUID, "/tmp/f.bin", b"data", append=True)
         assert mock_api.calls.last.request.url.params.get("append") == "true"
+
+    def test_upload_over_part_cap_splits_into_appended_requests(self, client, mock_api):
+        route = mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(200, json={"files": [{"path": "/tmp/big.bin"}]})
+        )
+        chunk = 64 * 1024 * 1024
+        result = client.runtime.file.upload(VALID_UUID, "/tmp/big.bin", b"x" * (chunk + 8))
+        assert len(route.calls) == 2
+        first, second = route.calls
+        assert first.request.url.params.get("append") is None
+        assert second.request.url.params.get("append") == "true"
+        assert _uploaded_path(first.request) == "/tmp/big.bin"
+        assert _uploaded_path(second.request) == "/tmp/big.bin"
+        assert len(first.request.content) > chunk  # full 64 MiB part plus envelope
+        assert len(second.request.content) < chunk
+        assert result.size == chunk + 8
+
+    def test_upload_exactly_part_cap_stays_single(self, client, mock_api):
+        route = mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(200, json={"files": [{"path": "/tmp/e.bin"}]})
+        )
+        client.runtime.file.upload(VALID_UUID, "/tmp/e.bin", b"x" * (64 * 1024 * 1024))
+        assert len(route.calls) == 1
+
+    def test_upload_split_honors_caller_append_on_first_part(self, client, mock_api):
+        route = mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(200, json={"files": [{"path": "/tmp/big.bin"}]})
+        )
+        client.runtime.file.upload(
+            VALID_UUID, "/tmp/big.bin", b"x" * (64 * 1024 * 1024 + 1), append=True
+        )
+        assert [c.request.url.params.get("append") for c in route.calls] == ["true", "true"]
+
+    def test_upload_file_splits_into_appended_requests(self, client, mock_api):
+        route = mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/upload").mock(
+            return_value=httpx.Response(
+                200, json={"message": "ok", "path": "/tmp/big.bin", "size": 1}
+            )
+        )
+        client.runtime.file.upload_file(
+            VALID_UUID, file=io.BytesIO(b"x" * (64 * 1024 * 1024 + 1)), path="/tmp/big.bin"
+        )
+        assert len(route.calls) == 2
+        first, second = route.calls
+        assert first.request.url.params.get("append") is None
+        assert second.request.url.params.get("append") == "true"
+
+    def test_upload_file_empty_still_posts_once(self, client, mock_api):
+        route = mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/upload").mock(
+            return_value=httpx.Response(200, json={"message": "ok", "path": "/tmp/e.bin"})
+        )
+        client.runtime.file.upload_file(VALID_UUID, file=io.BytesIO(b""), path="/tmp/e.bin")
+        assert len(route.calls) == 1
 
     def test_download_file_range(self, client, mock_api):
         mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/download").mock(
@@ -1941,6 +1994,38 @@ class TestAsyncRuntimeWrite:
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             result = await client.runtime.file.upload(VALID_UUID, "/tmp/f.py", "code")
             assert result.path == "/tmp/f.py"
+
+    @pytest.mark.asyncio
+    async def test_upload_over_part_cap_splits_into_appended_requests(self, mock_api):
+        route = mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/files\?").mock(
+            return_value=httpx.Response(200, json={"files": [{"path": "/tmp/big.bin"}]})
+        )
+        chunk = 64 * 1024 * 1024
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            result = await client.runtime.file.upload(
+                VALID_UUID, "/tmp/big.bin", b"x" * (chunk + 8)
+            )
+        assert len(route.calls) == 2
+        first, second = route.calls
+        assert first.request.url.params.get("append") is None
+        assert second.request.url.params.get("append") == "true"
+        assert result.size == chunk + 8
+
+    @pytest.mark.asyncio
+    async def test_upload_file_splits_into_appended_requests(self, mock_api):
+        route = mock_api.post(url__regex=rf"{SB}/{VALID_UUID}/upload").mock(
+            return_value=httpx.Response(
+                200, json={"message": "ok", "path": "/tmp/big.bin", "size": 1}
+            )
+        )
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            await client.runtime.file.upload_file(
+                VALID_UUID, file=io.BytesIO(b"x" * (64 * 1024 * 1024 + 1)), path="/tmp/big.bin"
+            )
+        assert len(route.calls) == 2
+        first, second = route.calls
+        assert first.request.url.params.get("append") is None
+        assert second.request.url.params.get("append") == "true"
 
     @pytest.mark.asyncio
     async def test_upload_object_files_shape(self, mock_api):

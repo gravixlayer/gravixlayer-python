@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+- `Templates.build` docstring example now shows the `gravix` /
+  `us-central-1` placement default.
+- `runtime.file.upload` and `runtime.file.upload_file` (sync and async) now
+  split payloads larger than the per-request upload cap into sequential
+  appended requests, so files above the cap land complete instead of being
+  rejected. `file.write`/`file.write_many` inherit the fix through
+  `upload`. `upload_file` also streams its reads, so the whole file no
+  longer needs to fit in memory.
+
 ## [0.1.121] - 2026-11-22
 
 ### Changed
