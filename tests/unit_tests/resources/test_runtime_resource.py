@@ -655,6 +655,42 @@ class TestSyncRuntimeFiles:
         result = client.runtime.file.download_file(VALID_UUID, "/tmp/f.bin")
         assert result == b"file bytes"
 
+    def test_download_file_pages_past_response_cap(self, client, mock_api):
+        chunk = 64 * 1024 * 1024
+        data = b"\x01" * (chunk + 8)
+
+        def serve(request):
+            params = request.url.params
+            off = int(params.get("offset", "0"))
+            length = params.get("length")
+            end = len(data) if length is None else min(len(data), off + int(length))
+            return httpx.Response(200, content=data[off:end])
+
+        route = mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/download").mock(side_effect=serve)
+        result = client.runtime.file.download_file(VALID_UUID, "/tmp/big.bin")
+
+        assert len(route.calls) == 2
+        assert route.calls[0].request.url.params.get("length") == str(chunk)
+        assert route.calls[1].request.url.params.get("offset") == str(chunk)
+        assert result == data
+
+    def test_download_file_offset_pages_to_eof(self, client, mock_api):
+        data = bytes(range(16))
+
+        def serve(request):
+            params = request.url.params
+            off = int(params.get("offset", "0"))
+            length = params.get("length")
+            end = len(data) if length is None else min(len(data), off + int(length))
+            return httpx.Response(200, content=data[off:end])
+
+        route = mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/download").mock(side_effect=serve)
+        result = client.runtime.file.download_file(VALID_UUID, "/tmp/f.bin", offset=5)
+
+        assert len(route.calls) == 1
+        assert route.calls[0].request.url.params.get("offset") == "5"
+        assert result == data[5:]
+
     def test_path_validation_empty(self, client, mock_api):
         with pytest.raises(ValueError, match="must not be empty"):
             client.runtime.file.read(VALID_UUID, "")
@@ -1587,6 +1623,26 @@ class TestAsyncRuntimeFiles:
         async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
             result = await client.runtime.file.write(VALID_UUID, "/tmp/f.txt", "data")
             assert result.message == "Written"
+
+    @pytest.mark.asyncio
+    async def test_download_file_pages_past_response_cap(self, mock_api):
+        chunk = 64 * 1024 * 1024
+        data = b"\x01" * (chunk + 8)
+
+        def serve(request):
+            params = request.url.params
+            off = int(params.get("offset", "0"))
+            length = params.get("length")
+            end = len(data) if length is None else min(len(data), off + int(length))
+            return httpx.Response(200, content=data[off:end])
+
+        route = mock_api.get(url__regex=rf"{SB}/{VALID_UUID}/download").mock(side_effect=serve)
+        async with AsyncGravixLayer(api_key=TEST_API_KEY, base_url=TEST_BASE_URL) as client:
+            result = await client.runtime.file.download_file(VALID_UUID, "/tmp/big.bin")
+
+        assert len(route.calls) == 2
+        assert route.calls[1].request.url.params.get("offset") == str(chunk)
+        assert result == data
 
     @pytest.mark.asyncio
     async def test_run_code(self, mock_api):

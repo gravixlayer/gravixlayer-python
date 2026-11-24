@@ -57,6 +57,12 @@ WRITE_JSON_MAX_BYTES = 1024 * 1024
 #: the file's byte order, so chunks cannot run concurrently.
 UPLOAD_CHUNK_BYTES = 64 * 1024 * 1024
 
+#: Largest file body a single read/download request returns; the guest
+#: rejects a wider range. A whole-file download pages fixed-size reads and
+#: joins them, so downloads of any size succeed. Explicit ``offset``/
+#: ``length`` callers own the range and are served by one request.
+DOWNLOAD_CHUNK_BYTES = 64 * 1024 * 1024
+
 
 def _utf8_nbytes(text: str) -> int:
     """Byte length of ``text`` as UTF-8 without copying ASCII payloads."""
@@ -845,18 +851,38 @@ class RuntimeFileResource:
         offset: Optional[int] = None,
         length: Optional[int] = None,
     ) -> bytes:
-        """Download a file's raw bytes; ``offset``/``length`` page a range."""
+        """Download a file's raw bytes.
+
+        ``offset``/``length`` page a byte range. With no ``length`` (or
+        ``0``), the download pages fixed-size reads and joins them — whole
+        files of any size come back in one call. A short or empty read ends
+        the sequence.
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        params: Dict[str, Any] = {"path": path}
-        if offset is not None:
-            params["offset"] = offset
-        if length is not None:
-            params["length"] = length
-        endpoint = f"runtime/{runtime_id}/download?{urlencode(params)}"
+
+        def _get(off: int, span_length: Optional[int]) -> bytes:
+            params: Dict[str, Any] = {"path": path}
+            if off:
+                params["offset"] = off
+            if span_length is not None:
+                params["length"] = span_length
+            endpoint = f"runtime/{runtime_id}/download?{urlencode(params)}"
+            return self._req("GET", endpoint).content
+
         with telemetry.runtime_span("file.download", runtime_id) as span:
-            response = self._req("GET", endpoint)
-            content = response.content
+            if length is not None and length > 0:
+                content = _get(offset or 0, length)
+            else:
+                parts: List[bytes] = []
+                at = offset or 0
+                while True:
+                    part = _get(at, DOWNLOAD_CHUNK_BYTES)
+                    parts.append(part)
+                    at += len(part)
+                    if len(part) < DOWNLOAD_CHUNK_BYTES:
+                        break
+                content = parts[0] if len(parts) == 1 else b"".join(parts)
             if span is not None:
                 telemetry.record_outputs(span, {"path": path, "size": len(content)})
             return content
@@ -1365,18 +1391,38 @@ class AsyncRuntimeFileResource:
         offset: Optional[int] = None,
         length: Optional[int] = None,
     ) -> bytes:
-        """Download a file's raw bytes; ``offset``/``length`` page a range."""
+        """Download a file's raw bytes.
+
+        ``offset``/``length`` page a byte range. With no ``length`` (or
+        ``0``), the download pages fixed-size reads and joins them — whole
+        files of any size come back in one call. A short or empty read ends
+        the sequence.
+        """
         _validate_runtime_id(runtime_id)
         _validate_path(path)
-        params: Dict[str, Any] = {"path": path}
-        if offset is not None:
-            params["offset"] = offset
-        if length is not None:
-            params["length"] = length
-        endpoint = f"runtime/{runtime_id}/download?{urlencode(params)}"
+
+        async def _get(off: int, span_length: Optional[int]) -> bytes:
+            params: Dict[str, Any] = {"path": path}
+            if off:
+                params["offset"] = off
+            if span_length is not None:
+                params["length"] = span_length
+            endpoint = f"runtime/{runtime_id}/download?{urlencode(params)}"
+            return (await self._req("GET", endpoint)).content
+
         with telemetry.runtime_span("file.download", runtime_id) as span:
-            response = await self._req("GET", endpoint)
-            content = response.content
+            if length is not None and length > 0:
+                content = await _get(offset or 0, length)
+            else:
+                parts: List[bytes] = []
+                at = offset or 0
+                while True:
+                    part = await _get(at, DOWNLOAD_CHUNK_BYTES)
+                    parts.append(part)
+                    at += len(part)
+                    if len(part) < DOWNLOAD_CHUNK_BYTES:
+                        break
+                content = parts[0] if len(parts) == 1 else b"".join(parts)
             if span is not None:
                 telemetry.record_outputs(span, {"path": path, "size": len(content)})
             return content

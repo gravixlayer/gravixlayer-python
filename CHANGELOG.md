@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Fixed
+- `runtime.file.download_file` (sync and async) no longer fails on files
+  larger than the per-request response cap. A call with no `length` (or
+  `0`) now pages fixed-size range requests and joins them, so whole files
+  of any size come back in one call. An explicit `offset`/`length` keeps
+  its single-request semantics.
 - `Templates.build` docstring example now shows the `gravix` /
   `us-central-1` placement default.
 - `runtime.file.upload` and `runtime.file.upload_file` (sync and async) now
